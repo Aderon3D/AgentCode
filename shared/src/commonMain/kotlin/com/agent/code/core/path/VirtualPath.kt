@@ -1,6 +1,7 @@
 package com.agent.code.core.path
 
 @JvmInline
+@kotlinx.serialization.Serializable
 value class VirtualPath private constructor(val rawPath: String) {
     val isAbsolute: Boolean get() = rawPath.startsWith("/") || WINDOWS_DRIVE_REGEX.matches(rawPath)
     val fileName: String get() = rawPath.substringAfterLast('/').substringAfterLast('\\')

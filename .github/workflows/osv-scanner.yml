@@ -1,5 +1,7 @@
 # OSV Scanner — vulnerability scanning of dependencies on every PR.
-# Complements the dependency-review bot with the full OSV.dev advisory database.
+# Uses the official osv-scanner reusable workflow, which produces and uploads
+# the SARIF result itself (the standalone `osv-scanner-action` Docker action is
+# not intended for direct use and does not emit the SARIF file reliably).
 name: "OSV Scanner"
 
 on:
@@ -17,24 +19,16 @@ permissions:
 jobs:
   osv-scan:
     name: OSV dependency scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run OSV Scanner
-        uses: google/osv-scanner-action@v2
-        with:
-          scan-args: |-
-            --format=sarif
-            --output=osv.sarif
-            --recursive
-            ./
-        continue-on-error: true
-
-      - name: Upload SARIF to code scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: osv.sarif
-          category: "osv-scanner"
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@880d9b542cc66d36d91d51b3fbcc038f5f28cfc5
+    with:
+      scan-args: |-
+        --include-git-root
+        -r
+        ./
+      # Report findings to Security > Code Scanning without blocking the PR on
+      # pre-existing vulnerabilities in the skeleton's Gradle/AGP toolchain.
+      fail-on-vuln: false

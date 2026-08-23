@@ -7,6 +7,7 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    rebase-strategy: "auto"
     labels:
       - "dependencies"
       - "automated"
@@ -15,6 +16,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    rebase-strategy: "auto"
     labels:
       - "github-actions"
       - "automated"

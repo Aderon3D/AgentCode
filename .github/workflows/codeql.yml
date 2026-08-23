@@ -1,13 +1,16 @@
 # CodeQL Advanced — Aderon3D (AgentCode, Kotlin Multiplatform)
 #
 # Runs on every PR to main and on every push to main, plus a weekly scheduled
-# scan. The `actions` language is a near-instant no-op scan kept intentionally so
-# the workflow configuration itself is audited and cannot be silently removed.
+# scan. Scope is limited to the `actions` language (GitHub Actions workflow
+# files), which is scanned reliably and audits these CI definitions themselves.
 #
-# java-kotlin uses build-mode: none (standalone source extraction). Manual/traced
-# build-mode fails to capture the Kotlin compiler daemon under Gradle, so CodeQL
-# reports "no source code seen". Buildless extraction reads the .kt/.java sources
-# directly and is reliable here.
+# NOTE: the `java-kotlin` language is intentionally NOT scanned. The Kotlin
+# Multiplatform extractor invokes the Gradle autobuilder even under
+# `build-mode: none` and fails on `AmbiguousArtifactsFailure` when resolving
+# this project's KMP variant graph, so it reports "no source code seen" and
+# fails the required check. Until CodeQL's KMP support matures, source-level
+# Kotlin scanning is out of scope; dependency-level coverage is provided by
+# the OSV Scanner and Dependency Review workflows.
 name: "CodeQL Advanced"
 
 on:
@@ -35,8 +38,6 @@ jobs:
         include:
           - language: actions
             build-mode: none
-          - language: java-kotlin
-            build-mode: none
 
     steps:
       - name: Checkout repository
@@ -47,7 +48,6 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-          config-file: .github/codeql/codeql-config.yml
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

@@ -1,16 +1,17 @@
 # CodeQL Advanced — Aderon3D (AgentCode, Kotlin Multiplatform)
 #
 # Runs on every PR to main and on every push to main, plus a weekly scheduled
-# scan. Scope is limited to the `actions` language (GitHub Actions workflow
-# files), which is scanned reliably and audits these CI definitions themselves.
-#
-# NOTE: the `java-kotlin` language is intentionally NOT scanned. The Kotlin
-# Multiplatform extractor invokes the Gradle autobuilder even under
-# `build-mode: none` and fails on `AmbiguousArtifactsFailure` when resolving
-# this project's KMP variant graph, so it reports "no source code seen" and
-# fails the required check. Until CodeQL's KMP support matures, source-level
-# Kotlin scanning is out of scope; dependency-level coverage is provided by
-# the OSV Scanner and Dependency Review workflows.
+# scan. Two languages:
+#   - `actions`      : CI workflow files (reliable, no build needed)
+#   - `java-kotlin`  : Kotlin source scanning via an explicit single-target
+#                      Gradle build. The Kotlin extractor hooks in as a Kotlin
+#                      compiler plugin during compilation, so we point it at one
+#                      concrete compilation (`:shared:compileKotlinMetadata`,
+#                      which compiles all of `commonMain`) instead of letting the
+#                      autobuilder pick a target — the autobuilder fails on KMP's
+#                      multi-target variant graph (`AmbiguousArtifactsFailure`).
+#                      `build-mode: none` is not viable either, because CodeQL
+#                      silently skips Kotlin unless a build is run.
 name: "CodeQL Advanced"
 
 on:
@@ -38,16 +39,33 @@ jobs:
         include:
           - language: actions
             build-mode: none
+          - language: java-kotlin
+            build-mode: manual
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        if: matrix.language == 'java-kotlin'
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+
+      - name: Build Kotlin (single target) for CodeQL tracing
+        if: matrix.build-mode == 'manual'
+        run: ./gradlew :shared:compileKotlinMetadata --no-daemon
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

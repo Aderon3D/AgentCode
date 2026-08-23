@@ -8,6 +8,8 @@ import com.agent.code.core.path.VirtualPath
 import com.agent.code.mcp.McpHost
 import com.agent.code.workspace.GitProcessRunner
 import com.agent.code.workspace.RealFileSystem
+import com.agent.code.workspace.WorktreeManager
+import java.io.File as JFile
 import kotlin.io.path.createTempDirectory
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -24,9 +26,9 @@ class M1RealIoTest {
         val path = VirtualPath.of("${dir.absolutePath}/sub/note.txt")
 
         assertFalse(fs.exists(path))
-        fs.write(path, "hello bedrock")
+        assertTrue(fs.write(path, "hello bedrock").isSuccess)
         assertTrue(fs.exists(path))
-        assertEquals("hello bedrock", fs.read(path))
+        assertEquals("hello bedrock", fs.read(path).getOrThrow())
     }
 
     @Test
@@ -34,14 +36,14 @@ class M1RealIoTest {
         val dir = createTempDirectory("m1-git").toFile()
         val runner = GitProcessRunner()
 
-        runner.run(listOf("git", "init", "-q", dir.absolutePath))
-        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.email", "m1@agent.code"))
-        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.name", "M1"))
+        runner.run(listOf("git", "init", "-q", dir.absolutePath)).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.email", "m1@agent.code")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.name", "M1")).getOrThrow()
         dir.resolve("f.txt").writeText("x")
-        runner.run(listOf("git", "-C", dir.absolutePath, "add", "f.txt"))
-        runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed"))
+        runner.run(listOf("git", "-C", dir.absolutePath, "add", "f.txt")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed")).getOrThrow()
 
-        val log = runner.run(listOf("git", "-C", dir.absolutePath, "log", "--oneline"))
+        val log = runner.run(listOf("git", "-C", dir.absolutePath, "log", "--oneline")).getOrThrow()
         assertTrue(log.contains("seed"), "expected commit in log, got: $log")
     }
 
@@ -54,7 +56,6 @@ class M1RealIoTest {
         journal1.append(AgentEvent.TaskStarted(1, taskId, 0, "do thing"))
         journal1.append(AgentEvent.TaskSucceeded(2, taskId, 1, "done"))
 
-        // simulate process restart: fresh store over the same file
         val journal2 = AgentEventJournal(FileBackedWalStore(file))
         val recovered = journal2.recoverState(taskId)
 
@@ -67,7 +68,6 @@ class M1RealIoTest {
         val file = createTempDirectory("m1-wal-corrupt").resolve("wal.log").toFile()
         file.writeText("not valid json\n")
         val journal = AgentEventJournal(FileBackedWalStore(file))
-        // must not throw; no valid events -> Idle
         assertEquals(com.agent.code.core.fsm.AgentState.Idle, journal.recoverState("T9"))
     }
 
@@ -75,23 +75,49 @@ class M1RealIoTest {
     fun mcpHostEditsRealRepoThroughRealBackends() = runBlocking {
         val dir = createTempDirectory("m1-mcp").toFile()
         val runner = GitProcessRunner()
-        runner.run(listOf("git", "init", "-q", dir.absolutePath))
-        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.email", "m1@agent.code"))
-        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.name", "M1"))
+        runner.run(listOf("git", "init", "-q", dir.absolutePath)).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.email", "m1@agent.code")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.name", "M1")).getOrThrow()
 
         val fs = RealFileSystem()
         val target = VirtualPath.of("${dir.absolutePath}/hello.txt")
-        fs.write(target, "hello world")
-        runner.run(listOf("git", "-C", dir.absolutePath, "add", "hello.txt"))
-        runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed"))
+        fs.write(target, "hello world").getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "add", "hello.txt")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed")).getOrThrow()
 
         val host = McpHost(fs, runner)
         val patch = """{"path":"${dir.absolutePath}/hello.txt","search":"world","replace":"bedrock"}"""
         val res = host.dispatch(ToolCall("1", "apply_diff_patch", patch))
         assertTrue(res.isSuccess, res.output)
 
-        assertEquals("hello bedrock", fs.read(target))
-        val status = runner.run(listOf("git", "-C", dir.absolutePath, "status", "--porcelain"))
+        assertEquals("hello bedrock", fs.read(target).getOrThrow())
+        val status = runner.run(listOf("git", "-C", dir.absolutePath, "status", "--porcelain")).getOrThrow()
         assertTrue(status.contains("hello.txt"), "git should see modified file: $status")
+    }
+
+    @Test
+    fun worktreeManagerSquashMergesTaskBranch() = runBlocking {
+        val dir = createTempDirectory("m1-wt").toFile()
+        val runner = GitProcessRunner()
+        val root = VirtualPath.of(dir.absolutePath)
+        runner.run(listOf("git", "init", "-q", dir.absolutePath)).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.email", "m1@agent.code")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.name", "M1")).getOrThrow()
+        dir.resolve("base.txt").writeText("base")
+        runner.run(listOf("git", "-C", dir.absolutePath, "add", "base.txt")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "branch", "main")).getOrThrow()
+
+        val wm = WorktreeManager(root, runner)
+        val wt = wm.createSparseWorktree("T1", emptyList()).getOrThrow()
+        JFile(wt.rawPath, "feature.txt").writeText("feature work")
+        runner.run(listOf("git", "-C", wt.rawPath, "add", "feature.txt")).getOrThrow()
+        runner.run(listOf("git", "-C", wt.rawPath, "commit", "-q", "-m", "add feature")).getOrThrow()
+
+        wm.finalizeAndSquashBranch("T1").getOrThrow()
+
+        assertTrue(JFile(dir, "feature.txt").exists(), "squash-merged feature should land on main")
+        val branches = runner.run(listOf("git", "-C", root.rawPath, "branch")).getOrThrow()
+        assertFalse(branches.contains("agent/task-T1"), "task branch should be removed")
     }
 }

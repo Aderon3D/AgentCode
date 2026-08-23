@@ -15,7 +15,7 @@ kotlin = "2.3.21"
 kotlin-wrappers = "2026.5.3"
 kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.8.1"
-kotlinx-datetime = "0.6.2"
+kotlinx-datetime = "0.8.0"
 material3 = "1.11.0-alpha07"
 
 [libraries]

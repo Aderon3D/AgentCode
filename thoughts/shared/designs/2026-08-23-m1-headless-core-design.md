@@ -119,9 +119,4 @@ than a list.
 3. libgit2 NDK vs `git` CLI? → **Start with `git` CLI** (zero native); add NDK
    only if CLI proves too slow or limited.
 
-## Caveat for downstream agents
 
-`codebase-locator` and `codebase-analyzer` subagents are **broken in this
-runtime** (they error even on a trivial prompt). Planner/executor must use the
-`general` or `explore` subagent types, or direct read/grep/glob tools — not
-those two types.

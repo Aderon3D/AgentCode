@@ -6,6 +6,7 @@ import com.agent.code.core.tools.ToolResult
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 class ReadFileTool(private val fileSystem: FileSystemProvider) : AgentTool {
     override val name = "read_file"

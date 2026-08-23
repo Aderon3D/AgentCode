@@ -15,10 +15,11 @@ import com.agent.code.workspace.InMemoryFileSystem
 import com.agent.code.workspace.StubProcessRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 data class Timeline(
     val events: List<AgentEvent>,
-    val telemetryFrames: List<LogEntry>,
+    val telemetryFrames: List<List<LogEntry>>,
     val finalState: AgentState,
     val recoveredState: AgentState
 )
@@ -35,7 +36,13 @@ object MissionControlBootstrap {
         val telemetry = TelemetryEngine(CoroutineScope(Dispatchers.Unconfined))
         val orchestrator = AgentOrchestrator(journal, AutonomyPolicy(), mcp, telemetry)
 
+        val framesCollected = mutableListOf<List<LogEntry>>()
+        val collectJob = CoroutineScope(Dispatchers.Unconfined).launch {
+            telemetry.frames.collect { framesCollected.add(it) }
+        }
+
         orchestrator.startTask("T1", "Add a greeting")
+        telemetry.flush()
         orchestrator.runTool(
             "T1",
             ToolCall("c1", "read_file", """{"path":"/src/main.kt"}""")
@@ -47,6 +54,8 @@ object MissionControlBootstrap {
         orchestrator.succeed("T1", "patched greeting")
         telemetry.flush()
 
+        collectJob.cancel()
+
         val finalState = orchestrator.recover("T1")
 
         val recoveredStore: WalStore = InMemoryWalStore().apply {
@@ -56,7 +65,7 @@ object MissionControlBootstrap {
 
         return Timeline(
             events = journal.allEvents(),
-            telemetryFrames = telemetry.drainPending(),
+            telemetryFrames = framesCollected,
             finalState = finalState,
             recoveredState = recoveredState
         )

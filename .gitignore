@@ -1,0 +1,41 @@
+# Compiled / build output
+.gradle/
+**/build/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+*.hprof
+
+# Android / signing
+local.properties
+*.keystore
+*.jks
+*.pfx
+*.p12
+release/
+signing.properties
+
+# IDE
+*.iml
+.idea/
+*.swp
+.DS_Store
+
+# iOS / Xcode
+xcuserdata
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings
+
+# Node (web tooling)
+node_modules/
+
+# Secrets / env that must never be committed
+.env
+.env.*
+!.env.example
+GOOGLE_SERVICES_JSON

@@ -1,0 +1,5 @@
+# CODEOWNERS — every change to `main` requires an explicit review.
+# Combined with the branch-protection rule "Require a pull request before
+# merging" + required status checks, no AI-generated code lands on main
+# without a human (or the CI gate) signing off.
+*       @Aderon3D/maintainers

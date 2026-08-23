@@ -1,0 +1,12 @@
+name: "CodeQL Config"
+
+# Broadest bundled suite: security + correctness + maintainability queries.
+# This is the front line for catching bugs and insecure patterns in AI-generated
+# Kotlin/Java before they reach `main`.
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  - shared/src/commonTest
+  - '**/*.md'
+  - '**/*.gradle.kts'

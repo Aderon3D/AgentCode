@@ -1,0 +1,65 @@
+# CodeQL Advanced — Aderon3D (AgentCode, Kotlin Multiplatform)
+#
+# Runs on every PR to main and on every push to main, plus a weekly scheduled
+# scan. The `actions` language is a near-instant no-op scan kept intentionally so
+# the workflow configuration itself is audited and cannot be silently removed.
+#
+# java-kotlin uses build-mode: manual with a targeted compile so CodeQL sees the
+# real Kotlin classpath without building every platform target.
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '37 3 * * 1'
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: java-kotlin
+            build-mode: manual
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: .github/codeql/codeql-config.yml
+
+      - name: Build for CodeQL extraction
+        if: matrix.build-mode == 'manual'
+        run: ./gradlew :shared:compileKotlinAndroid :androidApp:compileDebugKotlin --no-daemon
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

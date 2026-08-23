@@ -29,3 +29,6 @@ jobs:
         --include-git-root
         -r
         ./
+      # Report findings to Security > Code Scanning without blocking the PR on
+      # pre-existing vulnerabilities in the skeleton's Gradle/AGP toolchain.
+      fail-on-vuln: false

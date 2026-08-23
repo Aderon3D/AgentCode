@@ -4,6 +4,7 @@ import com.agent.code.bootstrap.MissionControlBootstrap
 import com.agent.code.core.fsm.AgentState
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.InMemoryWalStore
+import com.agent.code.core.journal.LogEntry
 import com.agent.code.core.journal.WalStore
 import com.agent.code.core.tools.CircuitBreaker
 import com.agent.code.kanban.KanbanBoard
@@ -26,7 +27,9 @@ class MissionControlBootstrapTest {
 
         assertTrue(timeline.finalState is AgentState.Success, "expected Success, got ${timeline.finalState}")
         assertEquals(timeline.finalState, timeline.recoveredState, "WAL replay must reconstruct identical state")
-        assertEquals(2, timeline.telemetryFrames.size, "telemetry should have captured planning + success thoughts")
+        val telemetry = timeline.telemetryFrames.flatten()
+        assertTrue(telemetry.any { it is LogEntry.AgentThought && "Planning" in it.markdown }, "planning thought captured")
+        assertTrue(telemetry.any { it is LogEntry.AgentThought && "Success" in it.markdown }, "success thought captured")
     }
 
     @Test

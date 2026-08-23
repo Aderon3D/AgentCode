@@ -2,6 +2,22 @@ package com.agent.code.core.journal
 
 import com.agent.code.core.fsm.AgentState
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import kotlinx.serialization.serializer
+
+val eventJson = Json {
+    ignoreUnknownKeys = true
+    serializersModule = SerializersModule {
+        polymorphic(AgentEvent::class) {
+            subclass(AgentEvent.TaskStarted::class, AgentEvent.TaskStarted.serializer())
+            subclass(AgentEvent.ToolExecutionRequested::class, AgentEvent.ToolExecutionRequested.serializer())
+            subclass(AgentEvent.ToolExecutionFinished::class, AgentEvent.ToolExecutionFinished.serializer())
+            subclass(AgentEvent.FilePatchApplied::class, AgentEvent.FilePatchApplied.serializer())
+            subclass(AgentEvent.TaskSucceeded::class, AgentEvent.TaskSucceeded.serializer())
+        }
+    }
+}
 
 object FsmStateReconstructor {
     fun replay(events: List<AgentEvent>): AgentState {
@@ -39,7 +55,7 @@ object FsmStateReconstructor {
 }
 
 class AgentEventJournal(private val store: WalStore) {
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = eventJson
 
     fun append(event: AgentEvent) {
         store.append(json.encodeToString(event))

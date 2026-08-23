@@ -1,9 +1,11 @@
 package com.agent.code
 
+import com.agent.code.core.fsm.ToolCall
 import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.FileBackedWalStore
 import com.agent.code.core.path.VirtualPath
+import com.agent.code.mcp.McpHost
 import com.agent.code.workspace.GitProcessRunner
 import com.agent.code.workspace.RealFileSystem
 import kotlin.io.path.createTempDirectory
@@ -67,5 +69,29 @@ class M1RealIoTest {
         val journal = AgentEventJournal(FileBackedWalStore(file))
         // must not throw; no valid events -> Idle
         assertEquals(com.agent.code.core.fsm.AgentState.Idle, journal.recoverState("T9"))
+    }
+
+    @Test
+    fun mcpHostEditsRealRepoThroughRealBackends() = runBlocking {
+        val dir = createTempDirectory("m1-mcp").toFile()
+        val runner = GitProcessRunner()
+        runner.run(listOf("git", "init", "-q", dir.absolutePath))
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.email", "m1@agent.code"))
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.name", "M1"))
+
+        val fs = RealFileSystem()
+        val target = VirtualPath.of("${dir.absolutePath}/hello.txt")
+        fs.write(target, "hello world")
+        runner.run(listOf("git", "-C", dir.absolutePath, "add", "hello.txt"))
+        runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed"))
+
+        val host = McpHost(fs, runner)
+        val patch = """{"path":"${dir.absolutePath}/hello.txt","search":"world","replace":"bedrock"}"""
+        val res = host.dispatch(ToolCall("1", "apply_diff_patch", patch))
+        assertTrue(res.isSuccess, res.output)
+
+        assertEquals("hello bedrock", fs.read(target))
+        val status = runner.run(listOf("git", "-C", dir.absolutePath, "status", "--porcelain"))
+        assertTrue(status.contains("hello.txt"), "git should see modified file: $status")
     }
 }

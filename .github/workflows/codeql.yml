@@ -4,8 +4,10 @@
 # scan. The `actions` language is a near-instant no-op scan kept intentionally so
 # the workflow configuration itself is audited and cannot be silently removed.
 #
-# java-kotlin uses build-mode: manual with a targeted compile so CodeQL sees the
-# real Kotlin classpath without building every platform target.
+# java-kotlin uses build-mode: none (standalone source extraction). Manual/traced
+# build-mode fails to capture the Kotlin compiler daemon under Gradle, so CodeQL
+# reports "no source code seen". Buildless extraction reads the .kt/.java sources
+# directly and is reliable here.
 name: "CodeQL Advanced"
 
 on:
@@ -34,29 +36,11 @@ jobs:
           - language: actions
             build-mode: none
           - language: java-kotlin
-            build-mode: manual
+            build-mode: none
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        if: matrix.language == 'java-kotlin'
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'gradle'
-
-      - name: Set up Android SDK
-        if: matrix.language == 'java-kotlin'
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
-
-      - name: Install Android SDK packages
-        if: matrix.language == 'java-kotlin'
-        run: |
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
-          yes | sdkmanager --licenses
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -64,10 +48,6 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           config-file: .github/codeql/codeql-config.yml
-
-      - name: Build for CodeQL extraction
-        if: matrix.build-mode == 'manual'
-        run: ./gradlew :shared:compileAndroidMain :androidApp:assembleDebug --no-daemon
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

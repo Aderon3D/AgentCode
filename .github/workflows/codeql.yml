@@ -1,11 +1,17 @@
 # CodeQL Advanced — Aderon3D (AgentCode, Kotlin Multiplatform)
 #
 # Runs on every PR to main and on every push to main, plus a weekly scheduled
-# scan. The `actions` language is a near-instant no-op scan kept intentionally so
-# the workflow configuration itself is audited and cannot be silently removed.
-#
-# java-kotlin uses build-mode: manual with a targeted compile so CodeQL sees the
-# real Kotlin classpath without building every platform target.
+# scan. Two languages:
+#   - `actions`      : CI workflow files (reliable, no build needed)
+#   - `java-kotlin`  : Kotlin source scanning via an explicit single-target
+#                      Gradle build. The Kotlin extractor hooks in as a Kotlin
+#                      compiler plugin during compilation, so we point it at one
+#                      concrete compilation (`:shared:compileKotlinMetadata`,
+#                      which compiles all of `commonMain`) instead of letting the
+#                      autobuilder pick a target — the autobuilder fails on KMP's
+#                      multi-target variant graph (`AmbiguousArtifactsFailure`).
+#                      `build-mode: none` is not viable either, because CodeQL
+#                      silently skips Kotlin unless a build is run.
 name: "CodeQL Advanced"
 
 on:
@@ -46,28 +52,20 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'
 
       - name: Set up Android SDK
         if: matrix.language == 'java-kotlin'
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
-
-      - name: Install Android SDK packages
-        if: matrix.language == 'java-kotlin'
-        run: |
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
-          yes | sdkmanager --licenses
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-          config-file: .github/codeql/codeql-config.yml
 
-      - name: Build for CodeQL extraction
+      - name: Build Kotlin (single target) for CodeQL tracing
         if: matrix.build-mode == 'manual'
-        run: ./gradlew :shared:compileAndroidMain :androidApp:assembleDebug --no-daemon
+        run: ./gradlew :shared:compileKotlinMetadata --no-daemon
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

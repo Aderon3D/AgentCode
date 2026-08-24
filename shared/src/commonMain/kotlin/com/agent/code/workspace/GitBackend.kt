@@ -8,6 +8,7 @@ import com.agent.code.core.path.VirtualPath
  * On-host:   CliGitBackend (shells out to git CLI).
  */
 interface GitBackend {
+    suspend fun initRepo(path: VirtualPath): Result<Unit> = Result.success(Unit)
     suspend fun worktreeAdd(repo: VirtualPath, name: String, path: VirtualPath, baseBranch: String): Result<Unit>
     suspend fun worktreeRemove(repo: VirtualPath, name: String): Result<Unit>
     suspend fun checkout(repo: VirtualPath, branch: String): Result<Unit>

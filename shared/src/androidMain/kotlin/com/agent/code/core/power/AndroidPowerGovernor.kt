@@ -8,6 +8,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import com.agent.code.core.fsm.OperatingProfile
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -16,7 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * Monitors:
  * - Battery level via ACTION_BATTERY_CHANGED BroadcastReceiver
- * - Thermal status via PowerManager.getCurrentThermalStatus() (polled, API 29+)
+ * - Thermal status via PowerManager.getCurrentThermalStatus() (API 29+)
+ * - Actual temperature via /sys/class/thermal/thermal_zoneN/temp (millidegrees C)
  *
  * Emits [OperatingProfile] changes via [currentProfile] StateFlow.
  */
@@ -28,6 +30,7 @@ class AndroidPowerGovernor(context: Context) : PowerGovernor {
     private var thermalStatus = PowerManager.THERMAL_STATUS_NONE
     private var isPluggedIn = false
     private var batteryLevelPercent = 100
+    private var maxTemperatureCelsius = 0f
 
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
 
@@ -41,6 +44,7 @@ class AndroidPowerGovernor(context: Context) : PowerGovernor {
                 val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
                 batteryLevelPercent = if (scale > 0) (level * 100) / scale else 100
                 pollThermalStatus()
+                readTemperatures()
                 evaluateProfile()
             }
         }
@@ -60,6 +64,7 @@ class AndroidPowerGovernor(context: Context) : PowerGovernor {
             val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
             batteryLevelPercent = if (scale > 0) (level * 100) / scale else 100
             pollThermalStatus()
+            readTemperatures()
             evaluateProfile()
         }
     }
@@ -67,6 +72,30 @@ class AndroidPowerGovernor(context: Context) : PowerGovernor {
     private fun pollThermalStatus() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             thermalStatus = powerManager.getCurrentThermalStatus()
+        }
+    }
+
+    /**
+     * Read actual CPU/battery temperatures from sysfs thermal zones.
+     * Values are in millidegrees Celsius (e.g. 35000 = 35°C).
+     * Reports the maximum across all zones.
+     */
+    private fun readTemperatures() {
+        try {
+            val thermalDir = File("/sys/class/thermal")
+            if (!thermalDir.exists()) return
+            var max = 0f
+            thermalDir.listFiles()?.filter { it.name.startsWith("thermal_zone") }?.forEach { zone ->
+                val tempFile = File(zone, "temp")
+                if (tempFile.exists()) {
+                    val raw = tempFile.readText().trim().toFloatOrNull() ?: return@forEach
+                    val celsius = if (raw > 1000) raw / 1000f else raw
+                    if (celsius > max) max = celsius
+                }
+            }
+            maxTemperatureCelsius = max
+        } catch (_: Exception) {
+            // sysfs may not be readable on all devices
         }
     }
 
@@ -86,6 +115,7 @@ class AndroidPowerGovernor(context: Context) : PowerGovernor {
         profile = currentProfile.value,
         batteryPercent = batteryLevelPercent,
         thermalStatus = thermalStatus,
+        temperatureCelsius = maxTemperatureCelsius,
         pluggedIn = isPluggedIn
     )
 }
@@ -94,6 +124,7 @@ data class GovernorSnapshot(
     val profile: OperatingProfile,
     val batteryPercent: Int,
     val thermalStatus: Int,
+    val temperatureCelsius: Float,
     val pluggedIn: Boolean
 ) {
     val thermalLabel: String get() = when (thermalStatus) {

@@ -265,7 +265,7 @@ private fun runM2Probe(governor: PowerGovernor = StubPowerGovernor()): String = 
     val govProfile = governor.currentProfile.value
     val govLine = if (governor is AndroidPowerGovernor) {
         val snap = governor.snapshot()
-        "Governor: ${snap.profile} | battery=${snap.batteryPercent}% | thermal=${snap.thermalLabel} | pluggedIn=${snap.pluggedIn}"
+        "Governor: ${snap.profile} | battery=${snap.batteryPercent}% | temp=${snap.temperatureCelsius}°C | thermal=${snap.thermalLabel} | pluggedIn=${snap.pluggedIn}"
     } else {
         "Governor: $govProfile (stub — no battery/thermal on host)"
     }

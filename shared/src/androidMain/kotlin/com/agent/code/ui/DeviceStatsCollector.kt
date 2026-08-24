@@ -10,6 +10,7 @@ import android.os.Environment
 import android.os.StatFs
 import android.view.WindowManager
 import java.io.File
+import java.util.Locale
 
 /**
  * Collects device hardware and performance stats for calibration.
@@ -137,7 +138,7 @@ class DeviceStatsCollector(private val context: Context) {
                 if (xdpi > 0 && ydpi > 0) {
                     val wIn = w.toDouble() / xdpi
                     val hIn = h.toDouble() / ydpi
-                    String.format("%.1f", kotlin.math.sqrt(wIn * wIn + hIn * hIn)).toDouble()
+                    String.format(Locale.US, "%.1f", kotlin.math.sqrt(wIn * wIn + hIn * hIn)).toDouble()
                 } else 0.0
             },
         )
@@ -314,7 +315,7 @@ data class DeviceStats(
             appendLine()
             appendLine("== Thermal Zones ==")
             thermalZones.forEach { tz ->
-                appendLine("  ${tz.type}: ${String.format("%.1f", tz.temperatureC)}°C")
+                appendLine("  ${tz.type}: ${String.format(Locale.US, "%.1f", tz.temperatureC)}°C")
             }
         }
     }

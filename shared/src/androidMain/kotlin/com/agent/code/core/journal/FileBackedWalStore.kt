@@ -13,18 +13,37 @@ class FileBackedWalStore(private val file: File) : WalStore {
     }
 
     // ponytail: at startup, drop torn/unparseable lines so a half-written
-    // record can't poison every future replay. Returns how many lines pruned.
+    // record can't poison every future replay. Writes to a sibling temp file,
+    // fsyncs it, then atomically replaces the WAL — a crash mid-rewrite can't
+    // destroy valid recovery records. Returns how many lines pruned.
     override fun selfHeal(): Int = synchronized(lock) {
         if (!file.exists()) return 0
         val lines = file.readLines()
         val (good, bad) = lines.partition { it.isNotBlank() && safeJson(it) }
         if (bad.isEmpty()) return 0
-        FileOutputStream(file).use { os ->
-            good.forEach {
-                os.write((it + "\n").toByteArray(StandardCharsets.UTF_8))
-                os.flush()
+        val tmp = File(file.parentFile ?: File("."), "${file.name}.heal-${System.nanoTime()}")
+        try {
+            FileOutputStream(tmp).use { os ->
+                good.forEach {
+                    os.write((it + "\n").toByteArray(StandardCharsets.UTF_8))
+                    os.flush()
+                }
+                os.fd.sync()
             }
-            os.fd.sync()
+            if (!tmp.renameTo(file)) {
+                // ponytail: cross-device fallback (rename can't span filesystems)
+                FileOutputStream(file).use { os ->
+                    good.forEach {
+                        os.write((it + "\n").toByteArray(StandardCharsets.UTF_8))
+                        os.flush()
+                    }
+                    os.fd.sync()
+                }
+                tmp.delete()
+            }
+        } catch (e: Exception) {
+            tmp.delete()
+            throw e
         }
         bad.size
     }

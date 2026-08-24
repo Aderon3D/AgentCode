@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun M1RealIoDemo(baseDir: String) {
-    val fs = remember { RealFileSystem(VirtualPath.of(baseDir)) }
+    val fs = remember(baseDir) { RealFileSystem(VirtualPath.of(baseDir)) }
     val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<String?>(null) }
     Column(

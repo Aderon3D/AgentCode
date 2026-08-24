@@ -38,7 +38,10 @@ import com.agent.code.core.power.PowerGovernor
 import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.workspace.LibGit2Backend
 import com.agent.code.workspace.RealFileSystem
+import com.agent.code.workspace.TreeSitterBackend
 import com.agent.code.workspace.WorktreeManager
+import com.agent.code.core.lock.SemanticConflictFunnel
+import com.agent.code.workspace.StubProcessRunner
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -95,6 +98,12 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                         results["Shizuku"] = shizuku; expanded["Shizuku"] = true
                         val m2 = withContext(Dispatchers.IO) { runM2Probe(governor) }
                         results["M2 Concurrency"] = m2; expanded["M2 Concurrency"] = true
+                        val ts = withContext(Dispatchers.IO) { runTreeSitterProbe() }
+                        results["TreeSitter JNI"] = ts; expanded["TreeSitter JNI"] = true
+                        val fw = withContext(Dispatchers.IO) { runFileWatcherProbe() }
+                        results["FileWatcher"] = fw; expanded["FileWatcher"] = true
+                        val tier = withContext(Dispatchers.IO) { runTier24Probe() }
+                        results["Tier 2/4 Funnel"] = tier; expanded["Tier 2/4 Funnel"] = true
                         val stats = withContext(Dispatchers.IO) { collector.collect().format() }
                         deviceStatsText = stats
                         results["Device Stats"] = stats; expanded["Device Stats"] = true
@@ -297,4 +306,110 @@ private fun runM2Probe(governor: PowerGovernor = StubPowerGovernor()): String = 
     log.add(govLine)
 
     log.joinToString("\n")
+}
+
+private fun runTreeSitterProbe(): String {
+    val sample = """
+        package com.example
+
+        class FooBar {
+            fun doWork(): String = "hello"
+            val answer = 42
+        }
+
+        interface Repository {
+            fun findById(id: String): FooBar?
+        }
+
+        object Config {
+            val version = "1.0"
+        }
+    """.trimIndent()
+
+    return try {
+        TreeSitterBackend.init()
+        val symbols = TreeSitterBackend.collectSymbolNames(sample)
+        val symbolLines = symbols.joinToString("\n") { "  ${it.type}: ${it.name} @ L${it.startLine}-${it.endLine}" }
+        val ssexpr = TreeSitterBackend.parse(sample)
+        val truncated = if ((ssexpr?.length ?: 0) > 300) ssexpr!!.take(300) + "..." else ssexpr
+
+        "OK TreeSitter JNI loaded\n" +
+            "Symbols found: ${symbols.size}\n$symbolLines\n\n" +
+            "AST (S-expression, truncated):\n$truncated"
+    } catch (e: Exception) {
+        "FAIL TreeSitter: ${e.message}"
+    }
+}
+
+private fun runFileWatcherProbe(): String {
+    val tmpDir = File(System.getProperty("java.io.tmpdir"), "fw-probe-${System.nanoTime()}")
+    tmpDir.mkdirs()
+    return try {
+        val watcher = com.agent.code.core.lock.FileWatcher()
+        val events = mutableListOf<String>()
+
+        watcher.startWatching(VirtualPath.of(tmpDir.absolutePath)) { path, type ->
+            events.add("${type.name}: ${path.fileName}")
+        }
+
+        Thread.sleep(300)
+        File(tmpDir, "probe.txt").writeText("created")
+        Thread.sleep(500)
+        File(tmpDir, "probe.txt").appendText("+modified")
+        Thread.sleep(500)
+        File(tmpDir, "probe.txt").delete()
+        Thread.sleep(500)
+
+        watcher.stopWatching()
+
+        if (events.isNotEmpty()) {
+            "OK FileWatcher detected ${events.size} events:\n${events.joinToString("\n") { "  $it" }}"
+        } else {
+            "FAIL FileWatcher: no events detected"
+        }
+    } catch (e: Exception) {
+        "FAIL FileWatcher: ${e.message}"
+    } finally {
+        tmpDir.deleteRecursively()
+    }
+}
+
+private fun runTier24Probe(): String {
+    val lockMgr = WorkspaceLockManager()
+    val funnel = SemanticConflictFunnel(lockMgr, testRunner = StubProcessRunner(), parser = TreeSitterBackend)
+
+    val oldSrc = """
+        class UserService {
+            fun login(user: String) = "ok"
+            fun logout() = "done"
+        }
+    """.trimIndent()
+
+    val newSrc = """
+        class UserService {
+            fun login(user: String) = "ok"
+            fun logout() = "done"
+            fun resetPassword(email: String) = "sent"
+        }
+    """.trimIndent()
+
+    // Tier 2: AST slicing
+    val impacted = funnel.computeImpactedSymbols(oldSrc, newSrc)
+
+    // Tier 4: find targeted tests in mock files
+    val testFiles = mapOf(
+        VirtualPath.of("/src/UserServiceTest.kt") to "class UserServiceTest { fun testLogin() {} fun testLogout() {} }",
+        VirtualPath.of("/src/OrderServiceTest.kt") to "class OrderServiceTest { fun testCreate() {} }",
+    )
+    val targeted = funnel.findTargetedTests(impacted, testFiles)
+
+    return buildString {
+        appendLine("== Tier 2: AST Slicing ==")
+        appendLine("Impacted symbols: ${impacted.size}")
+        impacted.forEach { appendLine("  - $it") }
+        appendLine()
+        appendLine("== Tier 4: Targeted Tests ==")
+        appendLine("Test files selected: ${targeted.size}")
+        targeted.forEach { appendLine("  - ${it.rawPath.substringAfterLast('/')}") }
+    }
 }

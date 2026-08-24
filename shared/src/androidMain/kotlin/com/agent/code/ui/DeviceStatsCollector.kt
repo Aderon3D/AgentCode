@@ -110,21 +110,30 @@ class DeviceStatsCollector(private val context: Context) {
         DeviceStats.Gpu("n/a", "n/a", "n/a", 0)
     }
 
-    private fun collectDisplay(): DeviceStats.Display = try {
-        val w = wm.currentWindowMetrics.bounds.width()
-        val h = wm.currentWindowMetrics.bounds.height()
-        val insets = wm.currentWindowMetrics.windowInsets
-        val density = context.resources.displayMetrics.densityDpi.toFloat()
-        val refreshRate = @Suppress("DEPRECATION") wm.defaultDisplay.refreshRate
-        DeviceStats.Display(
+    private fun collectDisplay(): DeviceStats.Display {
+        val dm = context.resources.displayMetrics
+        var w = dm.widthPixels
+        var h = dm.heightPixels
+        var rr = 0f
+        try {
+            if (Build.VERSION.SDK_INT >= 30) {
+                val bounds = wm.currentWindowMetrics.bounds
+                val bw = bounds.width()
+                val bh = bounds.height()
+                if (bw > 0 && bh > 0) { w = bw; h = bh }
+            }
+            rr = @Suppress("DEPRECATION") wm.defaultDisplay.refreshRate
+        } catch (_: Exception) { /* fallback to displayMetrics */ }
+
+        return DeviceStats.Display(
             widthPx = w,
             heightPx = h,
-            densityDpi = density.toInt(),
-            density = context.resources.displayMetrics.density,
-            refreshRateHz = refreshRate,
+            densityDpi = dm.densityDpi,
+            density = dm.density,
+            refreshRateHz = rr,
             physicalSizeInches = run {
-                val xdpi = context.resources.displayMetrics.xdpi
-                val ydpi = context.resources.displayMetrics.ydpi
+                val xdpi = dm.xdpi
+                val ydpi = dm.ydpi
                 if (xdpi > 0 && ydpi > 0) {
                     val wIn = w.toDouble() / xdpi
                     val hIn = h.toDouble() / ydpi
@@ -132,8 +141,6 @@ class DeviceStatsCollector(private val context: Context) {
                 } else 0.0
             },
         )
-    } catch (_: Exception) {
-        DeviceStats.Display(0, 0, 0, 0f, 0f, 0.0)
     }
 
     private fun collectBattery(): DeviceStats.Battery {

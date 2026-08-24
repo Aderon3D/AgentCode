@@ -12,6 +12,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -21,17 +22,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.agent.code.core.concurrency.EnergyAwareDispatchers
 import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.FileBackedWalStore
 import com.agent.code.core.journal.eventJson
+import com.agent.code.core.lock.ActiveTaskLock
+import com.agent.code.core.lock.ConflictRisk
+import com.agent.code.core.lock.WorkspaceLockManager
 import com.agent.code.core.path.VirtualPath
+import com.agent.code.core.power.AndroidPowerGovernor
+import com.agent.code.core.power.PowerGovernor
+import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.workspace.LibGit2Backend
 import com.agent.code.workspace.RealFileSystem
 import com.agent.code.workspace.WorktreeManager
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -39,15 +50,32 @@ import kotlinx.coroutines.withContext
  * Unified probe dashboard: Run All, Copy All, collapsible per-probe sections.
  */
 @Composable
-fun ProbeDashboard(baseDir: String) {
+fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor()) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val results = remember { mutableStateMapOf<String, String>() }
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
     var running by remember { mutableStateOf(false) }
+    var deviceStatsText by remember { mutableStateOf<String?>(null) }
 
     fun isExpanded(key: String) = expanded[key] == true
     fun toggle(key: String) { expanded[key] = !isExpanded(key) }
+
+    // Live-refresh device stats every 10s while section is expanded
+    val collector = remember { DeviceStatsCollector(context) }
+    LaunchedEffect(isExpanded("Device Stats")) {
+        if (!isExpanded("Device Stats")) return@LaunchedEffect
+        while (isActive) {
+            val stats = try {
+                withContext(Dispatchers.IO) { collector.collect().format() }
+            } catch (e: Exception) {
+                "Device Stats error: ${e.message}"
+            }
+            deviceStatsText = stats
+            delay(10_000)
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -65,6 +93,11 @@ fun ProbeDashboard(baseDir: String) {
                         results["LibGit2 JNI"] = git; expanded["LibGit2 JNI"] = true
                         val shizuku = withContext(Dispatchers.IO) { runShizukuProbe() }
                         results["Shizuku"] = shizuku; expanded["Shizuku"] = true
+                        val m2 = withContext(Dispatchers.IO) { runM2Probe(governor) }
+                        results["M2 Concurrency"] = m2; expanded["M2 Concurrency"] = true
+                        val stats = withContext(Dispatchers.IO) { collector.collect().format() }
+                        deviceStatsText = stats
+                        results["Device Stats"] = stats; expanded["Device Stats"] = true
                         running = false
                     }
                 },
@@ -90,6 +123,7 @@ fun ProbeDashboard(baseDir: String) {
         }
 
         results.forEach { (name, log) ->
+            val displayText = if (name == "Device Stats") (deviceStatsText ?: log) else log
             HorizontalDivider()
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { toggle(name) },
@@ -102,7 +136,7 @@ fun ProbeDashboard(baseDir: String) {
                 )
             }
             AnimatedVisibility(isExpanded(name)) {
-                Text(log, modifier = Modifier.padding(start = 8.dp))
+                Text(displayText, modifier = Modifier.padding(start = 8.dp))
             }
         }
     }
@@ -212,4 +246,55 @@ private fun runShizukuProbe(): String {
             appendLine("If Shevery is running, onServiceConnected will fire")
         }
     }
+}
+
+private fun runM2Probe(governor: PowerGovernor = StubPowerGovernor()): String = kotlinx.coroutines.runBlocking {
+    val log = mutableListOf<String>()
+    val mgr = WorkspaceLockManager()
+
+    // 1. No collision on empty registry
+    val none = mgr.evaluateCollisionRisk(setOf(VirtualPath.of("/a.kt")), setOf("sym1"))
+    log.add("No collision (empty registry): ${none::class.simpleName}")
+
+    // 2. Register lock for task t1
+    mgr.waitForMaintenanceAndRegisterLock("t1",
+        ActiveTaskLock("t1", "agent/task-t1", setOf(VirtualPath.of("/a.kt")), setOf("symX")))
+
+    // 3. File overlap detection
+    val overlap = mgr.evaluateCollisionRisk(setOf(VirtualPath.of("/a.kt")), emptySet())
+    log.add("File overlap (t2 wants /a.kt): ${overlap::class.simpleName}" +
+        if (overlap is ConflictRisk.FileOverlapRequiresMerge) " — files: ${overlap.files}" else "")
+
+    // 4. Symbol collision detection
+    val collision = mgr.evaluateCollisionRisk(emptySet(), setOf("symX"))
+    log.add("Symbol collision (t2 wants symX): ${collision::class.simpleName}" +
+        if (collision is ConflictRisk.FatalSymbolCollision) " — symbols: ${collision.symbols}" else "")
+
+    // 5. Release + re-check
+    mgr.releaseLock("t1")
+    val afterRelease = mgr.evaluateCollisionRisk(setOf(VirtualPath.of("/a.kt")), emptySet())
+    log.add("After release: ${afterRelease::class.simpleName}")
+
+    // 6. Maintenance lock blocks new registrations
+    mgr.tryAcquireMaintenanceLock()
+    log.add("Maintenance lock acquired: activeLocks=${mgr.activeLockCount()}")
+    mgr.releaseMaintenanceLock()
+    log.add("Maintenance lock released")
+
+    // 7. Dispatcher smoke
+    val ioResult = kotlinx.coroutines.withContext(EnergyAwareDispatchers.EfficiencyIO) { " EfficiencyIO OK" }
+    val computeResult = kotlinx.coroutines.withContext(EnergyAwareDispatchers.ComputeBurst) { " ComputeBurst OK" }
+    log.add("Dispatchers:$ioResult,$computeResult")
+
+    // 8. Governor — real snapshot from device
+    val govProfile = governor.currentProfile.value
+    val govLine = if (governor is AndroidPowerGovernor) {
+        val snap = governor.snapshot()
+        "Governor: ${snap.profile} | battery=${snap.batteryPercent}% | temp=${snap.temperatureCelsius}°C | thermal=${snap.thermalLabel} | pluggedIn=${snap.pluggedIn}"
+    } else {
+        "Governor: $govProfile (stub — no battery/thermal on host)"
+    }
+    log.add(govLine)
+
+    log.joinToString("\n")
 }

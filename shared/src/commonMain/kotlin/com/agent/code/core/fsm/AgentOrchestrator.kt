@@ -1,8 +1,7 @@
 package com.agent.code.core.fsm
 
-import com.agent.code.core.lock.ConflictRisk
-import com.agent.code.core.lock.ExecutionPermit
 import com.agent.code.core.lock.SemanticConflictFunnel
+import com.agent.code.core.lock.SemanticVerificationResult
 import com.agent.code.core.lock.TaskLockCoordinator
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.core.journal.AgentEvent
@@ -10,6 +9,8 @@ import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.LogEntry
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.policy.AutonomyPolicy
+import com.agent.code.core.power.PowerGovernor
+import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.core.tools.ToolResult
 import com.agent.code.mcp.McpHost
 import kotlinx.coroutines.delay
@@ -22,19 +23,14 @@ sealed interface StepResult {
     data class FatalError(val reason: String) : StepResult
 }
 
-enum class OperatingProfile {
-    TURBO_PLUGGED,
-    BALANCED_BATTERY,
-    ECO_PRESERVATION
-}
-
 class AgentOrchestrator(
     private val journal: AgentEventJournal,
     private val policy: AutonomyPolicy,
     private val mcp: McpHost,
     private val telemetry: TelemetryEngine,
     private val lockCoordinator: TaskLockCoordinator? = null,
-    private val funnel: SemanticConflictFunnel? = null
+    private val funnel: SemanticConflictFunnel? = null,
+    private val governor: PowerGovernor = StubPowerGovernor()
 ) {
     private var seq = 0L
     private fun nextId(): Long = ++seq
@@ -65,7 +61,7 @@ class AgentOrchestrator(
 
     // --- Step-based execution API (M2) ---
 
-    suspend fun executeSingleStep(taskId: String, profile: OperatingProfile = OperatingProfile.TURBO_PLUGGED): StepResult {
+    suspend fun executeSingleStep(taskId: String): StepResult {
         val currentState = journal.recoverState(taskId)
         return when (currentState) {
             is AgentState.Success -> StepResult.TaskFinished
@@ -79,9 +75,14 @@ class AgentOrchestrator(
         }
     }
 
-    suspend fun executeStepPaced(taskId: String, profile: OperatingProfile = OperatingProfile.BALANCED_BATTERY): StepResult {
-        val result = executeSingleStep(taskId, profile)
-        when (profile) {
+    /**
+     * Execute one step with pacing driven by [governor].
+     * Reads the current [OperatingProfile] from governor and applies the
+     * appropriate delay after the step completes.
+     */
+    suspend fun executeStepPaced(taskId: String): StepResult {
+        val result = executeSingleStep(taskId)
+        when (governor.currentProfile.value) {
             OperatingProfile.TURBO_PLUGGED -> { /* no delay */ }
             OperatingProfile.BALANCED_BATTERY -> delay(50L)
             OperatingProfile.ECO_PRESERVATION -> delay(500L)
@@ -92,13 +93,13 @@ class AgentOrchestrator(
     suspend fun executeStepsUntilDone(
         taskId: String,
         toolCalls: List<ToolCall>,
-        profile: OperatingProfile = OperatingProfile.TURBO_PLUGGED,
         maxSteps: Int = 50
     ): StepResult {
         var toolIndex = 0
         var steps = 0
         while (steps < maxSteps) {
             val state = recover(taskId)
+            val profile = governor.currentProfile.value
             when (state) {
                 is AgentState.Success, is AgentState.Error -> return StepResult.TaskFinished
                 is AgentState.Idle -> return StepResult.TaskFinished
@@ -125,7 +126,7 @@ class AgentOrchestrator(
                 }
                 is AgentState.Verifying -> {
                     val verification = funnel?.verifyBranchIntegration("agent/task-$taskId", emptyList())
-                    if (verification is com.agent.code.core.lock.SemanticVerificationResult.Failed) {
+                    if (verification is SemanticVerificationResult.Failed) {
                         return StepResult.FatalError(verification.reason)
                     }
                     succeed(taskId, "completed")
@@ -140,8 +141,10 @@ class AgentOrchestrator(
                 }
             }
             steps++
-            if (profile != OperatingProfile.TURBO_PLUGGED) {
-                delay(if (profile == OperatingProfile.BALANCED_BATTERY) 50L else 500L)
+            when (profile) {
+                OperatingProfile.TURBO_PLUGGED -> { /* no delay */ }
+                OperatingProfile.BALANCED_BATTERY -> delay(50L)
+                OperatingProfile.ECO_PRESERVATION -> delay(500L)
             }
         }
         return StepResult.FatalError("Max steps ($maxSteps) exhausted without completion")
@@ -151,7 +154,6 @@ class AgentOrchestrator(
 
     private fun processPlanningStep(taskId: String, state: AgentState.Planning): StepResult {
         // DEFERRED: LLM integration will generate tool calls here.
-        // For now, return pending so the caller knows more work is needed.
         return StepResult.StepCompletedMoreWorkPending
     }
 
@@ -167,9 +169,9 @@ class AgentOrchestrator(
     private suspend fun processVerificationStep(taskId: String): StepResult {
         val verification = funnel?.verifyBranchIntegration("agent/task-$taskId", emptyList())
         return when (verification) {
-            is com.agent.code.core.lock.SemanticVerificationResult.Failed ->
+            is SemanticVerificationResult.Failed ->
                 StepResult.FatalError("Verification failed: ${verification.reason}")
-            is com.agent.code.core.lock.SemanticVerificationResult.EscalationRequired ->
+            is SemanticVerificationResult.EscalationRequired ->
                 StepResult.FatalError("Escalation required: ${verification.ambiguousInvariants}")
             else -> StepResult.StepCompletedMoreWorkPending
         }

@@ -3,6 +3,7 @@ package com.agent.code
 import com.agent.code.core.concurrency.EnergyAwareDispatchers
 import com.agent.code.core.fsm.AgentOrchestrator
 import com.agent.code.core.fsm.AgentState
+import com.agent.code.core.fsm.OperatingProfile
 import com.agent.code.core.fsm.StepResult
 import com.agent.code.core.fsm.ToolCall
 import com.agent.code.core.journal.AgentEventJournal
@@ -10,6 +11,7 @@ import com.agent.code.core.journal.InMemoryWalStore
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.lock.*
 import com.agent.code.core.path.VirtualPath
+import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.core.policy.AutonomyPolicy
 import com.agent.code.mcp.McpHost
 import com.agent.code.workspace.InMemoryFileSystem
@@ -109,15 +111,68 @@ class M2ConcurrencyTest {
     } }
 
     @Test
-    fun funnelStubReturnsPassed() { runBlocking {
+    fun funnelNoTestRunnerPasses() { runBlocking {
         val funnel = SemanticConflictFunnel(WorkspaceLockManager())
-        assertIs<SemanticVerificationResult.Passed>(funnel.verifyBranchIntegration("main", listOf(VirtualPath.of("/a.kt"))))
+        assertIs<SemanticVerificationResult.Passed>(
+            funnel.verifyBranchIntegration("main", listOf(VirtualPath.of("/a.kt")))
+        )
+    } }
+
+    @Test
+    fun funnelTier3RunsTestsOnChangedFiles() { runBlocking {
+        var executedCommand: List<String>? = null
+        val runner = object : com.agent.code.workspace.ProcessRunner {
+            override suspend fun run(command: List<String>): Result<String> {
+                executedCommand = command
+                return Result.success("BUILD SUCCESSFUL")
+            }
+        }
+        val funnel = SemanticConflictFunnel(WorkspaceLockManager(), runner)
+
+        val result = funnel.verifyBranchIntegration("main", listOf(VirtualPath.of("/src/MyTest.kt")))
+        assertIs<SemanticVerificationResult.Passed>(result)
+        assertTrue(executedCommand != null, "Test runner should have been invoked")
+        assertTrue(executedCommand!!.contains("test"), "Should run gradle test")
+    } }
+
+    @Test
+    fun funnelTier3ReportsFailure() { runBlocking {
+        val runner = object : com.agent.code.workspace.ProcessRunner {
+            override suspend fun run(command: List<String>): Result<String> =
+                Result.failure(RuntimeException("2 tests failed"))
+        }
+        val funnel = SemanticConflictFunnel(WorkspaceLockManager(), runner)
+
+        val result = funnel.verifyBranchIntegration("main", listOf(VirtualPath.of("/src/BrokenTest.kt")))
+        assertIs<SemanticVerificationResult.Failed>(result)
+        assertTrue(result.reason.contains("tests failed"))
+    } }
+
+    @Test
+    fun funnelTier3SkipsEmptyChangeset() { runBlocking {
+        var invoked = false
+        val runner = object : com.agent.code.workspace.ProcessRunner {
+            override suspend fun run(command: List<String>): Result<String> {
+                invoked = true
+                return Result.success("ok")
+            }
+        }
+        val funnel = SemanticConflictFunnel(WorkspaceLockManager(), runner)
+        val result = funnel.verifyBranchIntegration("main", emptyList())
+        assertIs<SemanticVerificationResult.Passed>(result)
+        assertTrue(!invoked, "Should not invoke runner for empty changeset")
     } }
 
     @Test
     fun funnelPreWriteCheckDelegatesToLockManager() {
         val funnel = SemanticConflictFunnel(WorkspaceLockManager())
         assertIs<ConflictRisk.None>(funnel.checkPreWriteCollision("t1", setOf("sym1")))
+    }
+
+    @Test
+    fun governorDefaultsToBalanced() {
+        val gov = StubPowerGovernor()
+        assertEquals(OperatingProfile.BALANCED_BATTERY, gov.currentProfile.value)
     }
 
     @Test

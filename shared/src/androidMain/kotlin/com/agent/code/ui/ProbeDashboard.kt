@@ -31,6 +31,8 @@ import com.agent.code.core.lock.ActiveTaskLock
 import com.agent.code.core.lock.ConflictRisk
 import com.agent.code.core.lock.WorkspaceLockManager
 import com.agent.code.core.path.VirtualPath
+import com.agent.code.core.power.AndroidPowerGovernor
+import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.workspace.LibGit2Backend
 import com.agent.code.workspace.RealFileSystem
 import com.agent.code.workspace.WorktreeManager
@@ -257,6 +259,10 @@ private fun runM2Probe(): String = kotlinx.coroutines.runBlocking {
     val ioResult = kotlinx.coroutines.withContext(EnergyAwareDispatchers.EfficiencyIO) { " EfficiencyIO OK" }
     val computeResult = kotlinx.coroutines.withContext(EnergyAwareDispatchers.ComputeBurst) { " ComputeBurst OK" }
     log.add("Dispatchers:$ioResult,$computeResult")
+
+    // 8. Governor (stub for probe; AndroidPowerGovernor monitors battery/thermal on device)
+    val gov = StubPowerGovernor()
+    log.add("Governor: ${gov.currentProfile.value} (battery/thermal governor available via AndroidPowerGovernor)")
 
     log.joinToString("\n")
 }

@@ -12,6 +12,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.agent.code.core.concurrency.EnergyAwareDispatchers
@@ -39,6 +41,8 @@ import com.agent.code.workspace.RealFileSystem
 import com.agent.code.workspace.WorktreeManager
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -49,12 +53,25 @@ import kotlinx.coroutines.withContext
 fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor()) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val results = remember { mutableStateMapOf<String, String>() }
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
     var running by remember { mutableStateOf(false) }
+    var deviceStatsText by remember { mutableStateOf<String?>(null) }
 
     fun isExpanded(key: String) = expanded[key] == true
     fun toggle(key: String) { expanded[key] = !isExpanded(key) }
+
+    // Live-refresh device stats every 10s while section is expanded
+    val collector = remember { DeviceStatsCollector(context) }
+    LaunchedEffect(isExpanded("Device Stats")) {
+        if (!isExpanded("Device Stats")) return@LaunchedEffect
+        while (isActive) {
+            val stats = withContext(Dispatchers.IO) { collector.collect().format() }
+            deviceStatsText = stats
+            delay(10_000)
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -74,6 +91,9 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                         results["Shizuku"] = shizuku; expanded["Shizuku"] = true
                         val m2 = withContext(Dispatchers.IO) { runM2Probe(governor) }
                         results["M2 Concurrency"] = m2; expanded["M2 Concurrency"] = true
+                        val stats = withContext(Dispatchers.IO) { collector.collect().format() }
+                        deviceStatsText = stats
+                        results["Device Stats"] = stats; expanded["Device Stats"] = true
                         running = false
                     }
                 },
@@ -99,6 +119,7 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
         }
 
         results.forEach { (name, log) ->
+            val displayText = if (name == "Device Stats") (deviceStatsText ?: log) else log
             HorizontalDivider()
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { toggle(name) },
@@ -111,7 +132,7 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                 )
             }
             AnimatedVisibility(isExpanded(name)) {
-                Text(log, modifier = Modifier.padding(start = 8.dp))
+                Text(displayText, modifier = Modifier.padding(start = 8.dp))
             }
         }
     }

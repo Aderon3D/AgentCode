@@ -60,6 +60,21 @@ interface WalStore {
 
 ---
 
+## 0.1 Milestone Status Tracker (as of 2026-08-24)
+
+Live status vs the §14 roadmap. Single source of truth for "what's done".
+
+| Milestone | Scope | Status | Notes |
+|---|---|---|---|
+| **M0.5** Bootstrap spine | FSM + in-mem WAL + MCP loop + SSE JSON parser + Cost Router + Kanban + 50ms Telemetry | ✅ COMPLETE | `:shared:testAndroidHostTest` green; 4 M0.5 guarantees asserted in `MissionControlBootstrapTest`/`HierarchicalModelRouterTest`/`StreamingJsonStateMachineTest`/`TelemetryEngineTest`. |
+| **M1** Headless Core | libgit2 NDK, Shizuku elevation, WAL journal, EnergyAwareDispatchers, MCP server, SSE client | 🟡 MOSTLY | libgit2 JNI (`LibGit2Backend`), `FileBackedWalStore`, `EnergyAwareDispatchers`, `McpHost`, `ResilientSseClient` done. `ShizukuFsProvider` is skeleton only (3 `TODO`s, AIDL unwired). |
+| **M2** Multi-Agent Concurrency | Sparse worktrees, auto-squash, lock coordinator, 4-tier semantic funnel, tree-sitter | ✅ COMPLETE | `WorktreeManager`, `TaskLockCoordinator`, `WorkspaceLockManager`, `SemanticConflictFunnel`, `TreeSitterBackend` (JNI) landed; concurrency + tree-sitter tests green. |
+| **M3** UI & Cost Routing | CMP Shell + 50ms conflated telemetry stream + streaming JSON SM + adaptive power governor | 🔴 NOT STARTED | Engine logic exists (`TelemetryEngine`, `StreamingJsonStateMachine`, `AdaptivePowerGovernor`/`StubPowerGovernor`/`AndroidPowerGovernor`) but **no CMP dashboard / Live Canvas** — `androidApp` only has probe UIs. No `app-ui` module. |
+| **M4** Android Live Testing | Resilient FGS, Geometric Layout Oracle, dual-mode Accessibility Engine | 🔴 NOT STARTED | `GeometricLayoutOracle`/`AccessibilityEngine` contracts in doc only; no impl. No foreground service. |
+| **M5** Security & Hardening | Non-interactive Git auth, visual 3-way merge, SecureVault (KeyStore) | 🔴 NOT STARTED | `CircuitBreaker` + `TaskSafetyBudget` exist; `GitAuthWrapper`/`SecureVault`/`DiagnosticsTools`/`FetchDocTool` not implemented. |
+
+**Structural gap (tracked separately):** Doc §1.2 calls for promotion from the `:shared` package monolith to real Gradle modules (`agent-core`, `data-layer`, `provider-subsystem`, `workspace-engine`, `live-canvas`, `app-ui`, `desktopApp`). Today only `:shared` + `:androidApp` exist (3 `build.gradle.kts`, no `buildSrc`). M0.5 explicitly deferred this to M1; it has **not** been performed. Recommend deciding between (a) promoting now before M3 UI work, or (b) deferring promotion until after M3.
+
 ## 1. System Architecture & Component Topology
 
 ### 1.1 The Mission Control Paradigm

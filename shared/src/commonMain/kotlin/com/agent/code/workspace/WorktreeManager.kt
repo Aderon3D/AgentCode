@@ -4,7 +4,7 @@ import com.agent.code.core.path.VirtualPath
 
 class WorktreeManager(
     private val rootRepoPath: VirtualPath,
-    private val processRunner: ProcessRunner
+    private val gitBackend: GitBackend
 ) {
     suspend fun createSparseWorktree(
         taskId: String,
@@ -14,32 +14,29 @@ class WorktreeManager(
         val worktreePath = rootRepoPath.resolve(".worktrees/task-$taskId")
         val branch = "agent/task-$taskId"
 
-        processRunner.run(
-            listOf("git", "-C", rootRepoPath.rawPath, "worktree", "add", "-b", branch, worktreePath.rawPath, baseBranch)
-        ).onFailure { return Result.failure(it) }
+        gitBackend.worktreeAdd(rootRepoPath, branch, worktreePath, baseBranch)
+            .onFailure { return Result.failure(it) }
 
-        // ponytail: git sparse-checkout needs >=2.25; skip when no dirs requested
-        // (also keeps this testable on older git).
         if (targetDirectories.isNotEmpty()) {
-            processRunner.run(
-                listOf("git", "-C", worktreePath.rawPath, "sparse-checkout", "set") + targetDirectories
-            ).onFailure { return Result.failure(it) }
+            gitBackend.sparseCheckoutSet(worktreePath, targetDirectories)
+                .onFailure { return Result.failure(it) }
         }
         return Result.success(worktreePath)
     }
 
     suspend fun finalizeAndSquashBranch(taskId: String, targetBranch: String = "main"): Result<Unit> {
         val branch = "agent/task-$taskId"
-        processRunner.run(listOf("git", "-C", rootRepoPath.rawPath, "checkout", targetBranch))
+        gitBackend.checkout(rootRepoPath, targetBranch)
             .onFailure { return Result.failure(it) }
-        processRunner.run(listOf("git", "-C", rootRepoPath.rawPath, "merge", "--squash", branch))
+        gitBackend.mergeSquash(rootRepoPath, branch)
             .onFailure { return Result.failure(it) }
-        processRunner.run(listOf("git", "-C", rootRepoPath.rawPath, "commit", "-q", "-m", "squash task $taskId"))
+        gitBackend.addAll(rootRepoPath)
             .onFailure { return Result.failure(it) }
-        processRunner.run(
-            listOf("git", "-C", rootRepoPath.rawPath, "worktree", "remove", "--force", ".worktrees/task-$taskId")
-        ).onFailure { return Result.failure(it) }
-        processRunner.run(listOf("git", "-C", rootRepoPath.rawPath, "branch", "-D", branch))
+        gitBackend.commit(rootRepoPath, "squash task $taskId")
+            .onFailure { return Result.failure(it) }
+        gitBackend.worktreeRemove(rootRepoPath, ".worktrees/task-$taskId")
+            .onFailure { return Result.failure(it) }
+        gitBackend.branchDelete(rootRepoPath, branch)
             .onFailure { return Result.failure(it) }
         return Result.success(Unit)
     }

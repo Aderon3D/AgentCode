@@ -6,6 +6,8 @@ import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.FileBackedWalStore
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.mcp.McpHost
+import com.agent.code.workspace.CliGitBackend
+import com.agent.code.workspace.GitBackend
 import com.agent.code.workspace.GitProcessRunner
 import com.agent.code.workspace.RealFileSystem
 import com.agent.code.workspace.WorktreeManager
@@ -108,11 +110,12 @@ class M1RealIoTest {
         runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed")).getOrThrow()
         runner.run(listOf("git", "-C", dir.absolutePath, "branch", "-M", "main")).getOrThrow()
 
-        val wm = WorktreeManager(root, runner)
+        val git = GitBackend.create(runner)
+        val wm = WorktreeManager(root, git)
         val wt = wm.createSparseWorktree("T1", emptyList()).getOrThrow()
         JFile(wt.rawPath, "feature.txt").writeText("feature work")
-        runner.run(listOf("git", "-C", wt.rawPath, "add", "feature.txt")).getOrThrow()
-        runner.run(listOf("git", "-C", wt.rawPath, "commit", "-q", "-m", "add feature")).getOrThrow()
+        git.addAll(VirtualPath.of(wt.rawPath)).getOrThrow()
+        git.commit(VirtualPath.of(wt.rawPath), "add feature").getOrThrow()
 
         wm.finalizeAndSquashBranch("T1").getOrThrow()
 
@@ -162,11 +165,12 @@ class M1RealIoTest {
         runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed")).getOrThrow()
         runner.run(listOf("git", "-C", dir.absolutePath, "branch", "-M", "main")).getOrThrow()
 
-        val wm = WorktreeManager(root, runner)
+        val git = GitBackend.create(runner)
+        val wm = WorktreeManager(root, git)
         val wt = wm.createSparseWorktree("T1", emptyList()).getOrThrow()
         JFile(wt.rawPath, "feature.txt").writeText("feature work")
-        runner.run(listOf("git", "-C", wt.rawPath, "add", "feature.txt")).getOrThrow()
-        runner.run(listOf("git", "-C", wt.rawPath, "commit", "-q", "-m", "add feature")).getOrThrow()
+        git.addAll(VirtualPath.of(wt.rawPath)).getOrThrow()
+        git.commit(VirtualPath.of(wt.rawPath), "add feature").getOrThrow()
 
         wm.promoteToMain("T1").getOrThrow()
 

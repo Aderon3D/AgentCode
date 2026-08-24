@@ -27,7 +27,7 @@ import com.agent.code.core.journal.LogEntry
 
 @Composable
 @Preview
-fun App(m1Demo: @Composable (() -> Unit)? = null) {
+fun App(probeDashboard: @Composable (() -> Unit)? = null) {
     MaterialTheme {
         var showSpine by remember { mutableStateOf(false) }
         Column(
@@ -43,7 +43,7 @@ fun App(m1Demo: @Composable (() -> Unit)? = null) {
             AnimatedVisibility(showSpine) {
                 M05SpineDemo()
             }
-            m1Demo?.invoke()
+            probeDashboard?.invoke()
         }
     }
 }

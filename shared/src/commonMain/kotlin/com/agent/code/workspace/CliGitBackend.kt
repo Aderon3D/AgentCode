@@ -12,6 +12,9 @@ class CliGitBackend(private val processRunner: ProcessRunner) : GitBackend {
         processRunner.run(listOf("git", "-C", repo.rawPath) + args.toList())
             .map { }
 
+    override suspend fun initRepo(path: VirtualPath): Result<Unit> =
+        processRunner.run(listOf("git", "init", "-q", path.rawPath)).map { }
+
     override suspend fun worktreeAdd(repo: VirtualPath, name: String, path: VirtualPath, baseBranch: String): Result<Unit> =
         git(repo, "worktree", "add", "-b", name, path.rawPath, baseBranch)
 

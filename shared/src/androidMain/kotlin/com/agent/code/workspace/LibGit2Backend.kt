@@ -20,6 +20,7 @@ class LibGit2Backend : GitBackend {
     }
 
     private external fun nativeInit(): String?
+    private external fun nativeInitRepo(path: String): String?
     private external fun nativeShutdown(): String?
     private external fun nativeWorktreeAdd(repo: String, name: String, path: String, base: String): String?
     private external fun nativeWorktreeRemove(repo: String, name: String): String?
@@ -43,6 +44,9 @@ class LibGit2Backend : GitBackend {
 
     private fun String?.toResult(): Result<Unit> =
         if (this == null) Result.success(Unit) else Result.failure(IllegalStateException(this))
+
+    override suspend fun initRepo(path: VirtualPath): Result<Unit> =
+        gitOp { nativeInitRepo(path.rawPath).toResult() }
 
     override suspend fun worktreeAdd(repo: VirtualPath, name: String, path: VirtualPath, baseBranch: String): Result<Unit> =
         gitOp { nativeWorktreeAdd(repo.rawPath, name, path.rawPath, baseBranch).toResult() }

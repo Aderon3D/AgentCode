@@ -1,15 +1,72 @@
 #include <jni.h>
 #include <git2.h>
 #include <string.h>
+#include <sys/stat.h>
 
-// ponytail: thin JNI shim — each function maps 1:1 to a libgit2 call.
-// No caching of git_repository* across calls (stateless, matches the
-// ProcessRunner contract). Errors come back as a non-null jstring.
+/* ponytail: thin JNI shim for libgit2 v1.8.1.
+ * Each function opens/closes git_repository* per call (stateless).
+ * Errors come back as a non-null jstring (NULL = success). */
+
+/* Recursively create parent directories (like mkdir -p) */
+static void mkdirs(const char *path) {
+    char tmp[1024];
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    for (char *p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(tmp, 0755);
+            *p = '/';
+        }
+    }
+    mkdir(tmp, 0755);
+}
 
 JNIEXPORT jstring JNICALL
 Java_com_agent_code_workspace_LibGit2Backend_nativeInit(JNIEnv *env, jobject thiz) {
     int err = git_libgit2_init();
     return err < 0 ? (*env)->NewStringUTF(env, "git_libgit2_init failed") : NULL;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_agent_code_workspace_LibGit2Backend_nativeInitRepo(
+    JNIEnv *env, jobject thiz, jstring jpath) {
+    const char *path = (*env)->GetStringUTFChars(env, jpath, NULL);
+    git_repository *r = NULL;
+    git_config *cfg = NULL;
+    jstring result = NULL;
+    int err = git_repository_init(&r, path, 0);
+    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
+
+    /* Set default user.name + user.email so commits don't fail */
+    err = git_repository_config(&cfg, r);
+    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
+    err = git_config_set_string(cfg, "user.name", "AgentCode");
+    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
+    err = git_config_set_string(cfg, "user.email", "agent@aderon.dev");
+    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
+
+    /* Override default HEAD to refs/heads/main (libgit2 may default to master) */
+    {
+        char head_path[1024];
+        snprintf(head_path, sizeof(head_path), "%s/.git/HEAD", path);
+        FILE *f = fopen(head_path, "w");
+        if (f) { fprintf(f, "ref: refs/heads/main\n"); fclose(f); }
+    }
+
+    /* Add .worktrees/ to .gitignore — libgit2 merge treats the worktree
+     * .git file as an invalid untracked path; CLI git ignores it. */
+    {
+        char gitignore_path[1024];
+        snprintf(gitignore_path, sizeof(gitignore_path), "%s/.gitignore", path);
+        FILE *f = fopen(gitignore_path, "a");
+        if (f) { fprintf(f, "\n.worktrees/\n"); fclose(f); }
+    }
+
+out:
+    if (cfg) git_config_free(cfg);
+    if (r) git_repository_free(r);
+    (*env)->ReleaseStringUTFChars(env, jpath, path);
+    return result;
 }
 
 JNIEXPORT jstring JNICALL
@@ -28,32 +85,49 @@ Java_com_agent_code_workspace_LibGit2Backend_nativeWorktreeAdd(
     const char *base = (*env)->GetStringUTFChars(env, jbase, NULL);
 
     git_repository *r = NULL;
+    git_reference *head_ref = NULL;
+    git_commit *head_commit = NULL;
     git_reference *branch_ref = NULL;
-    git_annotated_commit *head = NULL;
-    int err;
+    git_worktree *wt = NULL;
     jstring result = NULL;
+    int err;
 
     err = git_repository_open_ext(&r, repo, 0, NULL);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    // Create orphan branch at HEAD
-    git_oid head_oid;
-    err = git_reference_name_to_id(&head_oid, r, "HEAD");
+    /* Resolve HEAD to a commit for branch creation */
+    err = git_repository_head(&head_ref, r);
+    if (err < 0) { result = (*env)->NewStringUTF(env, "no HEAD (empty repo?)"); goto out; }
+
+    err = git_commit_lookup(&head_commit, r, git_reference_target(head_ref));
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    err = git_branch_create(&branch_ref, r, name, 0 /* not force */, NULL);
+    /* Create branch from HEAD */
+    err = git_branch_create(&branch_ref, r, name, head_commit, 0);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    // Create worktree
-    git_worktree *wt = NULL;
-    git_buf buf = GIT_BUF_INIT;
-    err = git_worktree_add(&wt, r, name, path, NULL);
-    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
+    /* Derive flat worktree name from path basename to avoid nested dirs.
+     * e.g. name="agent/task-42", path=".../.worktrees/task-42"
+     *   → worktree metadata dir = .git/worktrees/task-42 */
+    const char *wt_name = strrchr(path, '/');
+    wt_name = wt_name ? wt_name + 1 : path;
 
-    git_worktree_free(wt);
+    /* Create parent directory of worktree path (libgit2 won't do mkdir -p) */
+    char parent[1024];
+    snprintf(parent, sizeof(parent), "%s", path);
+    char *last_slash = strrchr(parent, '/');
+    if (last_slash) { *last_slash = '\0'; mkdirs(parent); }
+
+    git_worktree_add_options opts = GIT_WORKTREE_ADD_OPTIONS_INIT;
+    opts.ref = branch_ref;
+    err = git_worktree_add(&wt, r, wt_name, path, &opts);
+    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
 out:
+    if (wt) git_worktree_free(wt);
     if (branch_ref) git_reference_free(branch_ref);
+    if (head_commit) git_commit_free(head_commit);
+    if (head_ref) git_reference_free(head_ref);
     if (r) git_repository_free(r);
     (*env)->ReleaseStringUTFChars(env, jrepo, repo);
     (*env)->ReleaseStringUTFChars(env, jname, name);
@@ -77,10 +151,16 @@ Java_com_agent_code_workspace_LibGit2Backend_nativeWorktreeRemove(
     err = git_repository_open_ext(&r, repo, 0, NULL);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    err = git_worktree_lookup(&wt, r, name);
+    /* Derive flat worktree name from path (e.g. ".worktrees/task-42" → "task-42") */
+    const char *wt_name = strrchr(name, '/');
+    wt_name = wt_name ? wt_name + 1 : name;
+
+    err = git_worktree_lookup(&wt, r, wt_name);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    err = git_worktree_remove(wt, 1 /* force */);
+    git_worktree_prune_options popts = GIT_WORKTREE_PRUNE_OPTIONS_INIT;
+    popts.flags = GIT_WORKTREE_PRUNE_VALID | GIT_WORKTREE_PRUNE_LOCKED;
+    err = git_worktree_prune(wt, &popts);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
 out:
@@ -107,17 +187,27 @@ Java_com_agent_code_workspace_LibGit2Backend_nativeCheckout(
     err = git_repository_open_ext(&r, repo, 0, NULL);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    err = git_reference_lookup(&ref, r, branch);
+    /* Resolve branch name to full refname if needed */
+    char refname[512];
+    if (strncmp(branch, "refs/", 5) == 0) {
+        snprintf(refname, sizeof(refname), "%s", branch);
+    } else {
+        snprintf(refname, sizeof(refname), "refs/heads/%s", branch);
+    }
+
+    err = git_reference_lookup(&ref, r, refname);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
     err = git_reference_peel(&target, ref, GIT_OBJECT_COMMIT);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    err = git_checkout_tree(r, target, NULL, NULL);
+    /* v1.8: git_checkout_tree takes 3 args */
+    git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+    opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+    err = git_checkout_tree(r, target, &opts);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    // Update HEAD
-    err = git_repository_set_head(r, branch);
+    err = git_repository_set_head(r, refname);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
 out:
@@ -147,14 +237,19 @@ Java_com_agent_code_workspace_LibGit2Backend_nativeMergeSquash(
     err = git_repository_open_ext(&r, repo, 0, NULL);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    // Resolve branch to annotated commit
-    err = git_reference_lookup(&branch_ref, r, branch);
+    char refname[512];
+    if (strncmp(branch, "refs/", 5) == 0) {
+        snprintf(refname, sizeof(refname), "%s", branch);
+    } else {
+        snprintf(refname, sizeof(refname), "refs/heads/%s", branch);
+    }
+
+    err = git_reference_lookup(&branch_ref, r, refname);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
     err = git_annotated_commit_from_ref(&their, r, branch_ref);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    // Merge
     merge_opts.flags = GIT_MERGE_FIND_RENAMES;
     checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
     err = git_merge(r, (const git_annotated_commit **)&their, 1, &merge_opts, &checkout_opts);
@@ -206,48 +301,23 @@ Java_com_agent_code_workspace_LibGit2Backend_nativeCommit(
     const char *message = (*env)->GetStringUTFChars(env, jmessage, NULL);
 
     git_repository *r = NULL;
-    git_index *idx = NULL;
-    git_oid tree_oid, commit_oid, parent_oid;
-    git_tree *tree = NULL;
-    git_reference *head_ref = NULL;
-    git_commit *parent = NULL;
+    git_oid commit_oid;
     jstring result = NULL;
     int err;
 
     err = git_repository_open_ext(&r, repo, 0, NULL);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    // Write index to tree
-    err = git_repository_index(&idx, r);
-    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
-
-    err = git_index_write_tree(&tree_oid, idx);
-    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
-
-    err = git_tree_lookup(&tree, r, &tree_oid);
-    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
-
-    // Get parent commit (may fail if empty repo)
-    err = git_reference_lookup(&head_ref, r, "HEAD");
-    if (err == 0) {
-        git_reference_name_to_id(&parent_oid, r, "HEAD");
-        err = git_commit_lookup(&parent, r, &parent_oid);
+    /* v1.8: git_commit_create_from_stage — commits the staged index directly */
+    err = git_commit_create_from_stage(&commit_oid, r, message, NULL);
+    if (err == GIT_EUNCHANGED) {
+        /* No changes to commit — not an error for probe purposes */
+        result = NULL;
+    } else if (err < 0) {
+        result = (*env)->NewStringUTF(env, git_error_last()->message);
     }
 
-    // Create commit
-    git_signature *sig = NULL;
-    err = git_signature_now(&sig, "AgentCode", "agent@code.local");
-    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
-
-    err = git_commit_create(&commit_oid, r, "HEAD", sig, sig, NULL, message, tree, parent ? 1 : 0, parent ? (const git_commit **)&parent : NULL);
-    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
-
 out:
-    if (sig) git_signature_free(sig);
-    if (parent) git_commit_free(parent);
-    if (head_ref) git_reference_free(head_ref);
-    if (tree) git_tree_free(tree);
-    if (idx) git_index_free(idx);
     if (r) git_repository_free(r);
     (*env)->ReleaseStringUTFChars(env, jrepo, repo);
     (*env)->ReleaseStringUTFChars(env, jmessage, message);

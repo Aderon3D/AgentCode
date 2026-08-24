@@ -67,7 +67,11 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
     LaunchedEffect(isExpanded("Device Stats")) {
         if (!isExpanded("Device Stats")) return@LaunchedEffect
         while (isActive) {
-            val stats = withContext(Dispatchers.IO) { collector.collect().format() }
+            val stats = try {
+                withContext(Dispatchers.IO) { collector.collect().format() }
+            } catch (e: Exception) {
+                "Device Stats error: ${e.message}"
+            }
             deviceStatsText = stats
             delay(10_000)
         }

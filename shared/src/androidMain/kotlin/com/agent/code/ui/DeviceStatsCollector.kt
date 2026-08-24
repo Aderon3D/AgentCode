@@ -97,25 +97,27 @@ class DeviceStatsCollector(private val context: Context) {
         )
     }
 
-    private fun collectGpu(): DeviceStats.Gpu {
+    private fun collectGpu(): DeviceStats.Gpu = try {
         val vendor = GLES20.glGetString(GLES20.GL_VENDOR) ?: "unknown"
         val renderer = GLES20.glGetString(GLES20.GL_RENDERER) ?: "unknown"
         val version = GLES20.glGetString(GLES20.GL_VERSION) ?: "unknown"
         val extensions = try { GLES20.glGetString(GLES20.GL_EXTENSIONS)?.split(" ")?.size ?: 0 } catch (_: Exception) { 0 }
-        return DeviceStats.Gpu(
+        DeviceStats.Gpu(
             vendor = vendor,
             renderer = renderer,
             glVersion = version,
             extensionCount = extensions,
         )
+    } catch (_: Exception) {
+        DeviceStats.Gpu("n/a", "n/a (no GL context)", "n/a", 0)
     }
 
-    private fun collectDisplay(): DeviceStats.Display {
+    private fun collectDisplay(): DeviceStats.Display = try {
         val dm = wm.defaultDisplay
         val metrics = android.util.DisplayMetrics()
         @Suppress("DEPRECATION")
         dm.getRealMetrics(metrics)
-        return DeviceStats.Display(
+        DeviceStats.Display(
             widthPx = metrics.widthPixels,
             heightPx = metrics.heightPixels,
             densityDpi = metrics.densityDpi,
@@ -128,6 +130,8 @@ class DeviceStatsCollector(private val context: Context) {
                 String.format("%.1f", diag).toDouble()
             },
         )
+    } catch (_: Exception) {
+        DeviceStats.Display(0, 0, 0, 0f, 0f, 0.0)
     }
 
     private fun collectBattery(): DeviceStats.Battery {

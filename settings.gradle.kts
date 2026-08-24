@@ -28,5 +28,8 @@ dependencyResolutionManagement {
     }
 }
 
+include(":agent-core")
+include(":provider-subsystem")
+include(":workspace-engine")
+include(":app-ui")
 include(":androidApp")
-include(":shared")

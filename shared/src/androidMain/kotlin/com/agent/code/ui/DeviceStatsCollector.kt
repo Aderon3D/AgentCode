@@ -48,7 +48,8 @@ class DeviceStatsCollector(private val context: Context) {
         val model = parseCpuInfo("/proc/cpuinfo", "Hardware")
             ?: parseCpuInfo("/proc/cpuinfo", "model name")
             ?: parseCpuInfo("/proc/cpuinfo", "Processor")
-            ?: "unknown"
+            ?: parseCpuInfo("/proc/cpuinfo", "CPU implementer")
+            ?: Build.HARDWARE
         val maxFreqKhz = readSysfsInt("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq")
         val curFreqKhz = (0 until coreCount).mapNotNull { i ->
             readSysfsInt("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_cur_freq")
@@ -110,21 +111,25 @@ class DeviceStatsCollector(private val context: Context) {
     }
 
     private fun collectDisplay(): DeviceStats.Display = try {
-        val dm = wm.defaultDisplay
-        val metrics = android.util.DisplayMetrics()
-        @Suppress("DEPRECATION")
-        dm.getRealMetrics(metrics)
+        val w = wm.currentWindowMetrics.bounds.width()
+        val h = wm.currentWindowMetrics.bounds.height()
+        val insets = wm.currentWindowMetrics.windowInsets
+        val density = context.resources.displayMetrics.densityDpi.toFloat()
+        val refreshRate = @Suppress("DEPRECATION") wm.defaultDisplay.refreshRate
         DeviceStats.Display(
-            widthPx = metrics.widthPixels,
-            heightPx = metrics.heightPixels,
-            densityDpi = metrics.densityDpi,
-            density = metrics.density,
-            refreshRateHz = @Suppress("DEPRECATION") dm.refreshRate,
+            widthPx = w,
+            heightPx = h,
+            densityDpi = density.toInt(),
+            density = context.resources.displayMetrics.density,
+            refreshRateHz = refreshRate,
             physicalSizeInches = run {
-                val wInches = metrics.widthPixels.toDouble() / metrics.xdpi
-                val hInches = metrics.heightPixels.toDouble() / metrics.ydpi
-                val diag = kotlin.math.sqrt(wInches * wInches + hInches * hInches)
-                String.format("%.1f", diag).toDouble()
+                val xdpi = context.resources.displayMetrics.xdpi
+                val ydpi = context.resources.displayMetrics.ydpi
+                if (xdpi > 0 && ydpi > 0) {
+                    val wIn = w.toDouble() / xdpi
+                    val hIn = h.toDouble() / ydpi
+                    String.format("%.1f", kotlin.math.sqrt(wIn * wIn + hIn * hIn)).toDouble()
+                } else 0.0
             },
         )
     } catch (_: Exception) {

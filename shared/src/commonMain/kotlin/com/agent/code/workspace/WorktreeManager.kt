@@ -30,7 +30,11 @@ class WorktreeManager(
 
     suspend fun finalizeAndSquashBranch(taskId: String, targetBranch: String = "main"): Result<Unit> {
         val branch = "agent/task-$taskId"
+        processRunner.run(listOf("git", "-C", rootRepoPath.rawPath, "checkout", targetBranch))
+            .onFailure { return Result.failure(it) }
         processRunner.run(listOf("git", "-C", rootRepoPath.rawPath, "merge", "--squash", branch))
+            .onFailure { return Result.failure(it) }
+        processRunner.run(listOf("git", "-C", rootRepoPath.rawPath, "commit", "-q", "-m", "squash task $taskId"))
             .onFailure { return Result.failure(it) }
         processRunner.run(
             listOf("git", "-C", rootRepoPath.rawPath, "worktree", "remove", "--force", ".worktrees/task-$taskId")

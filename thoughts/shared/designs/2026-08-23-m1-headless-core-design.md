@@ -55,12 +55,13 @@ Gradle promotion to later M1 sub-phases (M1.2 / M1.3).
 ## Architecture
 
 - Interfaces stay in `commonMain` under the `workspace` package:
-  `FileSystemProvider`, `ProcessRunner`, `WalStore`. The **first slice keeps
-  current signatures** to minimize blast radius; widening to the richer
-  `Result` / `ProcessConfiguration` / `applyPatch` / `walkTree` / `delete`
-  forms from doc §2.5–2.7 happens in M1.2.
-- Real backends are `actual` implementations in `androidMain`: a real `git` CLI
-  driven through `ProcessRunner`, and real file IO via `java.io` / `nio`. The
+  `FileSystemProvider`, `ProcessRunner`, `WalStore`. As shipped, `FileSystemProvider`
+  and `ProcessRunner` already use `Result`-based contracts (`read`/`write` return
+  `Result`, `run` returns `Result<String>`); error typing lives in the sealed
+  `FileError` hierarchy. Further widening (`applyPatch`/`walkTree`/`delete`) remains
+  future work.
+- Real backends are ordinary classes in `androidMain` (not KMP `actual`s): a real
+  `git` CLI driven through `ProcessRunner`, and real file IO via `java.io`. The
   JVM host test target keeps `InMemoryFileSystem` + `StubProcessRunner`.
 - `WalStore` gains a `FileBackedWalStore` (append-only text log on real FS) for
   Android; `InMemoryWalStore` remains for tests.

@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +23,8 @@ import com.agent.code.core.journal.eventJson
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.workspace.RealFileSystem
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Device-runnable M1 proof: writes/reads a real file through [RealFileSystem]
@@ -31,6 +34,7 @@ import java.io.File
 @Composable
 fun M1RealIoDemo(baseDir: String) {
     val fs = remember { RealFileSystem() }
+    val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<String?>(null) }
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -38,6 +42,7 @@ fun M1RealIoDemo(baseDir: String) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Button(onClick = {
+            scope.launch(Dispatchers.IO) {
             val probePath = VirtualPath.of("$baseDir/agentcode-m1-probe.txt")
             val written = "M1 real-IO probe @ ${System.currentTimeMillis()}"
             val fsLine = fs.write(probePath, written).fold(
@@ -65,6 +70,7 @@ fun M1RealIoDemo(baseDir: String) {
             }
 
             result = "$fsLine\n\n$walLine"
+            }
         }) {
             Text("Run M1 Real IO Probe")
         }

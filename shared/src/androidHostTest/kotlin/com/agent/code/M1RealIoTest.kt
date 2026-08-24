@@ -106,7 +106,7 @@ class M1RealIoTest {
         dir.resolve("base.txt").writeText("base")
         runner.run(listOf("git", "-C", dir.absolutePath, "add", "base.txt")).getOrThrow()
         runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed")).getOrThrow()
-        runner.run(listOf("git", "-C", dir.absolutePath, "branch", "main")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "branch", "-M", "main")).getOrThrow()
 
         val wm = WorktreeManager(root, runner)
         val wt = wm.createSparseWorktree("T1", emptyList()).getOrThrow()
@@ -119,5 +119,14 @@ class M1RealIoTest {
         assertTrue(JFile(dir, "feature.txt").exists(), "squash-merged feature should land on main")
         val branches = runner.run(listOf("git", "-C", root.rawPath, "branch")).getOrThrow()
         assertFalse(branches.contains("agent/task-T1"), "task branch should be removed")
+    }
+
+    @Test
+    fun processRunnerDrainsLargeStderrWithoutBlocking() = runBlocking {
+        val runner = GitProcessRunner()
+        // Emit >64KB to stderr and exit 0; must complete (no pipe deadlock).
+        val script = "i=0; while [ \$i -lt 100000 ]; do printf E >&2; i=\$((i+1)); done"
+        val res = runner.run(listOf("sh", "-c", script))
+        assertTrue(res.isSuccess, "stderr-heavy process should finish: ${res.exceptionOrNull()?.message}")
     }
 }

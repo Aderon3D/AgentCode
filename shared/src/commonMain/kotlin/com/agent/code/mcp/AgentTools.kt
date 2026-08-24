@@ -15,11 +15,10 @@ class ReadFileTool(private val fileSystem: FileSystemProvider) : AgentTool {
 
     override suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult {
         val path = Json.parseToJsonElement(argumentsJson).jsonObject["path"]?.toString()?.trim('"') ?: return ToolResult(name, false, "missing path", 0L)
-        return try {
-            ToolResult(name, true, fileSystem.read(VirtualPath.of(path)), 0L)
-        } catch (e: Exception) {
-            ToolResult(name, false, e.message ?: "read failed", 0L)
-        }
+        return fileSystem.read(VirtualPath.of(path)).fold(
+            onSuccess = { ToolResult(name, true, it, 0L) },
+            onFailure = { ToolResult(name, false, it.message ?: "read failed", 0L) }
+        )
     }
 }
 
@@ -34,13 +33,13 @@ class ApplyPatchTool(private val fileSystem: FileSystemProvider) : AgentTool {
         val search = obj["search"]?.toString()?.trim('"') ?: return ToolResult(name, false, "missing search", 0L)
         val replace = obj["replace"]?.toString()?.trim('"') ?: ""
         val vp = VirtualPath.of(path)
-        return try {
-            val original = fileSystem.read(vp)
-            if (!original.contains(search)) return ToolResult(name, false, "search not found in $path", 0L)
-            fileSystem.write(vp, original.replaceFirst(search, replace))
-            ToolResult(name, true, "patched $path", 0L)
-        } catch (e: Exception) {
-            ToolResult(name, false, e.message ?: "patch failed", 0L)
+        val original = fileSystem.read(vp).getOrElse {
+            return ToolResult(name, false, it.message ?: "read failed", 0L)
         }
+        if (!original.contains(search)) return ToolResult(name, false, "search not found in $path", 0L)
+        fileSystem.write(vp, original.replaceFirst(search, replace)).onFailure {
+            return ToolResult(name, false, it.message ?: "write failed", 0L)
+        }
+        return ToolResult(name, true, "patched $path", 0L)
     }
 }

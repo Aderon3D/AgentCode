@@ -39,3 +39,11 @@ node_modules/
 .env.*
 !.env.example
 GOOGLE_SERVICES_JSON
+
+# Local tooling config (never commit)
+CODEDB.md
+opencode.jsonc
+
+# Superseded standalone demos (replaced by ProbeDashboard)
+shared/src/androidMain/kotlin/com/agent/code/ui/LibGit2Demo.kt
+shared/src/androidMain/kotlin/com/agent/code/ui/ShizukuStatusDemo.kt

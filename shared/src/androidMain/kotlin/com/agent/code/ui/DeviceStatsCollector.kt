@@ -4,7 +4,6 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.opengl.GLES20
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
@@ -98,18 +97,16 @@ class DeviceStatsCollector(private val context: Context) {
     }
 
     private fun collectGpu(): DeviceStats.Gpu = try {
-        val vendor = GLES20.glGetString(GLES20.GL_VENDOR) ?: "unknown"
-        val renderer = GLES20.glGetString(GLES20.GL_RENDERER) ?: "unknown"
-        val version = GLES20.glGetString(GLES20.GL_VERSION) ?: "unknown"
-        val extensions = try { GLES20.glGetString(GLES20.GL_EXTENSIONS)?.split(" ")?.size ?: 0 } catch (_: Exception) { 0 }
+        val configInfo = am.deviceConfigurationInfo
+        val glueVersion = configInfo?.glEsVersion ?: "n/a"
         DeviceStats.Gpu(
-            vendor = vendor,
-            renderer = renderer,
-            glVersion = version,
-            extensionCount = extensions,
+            vendor = Build.HARDWARE,
+            renderer = configInfo?.reqGlEsVersion?.let { "ES $glueVersion" } ?: "n/a",
+            glVersion = glueVersion,
+            extensionCount = 0,
         )
     } catch (_: Exception) {
-        DeviceStats.Gpu("n/a", "n/a (no GL context)", "n/a", 0)
+        DeviceStats.Gpu("n/a", "n/a", "n/a", 0)
     }
 
     private fun collectDisplay(): DeviceStats.Display = try {

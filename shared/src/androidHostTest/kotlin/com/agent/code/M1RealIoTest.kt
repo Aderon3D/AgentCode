@@ -22,7 +22,7 @@ class M1RealIoTest {
     @Test
     fun realFileSystemReadWriteExists() {
         val dir = createTempDirectory("m1-fs").toFile()
-        val fs = RealFileSystem()
+        val fs = RealFileSystem(VirtualPath.of(dir.absolutePath))
         val path = VirtualPath.of("${dir.absolutePath}/sub/note.txt")
 
         assertFalse(fs.exists(path))
@@ -79,7 +79,7 @@ class M1RealIoTest {
         runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.email", "m1@agent.code")).getOrThrow()
         runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.name", "M1")).getOrThrow()
 
-        val fs = RealFileSystem()
+        val fs = RealFileSystem(VirtualPath.of(dir.absolutePath))
         val target = VirtualPath.of("${dir.absolutePath}/hello.txt")
         fs.write(target, "hello world").getOrThrow()
         runner.run(listOf("git", "-C", dir.absolutePath, "add", "hello.txt")).getOrThrow()
@@ -128,5 +128,50 @@ class M1RealIoTest {
         val script = "i=0; while [ \$i -lt 100000 ]; do printf E >&2; i=\$((i+1)); done"
         val res = runner.run(listOf("sh", "-c", script))
         assertTrue(res.isSuccess, "stderr-heavy process should finish: ${res.exceptionOrNull()?.message}")
+    }
+
+    @Test
+    fun realFileSystemBlocksTraversalOutsideRoot() {
+        val dir = createTempDirectory("m1-fs-esc").toFile()
+        val fs = RealFileSystem(VirtualPath.of(dir.absolutePath))
+        val escape = VirtualPath.of("${dir.absolutePath}/../agentcode-escape.txt")
+        assertTrue(fs.read(escape).isFailure, "read outside root must fail")
+        assertTrue(fs.write(escape, "x").isFailure, "write outside root must fail")
+        assertFalse(fs.exists(escape), "exists outside root must be false")
+    }
+
+    @Test
+    fun fileBackedWalSelfHealsCorruptLine() {
+        val file = createTempDirectory("m1-wal-heal").resolve("wal.log").toFile()
+        file.writeText("{\"valid\":1}\nthis is corrupt\n{\"valid\":2}\n")
+        val store = FileBackedWalStore(file)
+        assertEquals(1, store.selfHeal())
+        assertEquals(2, store.replay().size)
+    }
+
+    @Test
+    fun promoteToMainSquashesIntoMain() = runBlocking {
+        val dir = createTempDirectory("m1-promote").toFile()
+        val runner = GitProcessRunner()
+        val root = VirtualPath.of(dir.absolutePath)
+        runner.run(listOf("git", "init", "-q", dir.absolutePath)).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.email", "m1@agent.code")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "config", "user.name", "M1")).getOrThrow()
+        dir.resolve("base.txt").writeText("base")
+        runner.run(listOf("git", "-C", dir.absolutePath, "add", "base.txt")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "commit", "-q", "-m", "seed")).getOrThrow()
+        runner.run(listOf("git", "-C", dir.absolutePath, "branch", "-M", "main")).getOrThrow()
+
+        val wm = WorktreeManager(root, runner)
+        val wt = wm.createSparseWorktree("T1", emptyList()).getOrThrow()
+        JFile(wt.rawPath, "feature.txt").writeText("feature work")
+        runner.run(listOf("git", "-C", wt.rawPath, "add", "feature.txt")).getOrThrow()
+        runner.run(listOf("git", "-C", wt.rawPath, "commit", "-q", "-m", "add feature")).getOrThrow()
+
+        wm.promoteToMain("T1").getOrThrow()
+
+        assertTrue(JFile(dir, "feature.txt").exists(), "promoted feature should land on main")
+        val branches = runner.run(listOf("git", "-C", root.rawPath, "branch")).getOrThrow()
+        assertFalse(branches.contains("agent/task-T1"), "task branch should be removed after promotion")
     }
 }

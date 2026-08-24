@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun M1RealIoDemo(baseDir: String) {
-    val fs = remember { RealFileSystem() }
+    val fs = remember { RealFileSystem(VirtualPath.of(baseDir)) }
     val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<String?>(null) }
     Column(
@@ -62,14 +62,21 @@ fun M1RealIoDemo(baseDir: String) {
                 AgentEvent.TaskSucceeded(2, "ui-probe", System.currentTimeMillis(), "durable WAL recovered"),
             )
             events.forEach { store.append(eventJson.encodeToString(it)) }
+            val pruned = store.selfHeal()
             val recovered = FileBackedWalStore(walFile).replay()
             val walLine = if (recovered.size == events.size) {
-                "Durable WAL OK: ${recovered.size} events recovered after restart"
+                "Durable WAL OK: ${recovered.size} events recovered after restart" + if (pruned > 0) " ($pruned corrupt pruned)" else ""
             } else {
                 "WAL MISMATCH: expected ${events.size}, got ${recovered.size}"
             }
 
-            result = "$fsLine\n\n$walLine"
+            val escape = VirtualPath.of("$baseDir/../agentcode-escape.txt")
+            val traversalLine = fs.read(escape).fold(
+                onSuccess = { "TRAVERSAL NOT BLOCKED (read: $it)" },
+                onFailure = { "Traversal blocked: ${it.message}" },
+            )
+
+            result = "$fsLine\n\n$walLine\n\n$traversalLine"
             }
         }) {
             Text("Run M1 Real IO Probe")

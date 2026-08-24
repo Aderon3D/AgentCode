@@ -23,9 +23,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.agent.code.core.concurrency.EnergyAwareDispatchers
 import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.FileBackedWalStore
 import com.agent.code.core.journal.eventJson
+import com.agent.code.core.lock.ActiveTaskLock
+import com.agent.code.core.lock.ConflictRisk
+import com.agent.code.core.lock.WorkspaceLockManager
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.workspace.LibGit2Backend
 import com.agent.code.workspace.RealFileSystem
@@ -65,6 +69,8 @@ fun ProbeDashboard(baseDir: String) {
                         results["LibGit2 JNI"] = git; expanded["LibGit2 JNI"] = true
                         val shizuku = withContext(Dispatchers.IO) { runShizukuProbe() }
                         results["Shizuku"] = shizuku; expanded["Shizuku"] = true
+                        val m2 = withContext(Dispatchers.IO) { runM2Probe() }
+                        results["M2 Concurrency"] = m2; expanded["M2 Concurrency"] = true
                         running = false
                     }
                 },
@@ -212,4 +218,45 @@ private fun runShizukuProbe(): String {
             appendLine("If Shevery is running, onServiceConnected will fire")
         }
     }
+}
+
+private fun runM2Probe(): String = kotlinx.coroutines.runBlocking {
+    val log = mutableListOf<String>()
+    val mgr = WorkspaceLockManager()
+
+    // 1. No collision on empty registry
+    val none = mgr.evaluateCollisionRisk(setOf(VirtualPath.of("/a.kt")), setOf("sym1"))
+    log.add("No collision (empty registry): ${none::class.simpleName}")
+
+    // 2. Register lock for task t1
+    mgr.waitForMaintenanceAndRegisterLock("t1",
+        ActiveTaskLock("t1", "agent/task-t1", setOf(VirtualPath.of("/a.kt")), setOf("symX")))
+
+    // 3. File overlap detection
+    val overlap = mgr.evaluateCollisionRisk(setOf(VirtualPath.of("/a.kt")), emptySet())
+    log.add("File overlap (t2 wants /a.kt): ${overlap::class.simpleName}" +
+        if (overlap is ConflictRisk.FileOverlapRequiresMerge) " — files: ${overlap.files}" else "")
+
+    // 4. Symbol collision detection
+    val collision = mgr.evaluateCollisionRisk(emptySet(), setOf("symX"))
+    log.add("Symbol collision (t2 wants symX): ${collision::class.simpleName}" +
+        if (collision is ConflictRisk.FatalSymbolCollision) " — symbols: ${collision.symbols}" else "")
+
+    // 5. Release + re-check
+    mgr.releaseLock("t1")
+    val afterRelease = mgr.evaluateCollisionRisk(setOf(VirtualPath.of("/a.kt")), emptySet())
+    log.add("After release: ${afterRelease::class.simpleName}")
+
+    // 6. Maintenance lock blocks new registrations
+    mgr.tryAcquireMaintenanceLock()
+    log.add("Maintenance lock acquired: activeLocks=${mgr.activeLockCount()}")
+    mgr.releaseMaintenanceLock()
+    log.add("Maintenance lock released")
+
+    // 7. Dispatcher smoke
+    val ioResult = kotlinx.coroutines.withContext(EnergyAwareDispatchers.EfficiencyIO) { " EfficiencyIO OK" }
+    val computeResult = kotlinx.coroutines.withContext(EnergyAwareDispatchers.ComputeBurst) { " ComputeBurst OK" }
+    log.add("Dispatchers:$ioResult,$computeResult")
+
+    log.joinToString("\n")
 }

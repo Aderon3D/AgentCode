@@ -43,4 +43,8 @@ class WorktreeManager(
             .onFailure { return Result.failure(it) }
         return Result.success(Unit)
     }
+
+    // ponytail: module promotion == squash-merge a finished task worktree into
+    // main. (Opening the resulting commit as a PR is out of app scope.)
+    suspend fun promoteToMain(taskId: String): Result<Unit> = finalizeAndSquashBranch(taskId, "main")
 }

@@ -1,5 +1,10 @@
 package com.agent.code.core.fsm
 
+import com.agent.code.core.lock.ConflictRisk
+import com.agent.code.core.lock.ExecutionPermit
+import com.agent.code.core.lock.SemanticConflictFunnel
+import com.agent.code.core.lock.TaskLockCoordinator
+import com.agent.code.core.path.VirtualPath
 import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.LogEntry
@@ -7,13 +12,29 @@ import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.policy.AutonomyPolicy
 import com.agent.code.core.tools.ToolResult
 import com.agent.code.mcp.McpHost
+import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
+
+sealed interface StepResult {
+    object TaskFinished : StepResult
+    object StepCompletedMoreWorkPending : StepResult
+    data class BlockedOnApproval(val approvalId: String) : StepResult
+    data class FatalError(val reason: String) : StepResult
+}
+
+enum class OperatingProfile {
+    TURBO_PLUGGED,
+    BALANCED_BATTERY,
+    ECO_PRESERVATION
+}
 
 class AgentOrchestrator(
     private val journal: AgentEventJournal,
     private val policy: AutonomyPolicy,
     private val mcp: McpHost,
-    private val telemetry: TelemetryEngine
+    private val telemetry: TelemetryEngine,
+    private val lockCoordinator: TaskLockCoordinator? = null,
+    private val funnel: SemanticConflictFunnel? = null
 ) {
     private var seq = 0L
     private fun nextId(): Long = ++seq
@@ -29,7 +50,7 @@ class AgentOrchestrator(
         val result = mcp.dispatch(toolCall)
         journal.append(AgentEvent.ToolExecutionFinished(nextId(), taskId, now(), result))
         if (result.isSuccess && toolCall.toolName == "apply_diff_patch") {
-            journal.append(AgentEvent.FilePatchApplied(nextId(), taskId, now(), com.agent.code.core.path.VirtualPath.of("/src/main.kt"), toolCall.argumentsJson))
+            journal.append(AgentEvent.FilePatchApplied(nextId(), taskId, now(), VirtualPath.of("/src/main.kt"), toolCall.argumentsJson))
         }
         telemetry.emit(LogEntry.ToolCallStarted(now(), toolCall.toolName, toolCall.argumentsJson))
         return result
@@ -41,4 +62,124 @@ class AgentOrchestrator(
     }
 
     fun recover(taskId: String): AgentState = journal.recoverState(taskId)
+
+    // --- Step-based execution API (M2) ---
+
+    suspend fun executeSingleStep(taskId: String, profile: OperatingProfile = OperatingProfile.TURBO_PLUGGED): StepResult {
+        val currentState = journal.recoverState(taskId)
+        return when (currentState) {
+            is AgentState.Success -> StepResult.TaskFinished
+            is AgentState.Error -> StepResult.FatalError(currentState.fatalCause)
+            is AgentState.AwaitingHumanApproval -> StepResult.BlockedOnApproval(currentState.toolCall.id)
+            is AgentState.Planning -> processPlanningStep(taskId, currentState)
+            is AgentState.ExecutingTool -> processToolExecutionStep(taskId, currentState)
+            is AgentState.Verifying -> processVerificationStep(taskId)
+            is AgentState.Reflecting -> processReflectionStep(taskId, currentState)
+            is AgentState.Idle -> StepResult.TaskFinished
+        }
+    }
+
+    suspend fun executeStepPaced(taskId: String, profile: OperatingProfile = OperatingProfile.BALANCED_BATTERY): StepResult {
+        val result = executeSingleStep(taskId, profile)
+        when (profile) {
+            OperatingProfile.TURBO_PLUGGED -> { /* no delay */ }
+            OperatingProfile.BALANCED_BATTERY -> delay(50L)
+            OperatingProfile.ECO_PRESERVATION -> delay(500L)
+        }
+        return result
+    }
+
+    suspend fun executeStepsUntilDone(
+        taskId: String,
+        toolCalls: List<ToolCall>,
+        profile: OperatingProfile = OperatingProfile.TURBO_PLUGGED,
+        maxSteps: Int = 50
+    ): StepResult {
+        var toolIndex = 0
+        var steps = 0
+        while (steps < maxSteps) {
+            val state = recover(taskId)
+            when (state) {
+                is AgentState.Success, is AgentState.Error -> return StepResult.TaskFinished
+                is AgentState.Idle -> return StepResult.TaskFinished
+                is AgentState.Planning -> {
+                    if (toolIndex < toolCalls.size) {
+                        startTask(taskId, "step-$toolIndex")
+                    } else {
+                        return StepResult.TaskFinished
+                    }
+                }
+                is AgentState.ExecutingTool -> {
+                    if (toolIndex < toolCalls.size) {
+                        val permit = lockCoordinator?.acquireTaskExecutionPermit(
+                            taskId, "agent/task-$taskId",
+                            emptySet(), emptySet()
+                        )
+                        try {
+                            runTool(taskId, toolCalls[toolIndex])
+                            toolIndex++
+                        } finally {
+                            if (permit != null) lockCoordinator.releaseTaskExecutionPermit(taskId, emptySet())
+                        }
+                    }
+                }
+                is AgentState.Verifying -> {
+                    val verification = funnel?.verifyBranchIntegration("agent/task-$taskId", emptyList())
+                    if (verification is com.agent.code.core.lock.SemanticVerificationResult.Failed) {
+                        return StepResult.FatalError(verification.reason)
+                    }
+                    succeed(taskId, "completed")
+                }
+                is AgentState.Reflecting -> {
+                    if (state.attempt >= state.maxAttempts) {
+                        return StepResult.FatalError("Max retry attempts (${state.maxAttempts}) exhausted: ${state.errorTrace}")
+                    }
+                }
+                is AgentState.AwaitingHumanApproval -> {
+                    return StepResult.BlockedOnApproval(state.toolCall.id)
+                }
+            }
+            steps++
+            if (profile != OperatingProfile.TURBO_PLUGGED) {
+                delay(if (profile == OperatingProfile.BALANCED_BATTERY) 50L else 500L)
+            }
+        }
+        return StepResult.FatalError("Max steps ($maxSteps) exhausted without completion")
+    }
+
+    // --- Private step handlers ---
+
+    private fun processPlanningStep(taskId: String, state: AgentState.Planning): StepResult {
+        // DEFERRED: LLM integration will generate tool calls here.
+        // For now, return pending so the caller knows more work is needed.
+        return StepResult.StepCompletedMoreWorkPending
+    }
+
+    private fun processToolExecutionStep(taskId: String, state: AgentState.ExecutingTool): StepResult {
+        val result = runTool(taskId, state.toolCall)
+        return if (result.isSuccess) {
+            StepResult.StepCompletedMoreWorkPending
+        } else {
+            StepResult.FatalError("Tool ${state.toolCall.toolName} failed: ${result.output}")
+        }
+    }
+
+    private suspend fun processVerificationStep(taskId: String): StepResult {
+        val verification = funnel?.verifyBranchIntegration("agent/task-$taskId", emptyList())
+        return when (verification) {
+            is com.agent.code.core.lock.SemanticVerificationResult.Failed ->
+                StepResult.FatalError("Verification failed: ${verification.reason}")
+            is com.agent.code.core.lock.SemanticVerificationResult.EscalationRequired ->
+                StepResult.FatalError("Escalation required: ${verification.ambiguousInvariants}")
+            else -> StepResult.StepCompletedMoreWorkPending
+        }
+    }
+
+    private fun processReflectionStep(taskId: String, state: AgentState.Reflecting): StepResult {
+        return if (state.attempt >= state.maxAttempts) {
+            StepResult.FatalError("Max retry attempts (${state.maxAttempts}) exhausted: ${state.errorTrace}")
+        } else {
+            StepResult.StepCompletedMoreWorkPending
+        }
+    }
 }

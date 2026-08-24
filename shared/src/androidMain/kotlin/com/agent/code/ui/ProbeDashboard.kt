@@ -32,6 +32,7 @@ import com.agent.code.core.lock.ConflictRisk
 import com.agent.code.core.lock.WorkspaceLockManager
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.core.power.AndroidPowerGovernor
+import com.agent.code.core.power.PowerGovernor
 import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.workspace.LibGit2Backend
 import com.agent.code.workspace.RealFileSystem
@@ -45,7 +46,7 @@ import kotlinx.coroutines.withContext
  * Unified probe dashboard: Run All, Copy All, collapsible per-probe sections.
  */
 @Composable
-fun ProbeDashboard(baseDir: String) {
+fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor()) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val results = remember { mutableStateMapOf<String, String>() }
@@ -71,7 +72,7 @@ fun ProbeDashboard(baseDir: String) {
                         results["LibGit2 JNI"] = git; expanded["LibGit2 JNI"] = true
                         val shizuku = withContext(Dispatchers.IO) { runShizukuProbe() }
                         results["Shizuku"] = shizuku; expanded["Shizuku"] = true
-                        val m2 = withContext(Dispatchers.IO) { runM2Probe() }
+                        val m2 = withContext(Dispatchers.IO) { runM2Probe(governor) }
                         results["M2 Concurrency"] = m2; expanded["M2 Concurrency"] = true
                         running = false
                     }
@@ -222,7 +223,7 @@ private fun runShizukuProbe(): String {
     }
 }
 
-private fun runM2Probe(): String = kotlinx.coroutines.runBlocking {
+private fun runM2Probe(governor: PowerGovernor = StubPowerGovernor()): String = kotlinx.coroutines.runBlocking {
     val log = mutableListOf<String>()
     val mgr = WorkspaceLockManager()
 
@@ -260,9 +261,15 @@ private fun runM2Probe(): String = kotlinx.coroutines.runBlocking {
     val computeResult = kotlinx.coroutines.withContext(EnergyAwareDispatchers.ComputeBurst) { " ComputeBurst OK" }
     log.add("Dispatchers:$ioResult,$computeResult")
 
-    // 8. Governor (stub for probe; AndroidPowerGovernor monitors battery/thermal on device)
-    val gov = StubPowerGovernor()
-    log.add("Governor: ${gov.currentProfile.value} (battery/thermal governor available via AndroidPowerGovernor)")
+    // 8. Governor — real snapshot from device
+    val govProfile = governor.currentProfile.value
+    val govLine = if (governor is AndroidPowerGovernor) {
+        val snap = governor.snapshot()
+        "Governor: ${snap.profile} | battery=${snap.batteryPercent}% | thermal=${snap.thermalLabel} | pluggedIn=${snap.pluggedIn}"
+    } else {
+        "Governor: $govProfile (stub — no battery/thermal on host)"
+    }
+    log.add(govLine)
 
     log.joinToString("\n")
 }

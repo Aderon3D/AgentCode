@@ -33,12 +33,14 @@ import com.agent.code.ui.demoModelRouter
 
 @Composable
 @Preview
-fun App(probeDashboard: @Composable (() -> Unit)? = null) {
+fun App(
+    probeDashboard: @Composable (() -> Unit)? = null,
+    governor: PowerGovernor = StubPowerGovernor(),
+) {
     MaterialTheme {
         var showSpine by remember { mutableStateOf(false) }
         var showDash by remember { mutableStateOf(false) }
         val telemetry = remember { TelemetryEngine() }
-        val governor: PowerGovernor = remember { StubPowerGovernor() }
         val router: HierarchicalModelRouter = remember { demoModelRouter() }
         Column(
             modifier = Modifier

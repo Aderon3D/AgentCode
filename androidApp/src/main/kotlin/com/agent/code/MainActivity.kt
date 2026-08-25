@@ -17,9 +17,12 @@ class MainActivity : ComponentActivity() {
         val governor = AndroidPowerGovernor(applicationContext)
 
         setContent {
-            App(probeDashboard = {
-                ProbeDashboard(baseDir = filesDir.absolutePath, governor = governor)
-            })
+            App(
+                probeDashboard = {
+                    ProbeDashboard(baseDir = filesDir.absolutePath, governor = governor)
+                },
+                governor = governor,
+            )
         }
     }
 }

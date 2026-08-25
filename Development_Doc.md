@@ -60,6 +60,21 @@ interface WalStore {
 
 ---
 
+## 0.1 Milestone Status Tracker (as of 2026-08-24)
+
+Live status vs the §14 roadmap. Single source of truth for "what's done".
+
+| Milestone | Scope | Status | Notes |
+|---|---|---|---|
+| **M0.5** Bootstrap spine | FSM + in-mem WAL + MCP loop + SSE JSON parser + Cost Router + Kanban + 50ms Telemetry | ✅ COMPLETE | `:app-ui:testAndroidHostTest` green; 4 M0.5 guarantees asserted in `MissionControlBootstrapTest`/`HierarchicalModelRouterTest`/`StreamingJsonStateMachineTest`/`TelemetryEngineTest`. |
+| **M1** Headless Core | libgit2 NDK, Shizuku elevation, WAL journal, EnergyAwareDispatchers, MCP server, SSE client | ✅ COMPLETE | libgit2 JNI (`LibGit2Backend`), `FileBackedWalStore`, `EnergyAwareDispatchers`, `McpHost`, `ResilientSseClient`, `ShizukuFsProvider` (privileged read/write/exists via `Shizuku.newProcess` reflection; falls back to `RealFileSystem`) all done. |
+| **M2** Multi-Agent Concurrency | Sparse worktrees, auto-squash, lock coordinator, 4-tier semantic funnel, tree-sitter | ✅ COMPLETE | `WorktreeManager`, `TaskLockCoordinator`, `WorkspaceLockManager`, `SemanticConflictFunnel`, `TreeSitterBackend` (JNI) landed; concurrency + tree-sitter tests green. |
+| **M3** UI & Cost Routing | CMP Shell + 50ms conflated telemetry stream + streaming JSON SM + adaptive power governor | 🔴 NOT STARTED | Engine logic exists (`TelemetryEngine`, `StreamingJsonStateMachine`, `AdaptivePowerGovernor`/`StubPowerGovernor`/`AndroidPowerGovernor`). `app-ui` module now exists (CMP `App.kt` shell + Kanban + bootstrap), but **no full CMP dashboard / Live Canvas** — `androidApp` still only ships probe UIs. |
+| **M4** Android Live Testing | Resilient FGS, Geometric Layout Oracle, dual-mode Accessibility Engine | 🔴 NOT STARTED | `GeometricLayoutOracle`/`AccessibilityEngine` contracts in doc only; no impl. No foreground service. |
+| **M5** Security & Hardening | Non-interactive Git auth, visual 3-way merge, SecureVault (KeyStore) | 🔴 NOT STARTED | `CircuitBreaker` + `TaskSafetyBudget` exist; `GitAuthWrapper`/`SecureVault`/`DiagnosticsTools`/`FetchDocTool` not implemented. |
+
+**Structural gap — RESOLVED (2026-08-24):** The `:shared` package monolith has been promoted to real Gradle modules. Realized: `agent-core`, `provider-subsystem`, `workspace-engine`, `app-ui`, plus the existing `androidApp` (5 `build.gradle.kts`, 0 `:shared`). `:app-ui:testAndroidHostTest` and `:androidApp:assembleDebug` are both green. Deferred (per §14 / not yet needed): `data-layer`, `live-canvas`, `desktopApp` — and `buildSrc` convention plugins were deliberately skipped in favor of standalone per-module build files (see §1.2 note).
+
 ## 1. System Architecture & Component Topology
 
 ### 1.1 The Mission Control Paradigm
@@ -92,18 +107,25 @@ Mission Control is a multi-agent, autonomous programming platform designed for m
 ```
 
 ### 1.2 Module Topology
+
+> **Realized (2026-08-24) vs. original doc plan.** The doc's 7-module layout (`buildSrc` + `agent-core`/`data-layer`/`provider-subsystem`/`workspace-engine`/`live-canvas`/`app-ui`/`desktopApp`) was a forward-looking target. The actual promotion delivered a **cycle-free 4-module split** that differs from the doc in three ways, all intentional:
+> 1. **`buildSrc` skipped** — standalone per-module `build.gradle.kts` instead of a convention-plugin. Lower risk in the constrained build env; revisit when a 5th+ module appears.
+> 2. **`agent-core` absorbs `mcp/**`, `core/lock/**` (incl. `SemanticConflictFunnel`), the `workspace` interface DEFs (`FileSystemProvider`, `ProcessRunner`), and `workspace.KotlinParser`.** The doc put MCP/Tools under `provider-subsystem`/`workspace-engine`, but `AgentOrchestrator` (core) calls `McpHost` and `SemanticConflictFunnel` (which needs `KotlinParser` + `ProcessRunner`). Routing those through other modules created an `agent-core → workspace-engine → agent-core` cycle, so they were folded into `agent-core`.
+> 3. **`data-layer` / `live-canvas` / `desktopApp` deferred** — no SQLDelight/Tree-Sitter-CInterop/desktop work exists yet.
+
 ```text
 root/
-├── buildSrc/                         # Shared build logic & NDK compilation flags
-├── agent-core/                       # [commonMain] FSM, Tokenizer, Circuit Breakers, Autonomy Policy, Vault
-├── data-layer/                       # [commonMain] SQLDelight DB, Tree-Sitter CInterop, Off-Heap AST Cache
-├── provider-subsystem/               # [commonMain] Ktor SSE, Resilient SSE Client, Cost Router, MCP Host, Streaming Parser
-├── workspace-engine/                 # [commonMain] libgit2 NDK, Sparse Worktrees, Lock Manager, FileWatcher, Tools
-├── live-canvas/                      # [androidMain/desktopMain] DCEVM / DexHotSwap, Geometric Oracle, Accessibility Bridge
-├── app-ui/                           # [commonMain CMP] Mission Control Shell, Live Canvas, Telemetry, Merge UI
-├── desktopApp/                       # [desktopMain] Windows launcher, DPAPI, JVM Compose Hot-Reload
-└── androidApp/                       # [androidMain] Android Launcher, Foreground Service, KeyStore, Thermal Governor, Shizuku
+├── agent-core/          # [commonMain] core/** (FSM, journal, policy, power, tools, lock**) + mcp/** + workspace interface DEFs (FileSystemProvider, ProcessRunner) + workspace.KotlinParser
+│                       #                **SemanticConflictFunnel lives here (not workspace-engine) to break the cycle
+│                       # [androidMain] core/power/AndroidPowerGovernor, core/journal/FileBackedWalStore
+├── provider-subsystem/  # [commonMain] provider/** — LlmProvider, ResilientSseClient (coroutines-only, no ktor), HierarchicalModelRouter, StreamingJsonStateMachine, ProviderRegistry
+├── workspace-engine/    # [commonMain] workspace/** (impls + InMemoryFileSystem/StubProcessRunner) + core/lock/FileWatcher.kt (expect)
+│                       # [androidMain] RealFileSystem, GitProcessRunner, LibGit2Backend, ShizukuFsProvider, TreeSitterBackend + FileWatcherJvm.kt (actual)
+├── app-ui/              # [commonMain CMP] kanban/**, bootstrap/**, App.kt  |  [commonTest + androidHostTest] all M0.5/M1/M2 tests
+└── androidApp/          # [androidMain] ui/* probes (ShizukuStatusDemo, ProbeDashboard, LibGit2Demo, …), MainActivity  |  consumes app-ui + agent-core + provider-subsystem + workspace-engine
 ```
+
+**Dependency DAG (no cycles):** `agent-core` (leaf) ← `provider-subsystem` / `workspace-engine` ← `app-ui` ← `androidApp`. `agent-core` has zero inter-module deps.
 
 ---
 

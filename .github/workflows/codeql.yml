@@ -5,11 +5,12 @@
 #   - `actions`      : CI workflow files (reliable, no build needed)
 #   - `java-kotlin`  : Kotlin source scanning via an explicit single-target
 #                      Gradle build. The Kotlin extractor hooks in as a Kotlin
-#                      compiler plugin during compilation, so we point it at one
-#                      concrete compilation (`:shared:compileKotlinMetadata`,
-#                      which compiles all of `commonMain`) instead of letting the
-#                      autobuilder pick a target — the autobuilder fails on KMP's
-#                      multi-target variant graph (`AmbiguousArtifactsFailure`).
+#                      compiler plugin during compilation, so we point it at the
+#                      `compileKotlinMetadata` task (runs for every module that
+#                      has it — agent-core, provider-subsystem, workspace-engine,
+#                      app-ui — covering all of `commonMain`) instead of letting
+#                      the autobuilder pick a target — the autobuilder fails on
+#                      KMP's multi-target variant graph (`AmbiguousArtifactsFailure`).
 #                      `build-mode: none` is not viable either, because CodeQL
 #                      silently skips Kotlin unless a build is run.
 name: "CodeQL Advanced"
@@ -65,7 +66,7 @@ jobs:
 
       - name: Build Kotlin (single target) for CodeQL tracing
         if: matrix.build-mode == 'manual'
-        run: ./gradlew :shared:compileKotlinMetadata --no-daemon
+        run: ./gradlew compileKotlinMetadata --no-daemon
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

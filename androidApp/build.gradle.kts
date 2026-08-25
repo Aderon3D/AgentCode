@@ -12,12 +12,23 @@ kotlin {
         jvmTarget = JvmTarget.JVM_11
     }
 }
+
 dependencies {
-    implementation(projects.shared)
+    implementation(projects.appUi)
+    implementation(projects.agentCore)
+    implementation(projects.providerSubsystem)
+    implementation(projects.workspaceEngine)
 
     implementation(libs.androidx.activity.compose)
-
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.components.resources)
     implementation(libs.compose.uiToolingPreview)
+    implementation(libs.kotlinx.serialization.json)
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
     debugImplementation(libs.compose.uiTooling)
 }
 

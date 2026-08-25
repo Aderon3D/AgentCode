@@ -59,6 +59,8 @@ fun DashboardScreen(
         CostRoutingPanel(router)
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         MissionControlPanel()
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        StreamingJsonPanel()
     }
 }
 

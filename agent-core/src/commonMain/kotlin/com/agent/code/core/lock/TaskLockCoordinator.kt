@@ -40,6 +40,22 @@ class TaskLockCoordinator(
                             symbolWaiters.getOrPut(symbol) { mutableListOf() }.add(waitDeferred)
                         }
                     }
+                    val recheck = lockManager.waitForMaintenanceAndRegisterLock(taskId, requestedLock)
+                    if (recheck is ConflictRisk.None || recheck is ConflictRisk.FileOverlapRequiresMerge) {
+                        coordinatorMutex.withLock {
+                            for (symbol in registrationResult.symbols) {
+                                symbolWaiters[symbol]?.remove(waitDeferred)
+                            }
+                        }
+                        when (recheck) {
+                            is ConflictRisk.FileOverlapRequiresMerge -> return ExecutionPermit(
+                                taskId = taskId,
+                                requiresAst3WayMerge = true,
+                                overlappingFiles = recheck.files
+                            )
+                            else -> return ExecutionPermit(taskId = taskId, requiresAst3WayMerge = false)
+                        }
+                    }
                     waitDeferred.await()
                 }
             }

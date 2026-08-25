@@ -95,15 +95,19 @@ Java_com_agent_code_workspace_LibGit2Backend_nativeWorktreeAdd(
     err = git_repository_open_ext(&r, repo, 0, NULL);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    /* Resolve HEAD to a commit for branch creation */
-    err = git_repository_head(&head_ref, r);
-    if (err < 0) { result = (*env)->NewStringUTF(env, "no HEAD (empty repo?)"); goto out; }
-
-    err = git_commit_lookup(&head_commit, r, git_reference_target(head_ref));
+    /* Resolve the explicitly requested base ref/commit (not HEAD) */
+    git_object *base_obj = NULL;
+    err = git_revparse_single(&base_obj, r, base);
+    if (err < 0) { result = (*env)->NewStringUTF(env, "could not resolve base ref"); goto out; }
+    git_commit *base_commit = NULL;
+    if (git_object_type(base_obj) != GIT_OBJECT_COMMIT) {
+        result = (*env)->NewStringUTF(env, "base is not a commit"); goto out;
+    }
+    err = git_commit_lookup(&base_commit, r, git_object_id(base_obj));
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
-    /* Create branch from HEAD */
-    err = git_branch_create(&branch_ref, r, name, head_commit, 0);
+    /* Create branch from resolved base */
+    err = git_branch_create(&branch_ref, r, name, base_commit, 0);
     if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
 
     /* Derive flat worktree name from path basename to avoid nested dirs.
@@ -126,8 +130,8 @@ Java_com_agent_code_workspace_LibGit2Backend_nativeWorktreeAdd(
 out:
     if (wt) git_worktree_free(wt);
     if (branch_ref) git_reference_free(branch_ref);
-    if (head_commit) git_commit_free(head_commit);
-    if (head_ref) git_reference_free(head_ref);
+    if (base_commit) git_commit_free(base_commit);
+    if (base_obj) git_object_free(base_obj);
     if (r) git_repository_free(r);
     (*env)->ReleaseStringUTFChars(env, jrepo, repo);
     (*env)->ReleaseStringUTFChars(env, jname, name);
@@ -353,5 +357,44 @@ out:
     if (r) git_repository_free(r);
     (*env)->ReleaseStringUTFChars(env, jrepo, repo);
     (*env)->ReleaseStringUTFChars(env, jname, name);
+    return result;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_agent_code_workspace_LibGit2Backend_nativeBranchRename(
+    JNIEnv *env, jobject thiz,
+    jstring jrepo, jstring jold, jstring jnew) {
+    const char *repo = (*env)->GetStringUTFChars(env, jrepo, NULL);
+    const char *old = (*env)->GetStringUTFChars(env, jold, NULL);
+    const char *new = (*env)->GetStringUTFChars(env, jnew, NULL);
+
+    git_repository *r = NULL;
+    git_reference *ref = NULL;
+    git_reference *out = NULL;
+    jstring result = NULL;
+    int err;
+
+    err = git_repository_open_ext(&r, repo, 0, NULL);
+    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
+
+    char refname[256];
+    snprintf(refname, sizeof(refname), "refs/heads/%s", old);
+
+    err = git_reference_lookup(&ref, r, refname);
+    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
+
+    /* force=0: error (not silent clobber) if newName already exists */
+    char newref[256];
+    snprintf(newref, sizeof(newref), "refs/heads/%s", new);
+    err = git_reference_rename(&out, ref, newref, 0, "rename branch");
+    if (err < 0) { result = (*env)->NewStringUTF(env, git_error_last()->message); goto out; }
+
+out:
+    if (out) git_reference_free(out);
+    if (ref) git_reference_free(ref);
+    if (r) git_repository_free(r);
+    (*env)->ReleaseStringUTFChars(env, jrepo, repo);
+    (*env)->ReleaseStringUTFChars(env, jold, old);
+    (*env)->ReleaseStringUTFChars(env, jnew, new);
     return result;
 }

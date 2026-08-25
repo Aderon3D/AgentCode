@@ -18,6 +18,7 @@ import com.agent.code.workspace.InMemoryFileSystem
 import com.agent.code.workspace.StubProcessRunner
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import kotlin.test.Test
@@ -107,6 +108,20 @@ class M2ConcurrencyTest {
         assertTrue(result.isActive, "Should be blocked on symbol collision")
         coord.releaseTaskExecutionPermit("t1", setOf("sym1"))
         assertEquals("t2", result.await().taskId)
+        coord.releaseTaskExecutionPermit("t2", emptySet())
+    } }
+
+    @Test
+    fun coordinatorResumesAfterReleaseAcrossRaceWindow() { runBlocking {
+        val mgr = WorkspaceLockManager()
+        val coord = TaskLockCoordinator(mgr)
+        coord.acquireTaskExecutionPermit("t1", "b1", emptySet(), setOf("sym1"))
+        val result = CompletableDeferred<ExecutionPermit>()
+        launch { result.complete(coord.acquireTaskExecutionPermit("t2", "b2", emptySet(), setOf("sym1"))) }
+        delay(50)
+        assertTrue(result.isActive, "Should be blocked on symbol collision")
+        coord.releaseTaskExecutionPermit("t1", setOf("sym1"))
+        assertEquals("t2", withTimeout(2000) { result.await() }.taskId)
         coord.releaseTaskExecutionPermit("t2", emptySet())
     } }
 

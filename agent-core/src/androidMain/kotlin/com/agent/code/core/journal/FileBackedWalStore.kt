@@ -4,6 +4,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 class FileBackedWalStore(private val file: File) : WalStore {
     private val lock = Any()
@@ -48,11 +49,17 @@ class FileBackedWalStore(private val file: File) : WalStore {
         bad.size
     }
 
-    private fun safeJson(line: String): Boolean = try {
-        eventJson.decodeFromString<JsonElement>(line)
-        true
-    } catch (_: Exception) {
-        false
+    private fun safeJson(line: String): Boolean {
+        if (line.isBlank()) return false
+        return try {
+            val element = eventJson.parseToJsonElement(line)
+            // ponytail: every AgentEvent is a JSON object carrying eventId; this
+            // rejects torn lines, primitives, arrays, and {} without rejecting
+            // valid (but non-decoded) records
+            element is JsonObject && element["eventId"] != null
+        } catch (_: Exception) {
+            false
+        }
     }
 
     override fun append(serialized: String) = synchronized(lock) {

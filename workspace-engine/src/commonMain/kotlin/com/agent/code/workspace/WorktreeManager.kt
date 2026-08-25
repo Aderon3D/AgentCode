@@ -18,8 +18,13 @@ class WorktreeManager(
             .onFailure { return Result.failure(it) }
 
         if (targetDirectories.isNotEmpty()) {
-            gitBackend.sparseCheckoutSet(worktreePath, targetDirectories)
-                .onFailure { return Result.failure(it) }
+            gitBackend.sparseCheckoutSet(worktreePath, targetDirectories).onFailure { originalError ->
+                // ponytail: partial worktree+branch must be torn down; keep the
+                // original failure even if cleanup itself fails
+                gitBackend.worktreeRemove(rootRepoPath, ".worktrees/task-$taskId")
+                gitBackend.branchDelete(rootRepoPath, branch)
+                return Result.failure(originalError)
+            }
         }
         return Result.success(worktreePath)
     }

@@ -26,29 +26,33 @@ object FsmStateReconstructor {
         var lastTaskId = events.last().taskId
         var successSummary: String? = null
         var errorTrace: String? = null
-        var lastToolCall: com.agent.code.core.fsm.ToolCall? = null
         var lastResult: com.agent.code.core.tools.ToolResult? = null
-        var patchedFile: com.agent.code.core.path.VirtualPath? = null
+        val patchedFiles = mutableListOf<com.agent.code.core.path.VirtualPath>()
+        // ponytail: outstanding call id -> call; cleared when its finish event lands
+        val outstanding = linkedMapOf<String, com.agent.code.core.fsm.ToolCall>()
 
         for (e in events) {
             when (e) {
                 is AgentEvent.TaskStarted -> lastTaskId = e.taskId
-                is AgentEvent.ToolExecutionRequested -> lastToolCall = e.toolCall
-                is AgentEvent.ToolExecutionFinished -> lastResult = e.result
-                is AgentEvent.FilePatchApplied -> patchedFile = e.path
+                is AgentEvent.ToolExecutionRequested -> outstanding[e.toolCall.id] = e.toolCall
+                is AgentEvent.ToolExecutionFinished -> {
+                    lastResult = e.result
+                    outstanding.remove(e.result.toolCallId)
+                }
+                is AgentEvent.FilePatchApplied -> patchedFiles.add(e.path)
                 is AgentEvent.TaskSucceeded -> successSummary = e.summary
             }
         }
 
         return when {
             successSummary != null ->
-                AgentState.Success(lastTaskId, successSummary, listOfNotNull(patchedFile))
+                AgentState.Success(lastTaskId, successSummary, patchedFiles)
             lastResult != null && !lastResult.isSuccess ->
                 AgentState.Error(lastTaskId, errorTrace ?: lastResult.output)
-            patchedFile != null ->
+            patchedFiles.isNotEmpty() ->
                 AgentState.Verifying(lastTaskId, "build/lint")
-            lastToolCall != null ->
-                AgentState.ExecutingTool(lastTaskId, lastToolCall, isStreamingOutput = false)
+            outstanding.isNotEmpty() ->
+                AgentState.ExecutingTool(lastTaskId, outstanding.values.last(), isStreamingOutput = false)
             else -> AgentState.Planning(lastTaskId, "reconstructed")
         }
     }

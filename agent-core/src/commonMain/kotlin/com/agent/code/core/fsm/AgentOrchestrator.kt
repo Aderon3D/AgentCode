@@ -15,6 +15,10 @@ import com.agent.code.core.tools.ToolResult
 import com.agent.code.mcp.McpHost
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 sealed interface StepResult {
     object TaskFinished : StepResult
@@ -46,7 +50,8 @@ class AgentOrchestrator(
         val result = mcp.dispatch(toolCall)
         journal.append(AgentEvent.ToolExecutionFinished(nextId(), taskId, now(), result))
         if (result.isSuccess && toolCall.toolName == "apply_diff_patch") {
-            journal.append(AgentEvent.FilePatchApplied(nextId(), taskId, now(), VirtualPath.of("/src/main.kt"), toolCall.argumentsJson))
+            val patchedPath = pathFromArgs(toolCall.argumentsJson) ?: VirtualPath.of("/src/main.kt")
+            journal.append(AgentEvent.FilePatchApplied(nextId(), taskId, now(), patchedPath, toolCall.argumentsJson))
         }
         telemetry.emit(LogEntry.ToolCallStarted(now(), toolCall.toolName, toolCall.argumentsJson))
         return result
@@ -101,20 +106,34 @@ class AgentOrchestrator(
             val state = recover(taskId)
             val profile = governor.currentProfile.value
             when (state) {
-                is AgentState.Success, is AgentState.Error -> return StepResult.TaskFinished
+                is AgentState.Success -> return StepResult.TaskFinished
+                is AgentState.Error -> return StepResult.FatalError(state.fatalCause)
                 is AgentState.Idle -> return StepResult.TaskFinished
                 is AgentState.Planning -> {
                     if (toolIndex < toolCalls.size) {
-                        startTask(taskId, "step-$toolIndex")
+                        val targetPaths = pathFromArgs(toolCalls[toolIndex].argumentsJson)
+                            ?.let { setOf(it) } ?: emptySet()
+                        val permit = lockCoordinator?.acquireTaskExecutionPermit(
+                            taskId, "agent/task-$taskId",
+                            targetPaths, emptySet()
+                        )
+                        try {
+                            runTool(taskId, toolCalls[toolIndex])
+                            toolIndex++
+                        } finally {
+                            if (permit != null) lockCoordinator.releaseTaskExecutionPermit(taskId, emptySet())
+                        }
                     } else {
                         return StepResult.TaskFinished
                     }
                 }
                 is AgentState.ExecutingTool -> {
                     if (toolIndex < toolCalls.size) {
+                        val targetPaths = pathFromArgs(toolCalls[toolIndex].argumentsJson)
+                            ?.let { setOf(it) } ?: emptySet()
                         val permit = lockCoordinator?.acquireTaskExecutionPermit(
                             taskId, "agent/task-$taskId",
-                            emptySet(), emptySet()
+                            targetPaths, emptySet()
                         )
                         try {
                             runTool(taskId, toolCalls[toolIndex])
@@ -182,6 +201,16 @@ class AgentOrchestrator(
             StepResult.FatalError("Max retry attempts (${state.maxAttempts}) exhausted: ${state.errorTrace}")
         } else {
             StepResult.StepCompletedMoreWorkPending
+        }
+    }
+
+    private fun pathFromArgs(argsJson: String): VirtualPath? {
+        return try {
+            val element = Json.parseToJsonElement(argsJson)
+            val path = element.jsonObject["path"]?.jsonPrimitive?.contentOrNull ?: return null
+            VirtualPath.of(path)
+        } catch (_: Exception) {
+            null
         }
     }
 }

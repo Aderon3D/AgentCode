@@ -4,6 +4,7 @@ import com.agent.code.core.fsm.ToolCall
 import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.FileBackedWalStore
+import com.agent.code.core.journal.eventJson
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.mcp.McpHost
 import com.agent.code.workspace.CliGitBackend
@@ -146,7 +147,8 @@ class M1RealIoTest {
     @Test
     fun fileBackedWalSelfHealsCorruptLine() {
         val file = createTempDirectory("m1-wal-heal").resolve("wal.log").toFile()
-        file.writeText("{\"valid\":1}\nthis is corrupt\n{\"valid\":2}\n")
+        val good = eventJson.encodeToString(AgentEvent.TaskStarted(1, "t", 0L, "goal"))
+        file.writeText("$good\nthis is corrupt\n$good\n")
         val store = FileBackedWalStore(file)
         assertEquals(1, store.selfHeal())
         assertEquals(2, store.replay().size)

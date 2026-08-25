@@ -17,7 +17,7 @@ class WorkspaceLockManager {
         while (true) {
             val deferred = stateMutex.withLock {
                 if (maintenanceDeferred == null) {
-                    val risk = evaluateCollisionRisk(lock.lockedFiles, lock.lockedSymbolUuids)
+                    val risk = evaluateCollisionRiskUnsafe(lock.lockedFiles, lock.lockedSymbolUuids)
                     if (risk is ConflictRisk.None || risk is ConflictRisk.FileOverlapRequiresMerge) {
                         activeLocks[taskId] = lock
                     }
@@ -30,7 +30,12 @@ class WorkspaceLockManager {
     }
 
     fun releaseLock(taskId: String) {
-        activeLocks.remove(taskId)
+        while (!stateMutex.tryLock()) { /* spin until available */ }
+        try {
+            activeLocks.remove(taskId)
+        } finally {
+            stateMutex.unlock()
+        }
     }
 
     suspend fun tryAcquireMaintenanceLock(): Boolean = stateMutex.withLock {
@@ -44,11 +49,26 @@ class WorkspaceLockManager {
         maintenanceDeferred = null
     }
 
-    fun activeLockCount(): Int = activeLocks.size
+    fun activeLockCount(): Int {
+        while (!stateMutex.tryLock()) { /* spin until available */ }
+        try {
+            return activeLocks.size
+        } finally {
+            stateMutex.unlock()
+        }
+    }
 
-    fun activeTaskIds(): Set<String> = activeLocks.keys.toSet()
+    fun activeTaskIds(): Set<String> {
+        while (!stateMutex.tryLock()) { /* spin until available */ }
+        try {
+            return activeLocks.keys.toSet()
+        } finally {
+            stateMutex.unlock()
+        }
+    }
 
-    fun evaluateCollisionRisk(
+    // ponytail: lock-free body; callers either hold stateMutex or go through evaluateCollisionRisk
+    private fun evaluateCollisionRiskUnsafe(
         proposedFiles: Set<VirtualPath>,
         proposedSymbols: Set<String>
     ): ConflictRisk {
@@ -65,5 +85,17 @@ class WorkspaceLockManager {
         }
 
         return ConflictRisk.None
+    }
+
+    fun evaluateCollisionRisk(
+        proposedFiles: Set<VirtualPath>,
+        proposedSymbols: Set<String>
+    ): ConflictRisk {
+        while (!stateMutex.tryLock()) { /* spin until available */ }
+        try {
+            return evaluateCollisionRiskUnsafe(proposedFiles, proposedSymbols)
+        } finally {
+            stateMutex.unlock()
+        }
     }
 }

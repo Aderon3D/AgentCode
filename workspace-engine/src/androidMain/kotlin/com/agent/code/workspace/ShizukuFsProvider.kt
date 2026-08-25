@@ -1,17 +1,26 @@
 package com.agent.code.workspace
 
+import android.content.pm.PackageManager
 import com.agent.code.core.path.VirtualPath
 import java.io.File
+import java.lang.reflect.Method
+import java.nio.charset.StandardCharsets
+import rikka.shizuku.Shizuku
 
-// ponytail: compile-check only — runtime requires the Shizuku app installed
-// and running on a real device. Falls back to [RealFileSystem] when Shizuku
-// is unavailable or the path is already inside the app sandbox (root).
-// Shizuku API 13.x does not expose a public process API; the actual
-// ShizukuRemoteProcess integration should be done via AIDL when needed.
+// ponytail: real Shizuku-backed FS I/O. Shizuku.newProcess is private/deprecated
+// in API 13.x (slated for removal in API 14), so we reach it via reflection to
+// keep the sanctioned privileged-shell behavior from the doc. Paths inside the
+// sandbox use the local RealFileSystem; only out-of-sandbox paths are escalated.
+// Any failure (Shizuku absent, permission missing, method gone) falls back.
+// TODO: when bumping to Shizuku API 14, migrate to bindUserService + AIDL.
 class ShizukuFsProvider(
     private val root: VirtualPath,
     private val fallback: RealFileSystem
 ) : FileSystemProvider {
+
+    // Single-quote a path so it cannot break out of the shell command.
+    private fun shellArg(path: String): String =
+        "'${path.replace("'", "'\\''")}'"
 
     private fun isSandboxed(path: VirtualPath): Boolean {
         val raw = File(path.rawPath).canonicalPath
@@ -20,29 +29,70 @@ class ShizukuFsProvider(
     }
 
     private fun isAvailable(): Boolean = try {
-        Class.forName("rikka.shizuku.Shizuku")
-        // ponytail: Shizuku.pingBinder() exists but newProcess is private
-        // in API 13.x; actual privileged I/O will use AIDL bindings.
+        Shizuku.pingBinder() &&
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    } catch (_: Throwable) {
         false
-    } catch (_: ClassNotFoundException) {
-        false
+    }
+
+    private val newProcessMethod: Method? by lazy {
+        try {
+            Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            ).apply { isAccessible = true }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun shizuku(command: String): Process? {
+        val m = newProcessMethod ?: return null
+        return try {
+            m.invoke(null, arrayOf("sh", "-c", command), null, null) as? Process
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     override fun read(path: VirtualPath): Result<String> {
         if (!isAvailable() || isSandboxed(path)) return fallback.read(path)
-        // TODO: Shizuku AIDL read when bindings are wired
-        return fallback.read(path)
+        val p = shizuku("cat ${shellArg(path.rawPath)}") ?: return fallback.read(path)
+        val out = p.inputStream.bufferedReader(StandardCharsets.UTF_8).readText()
+        val err = p.errorStream.bufferedReader(StandardCharsets.UTF_8).readText()
+        val rc = p.waitFor()
+        return if (rc == 0) {
+            Result.success(out)
+        } else {
+            Result.failure(FileError.IOError(path, "shizuku read failed (exit $rc): $err"))
+        }
     }
 
     override fun write(path: VirtualPath, content: String): Result<Unit> {
         if (!isAvailable() || isSandboxed(path)) return fallback.write(path, content)
-        // TODO: Shizuku AIDL write when bindings are wired
-        return fallback.write(path, content)
+        val p = shizuku("cat > ${shellArg(path.rawPath)}") ?: return fallback.write(path, content)
+        return try {
+            p.outputStream.use { os ->
+                os.write(content.toByteArray(StandardCharsets.UTF_8))
+                os.flush()
+            }
+            val rc = p.waitFor()
+            if (rc == 0) {
+                Result.success(Unit)
+            } else {
+                val err = p.errorStream.bufferedReader(StandardCharsets.UTF_8).readText()
+                Result.failure(FileError.IOError(path, "shizuku write failed (exit $rc): $err"))
+            }
+        } catch (e: Throwable) {
+            Result.failure(FileError.IOError(path, e.message ?: "shizuku write failed", e))
+        }
     }
 
     override fun exists(path: VirtualPath): Boolean {
         if (!isAvailable() || isSandboxed(path)) return fallback.exists(path)
-        // TODO: Shizuku AIDL exists when bindings are wired
-        return fallback.exists(path)
+        val p = shizuku("test -e ${shellArg(path.rawPath)}") ?: return fallback.exists(path)
+        return p.waitFor() == 0
     }
 }

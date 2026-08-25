@@ -206,11 +206,13 @@ class M2ConcurrencyTest {
             lockCoordinator = TaskLockCoordinator(WorkspaceLockManager()),
             funnel = SemanticConflictFunnel(WorkspaceLockManager())
         )
+        orchestrator.startTask("T1", "goal")
         val toolCalls = listOf(
             ToolCall("c1", "read_file", """{"path":"/src/main.kt"}"""),
             ToolCall("c2", "apply_diff_patch", """{"path":"/src/main.kt","search":"hi","replace":"hello"}""")
         )
         assertIs<StepResult.TaskFinished>(orchestrator.executeStepsUntilDone("T1", toolCalls))
+        assertEquals("fun main() { println(\"hello\") }", fs.read(VirtualPath.of("/src/main.kt")).getOrThrow())
     } }
 
     @Test

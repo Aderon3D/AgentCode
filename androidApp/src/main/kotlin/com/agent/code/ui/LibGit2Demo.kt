@@ -72,7 +72,7 @@ fun LibGit2Demo(baseDir: String) {
                 step("squash merge") { wm.promoteToMain("ui-probe").getOrThrow() }
                 step("verify merged") {
                     val merged = File(probeDir, "worktree.txt")
-                    check(merged.exists() && merged.readText().contains("worktree from")) {
+                    check(merged.exists() && merged.readText().contains("written from worktree")) {
                         "file missing or wrong content"
                     }
                 }

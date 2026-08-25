@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * Emits [OperatingProfile] changes via [currentProfile] StateFlow.
  */
-class AndroidPowerGovernor(context: Context) : PowerGovernor {
+class AndroidPowerGovernor(private val context: Context) : PowerGovernor {
 
     private val _currentProfile = MutableStateFlow(OperatingProfile.BALANCED_BATTERY)
     override val currentProfile: StateFlow<OperatingProfile> = _currentProfile
@@ -33,6 +33,7 @@ class AndroidPowerGovernor(context: Context) : PowerGovernor {
     private var maxTemperatureCelsius = 0f
 
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -66,6 +67,16 @@ class AndroidPowerGovernor(context: Context) : PowerGovernor {
             pollThermalStatus()
             readTemperatures()
             evaluateProfile()
+        }
+
+        // ponytail: thermal-only transitions (no battery broadcast) must still
+        // refresh the profile, so register the API29+ thermal listener
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            thermalListener = PowerManager.OnThermalStatusChangedListener { status ->
+                thermalStatus = status
+                evaluateProfile()
+            }
+            powerManager.addThermalStatusListener(thermalListener!!)
         }
     }
 
@@ -107,6 +118,19 @@ class AndroidPowerGovernor(context: Context) : PowerGovernor {
                 OperatingProfile.TURBO_PLUGGED
             else ->
                 OperatingProfile.BALANCED_BATTERY
+        }
+    }
+
+    /** Idempotent teardown: unregister receivers/listeners. Call from owner lifecycle. */
+    fun close() {
+        try {
+            context.unregisterReceiver(batteryReceiver)
+        } catch (_: Exception) {
+            // already unregistered
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            thermalListener?.let { powerManager.removeThermalStatusListener(it) }
+            thermalListener = null
         }
     }
 

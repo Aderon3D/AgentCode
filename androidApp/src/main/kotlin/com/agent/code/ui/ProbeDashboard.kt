@@ -80,6 +80,16 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
         }
     }
 
+    val runNative: suspend (suspend () -> String) -> String = { block ->
+        try {
+            withContext(Dispatchers.IO) { block() }
+        } catch (e: LinkageError) {
+            "Native probe failed (LinkageError): ${e.message}"
+        } catch (e: Exception) {
+            "Native probe failed: ${e.message}"
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -90,24 +100,34 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                 onClick = {
                     running = true
                     scope.launch {
-                        val m1 = withContext(Dispatchers.IO) { runM1Probe(baseDir) }
-                        results["M1 Real IO"] = m1; expanded["M1 Real IO"] = true
-                        val git = withContext(Dispatchers.IO) { runLibGit2Probe(baseDir) }
-                        results["LibGit2 JNI"] = git; expanded["LibGit2 JNI"] = true
-                        val shizuku = withContext(Dispatchers.IO) { runShizukuProbe() }
-                        results["Shizuku"] = shizuku; expanded["Shizuku"] = true
-                        val m2 = withContext(Dispatchers.IO) { runM2Probe(governor) }
-                        results["M2 Concurrency"] = m2; expanded["M2 Concurrency"] = true
-                        val ts = withContext(Dispatchers.IO) { runTreeSitterProbe() }
-                        results["TreeSitter JNI"] = ts; expanded["TreeSitter JNI"] = true
-                        val fw = withContext(Dispatchers.IO) { runFileWatcherProbe() }
-                        results["FileWatcher"] = fw; expanded["FileWatcher"] = true
-                        val tier = withContext(Dispatchers.IO) { runTier24Probe() }
-                        results["Tier 2/4 Funnel"] = tier; expanded["Tier 2/4 Funnel"] = true
-                        val stats = withContext(Dispatchers.IO) { collector.collect().format() }
-                        deviceStatsText = stats
-                        results["Device Stats"] = stats; expanded["Device Stats"] = true
-                        running = false
+                        try {
+                            val m1 = withContext(Dispatchers.IO) { runM1Probe(baseDir) }
+                            results["M1 Real IO"] = m1; expanded["M1 Real IO"] = true
+
+                            results["LibGit2 JNI"] = runNative { runLibGit2Probe(baseDir) }
+                            expanded["LibGit2 JNI"] = true
+
+                            val shizuku = withContext(Dispatchers.IO) { runShizukuProbe() }
+                            results["Shizuku"] = shizuku; expanded["Shizuku"] = true
+
+                            val m2 = withContext(Dispatchers.IO) { runM2Probe(governor) }
+                            results["M2 Concurrency"] = m2; expanded["M2 Concurrency"] = true
+
+                            results["TreeSitter JNI"] = runNative { runTreeSitterProbe() }
+                            expanded["TreeSitter JNI"] = true
+
+                            results["FileWatcher"] = runNative { runFileWatcherProbe() }
+                            expanded["FileWatcher"] = true
+
+                            results["Tier 2/4 Funnel"] = runNative { runTier24Probe() }
+                            expanded["Tier 2/4 Funnel"] = true
+
+                            val stats = withContext(Dispatchers.IO) { collector.collect().format() }
+                            deviceStatsText = stats
+                            results["Device Stats"] = stats; expanded["Device Stats"] = true
+                        } finally {
+                            running = false
+                        }
                     }
                 },
                 enabled = !running,

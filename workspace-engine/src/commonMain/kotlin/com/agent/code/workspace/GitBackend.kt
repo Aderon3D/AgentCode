@@ -18,8 +18,11 @@ interface GitBackend {
     suspend fun branchDelete(repo: VirtualPath, name: String): Result<Unit>
     suspend fun branchRename(repo: VirtualPath, oldName: String, newName: String): Result<Unit>
     // ponytail: sparse-checkout is CLI-only; libgit2 doesn't expose it cleanly.
-    // Default no-op keeps LibGit2Backend simple. CliGitBackend overrides.
-    suspend fun sparseCheckoutSet(repo: VirtualPath, directories: List<String>): Result<Unit> = Result.success(Unit)
+    // Default fails for non-empty requests so callers get an accurate result;
+    // CliGitBackend overrides with a real implementation.
+    suspend fun sparseCheckoutSet(repo: VirtualPath, directories: List<String>): Result<Unit> =
+        if (directories.isEmpty()) Result.success(Unit)
+        else Result.failure(UnsupportedOperationException("sparse-checkout not supported by this backend"))
 
     companion object {
         fun create(processRunner: ProcessRunner): GitBackend = CliGitBackend(processRunner)

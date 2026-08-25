@@ -8,6 +8,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -128,16 +129,15 @@ class M2TreeSitterTest {
         try {
             val watcher = FileWatcher()
             val events = mutableListOf<Pair<VirtualPath, ChangeType>>()
-            val latch = CompletableDeferred<Unit>()
+            val created = CompletableDeferred<Unit>()
 
             watcher.startWatching(VirtualPath.of(tmpDir.absolutePath)) { path, type ->
                 events.add(path to type)
-                if (events.size >= 1) latch.complete(Unit)
+                if (type == ChangeType.CREATED) created.complete(Unit)
             }
 
-            delay(200) // let watcher start
             File(tmpDir, "new-file.txt").writeText("hello")
-            delay(500) // let event propagate
+            withTimeout(5000) { created.await() }
 
             assertTrue(events.isNotEmpty(), "Expected at least one event, got ${events.size}")
             assertTrue(events.any { it.second == ChangeType.CREATED })
@@ -148,20 +148,26 @@ class M2TreeSitterTest {
     }
 
     @Test
-    fun fileWatcherStopWatching() {
+    fun fileWatcherStopWatching() = runBlocking {
         val watcher = FileWatcher()
         val tmpDir = File(System.getProperty("java.io.tmpdir"), "fw-stop-${System.nanoTime()}")
         tmpDir.mkdirs()
         try {
             val events = mutableListOf<Pair<VirtualPath, ChangeType>>()
+            val created = CompletableDeferred<Unit>()
             watcher.startWatching(VirtualPath.of(tmpDir.absolutePath)) { path, type ->
                 events.add(path to type)
+                if (type == ChangeType.CREATED) created.complete(Unit)
             }
+
+            File(tmpDir, "before-stop.txt").writeText("x")
+            withTimeout(5000) { created.await() }
+
             watcher.stopWatching()
-            // After stop, no new events should arrive
+            val countAfterStop = events.size
             File(tmpDir, "after-stop.txt").writeText("nope")
-            Thread.sleep(500)
-            assertTrue(events.isEmpty(), "Expected no events after stop, got ${events.size}")
+            delay(500)
+            assertEquals(countAfterStop, events.size, "Expected no events after stop, got ${events.size}")
         } finally {
             tmpDir.deleteRecursively()
         }

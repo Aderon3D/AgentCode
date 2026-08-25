@@ -51,15 +51,25 @@ class SemanticConflictFunnel(
         impacted.addAll(newSymbols.keys.filter { it !in oldSymbols })
         impacted.addAll(oldSymbols.keys.filter { it !in newSymbols })
 
-        // Symbols whose line ranges changed (body modified)
+        // Symbols whose line ranges or body text changed
         for ((name, newSym) in newSymbols) {
             val oldSym = oldSymbols[name] ?: continue
-            if (oldSym.startLine != newSym.startLine || oldSym.endLine != newSym.endLine) {
+            val linesChanged = oldSym.startLine != newSym.startLine || oldSym.endLine != newSym.endLine
+            val bodyChanged = symbolSlice(oldSource, oldSym) != symbolSlice(newSource, newSym)
+            if (linesChanged || bodyChanged) {
                 impacted.add(name)
             }
         }
 
         return impacted
+    }
+
+    private fun symbolSlice(src: String, sym: KotlinParser.SymbolInfo): String {
+        val lines = src.lines()
+        val start = (sym.startLine - 1).coerceAtLeast(0)
+        val end = sym.endLine.coerceAtMost(lines.size)
+        if (start >= end) return ""
+        return lines.subList(start, end).joinToString("\n")
     }
 
     /**

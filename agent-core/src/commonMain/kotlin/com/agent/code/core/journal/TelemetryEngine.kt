@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface LogEntry {
     val timestampMs: Long
@@ -30,11 +32,19 @@ class TelemetryEngine(
 
     private val pending = mutableListOf<LogEntry>()
     private var scheduled = false
+    private val lock = Mutex()
 
     fun emit(entry: LogEntry) {
-        pending.add(entry)
-        if (!scheduled) {
+        var wasScheduled = false
+        while (!lock.tryLock()) { /* spin until available */ }
+        try {
+            pending.add(entry)
+            wasScheduled = scheduled
             scheduled = true
+        } finally {
+            lock.unlock()
+        }
+        if (!wasScheduled) {
             scope.launch {
                 delay(frameMs)
                 flush()
@@ -43,21 +53,40 @@ class TelemetryEngine(
     }
 
     fun flush() {
-        if (pending.isEmpty()) {
+        while (!lock.tryLock()) { /* spin until available */ }
+        try {
+            if (pending.isEmpty()) {
+                scheduled = false
+                return
+            }
+            val snapshot = pending.toList()
+            pending.clear()
             scheduled = false
-            return
+            _frames.tryEmit(snapshot)
+        } finally {
+            lock.unlock()
         }
-        _frames.tryEmit(pending.toList())
-        pending.clear()
-        scheduled = false
     }
 
-    val pendingCount: Int get() = pending.size
+    val pendingCount: Int
+        get() {
+            while (!lock.tryLock()) { /* spin until available */ }
+            try {
+                return pending.size
+            } finally {
+                lock.unlock()
+            }
+        }
 
     fun drainPending(): List<LogEntry> {
-        val snapped = pending.toList()
-        pending.clear()
-        scheduled = false
-        return snapped
+        while (!lock.tryLock()) { /* spin until available */ }
+        try {
+            val snapshot = pending.toList()
+            pending.clear()
+            scheduled = false
+            return snapshot
+        } finally {
+            lock.unlock()
+        }
     }
 }

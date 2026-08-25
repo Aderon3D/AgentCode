@@ -29,6 +29,7 @@ class LibGit2Backend : GitBackend {
     private external fun nativeAddAll(repo: String): String?
     private external fun nativeCommit(repo: String, message: String): String?
     private external fun nativeBranchDelete(repo: String, name: String): String?
+    private external fun nativeBranchRename(repo: String, oldName: String, newName: String): String?
 
     private fun ensureInit() {
         if (!initialized) {
@@ -69,11 +70,6 @@ class LibGit2Backend : GitBackend {
     override suspend fun branchDelete(repo: VirtualPath, name: String): Result<Unit> =
         gitOp { nativeBranchDelete(repo.rawPath, name).toResult() }
 
-    override suspend fun branchRename(repo: VirtualPath, oldName: String, newName: String): Result<Unit> {
-        // branch -M is a shell convenience; libgit2 needs delete + rename
-        return gitOp {
-            val refname = "refs/heads/$oldName"
-            nativeBranchDelete(repo.rawPath, oldName).toResult().map { }
-        }
-    }
+    override suspend fun branchRename(repo: VirtualPath, oldName: String, newName: String): Result<Unit> =
+        gitOp { nativeBranchRename(repo.rawPath, oldName, newName).toResult() }
 }

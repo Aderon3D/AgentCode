@@ -24,12 +24,19 @@ import androidx.compose.ui.unit.dp
 import com.agent.code.bootstrap.MissionControlBootstrap
 import com.agent.code.bootstrap.Timeline
 import com.agent.code.core.journal.LogEntry
+import com.agent.code.core.journal.TelemetryEngine
+import com.agent.code.core.power.PowerGovernor
+import com.agent.code.core.power.StubPowerGovernor
+import com.agent.code.ui.DashboardScreen
 
 @Composable
 @Preview
 fun App(probeDashboard: @Composable (() -> Unit)? = null) {
     MaterialTheme {
         var showSpine by remember { mutableStateOf(false) }
+        var showDash by remember { mutableStateOf(false) }
+        val telemetry = remember { TelemetryEngine() }
+        val governor: PowerGovernor = remember { StubPowerGovernor() }
         Column(
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primaryContainer)
@@ -42,6 +49,12 @@ fun App(probeDashboard: @Composable (() -> Unit)? = null) {
             }
             AnimatedVisibility(showSpine) {
                 M05SpineDemo()
+            }
+            Button(onClick = { showDash = !showDash }) {
+                Text("M3 Live Dashboard")
+            }
+            AnimatedVisibility(showDash) {
+                DashboardScreen(telemetry = telemetry, governor = governor)
             }
             probeDashboard?.invoke()
         }

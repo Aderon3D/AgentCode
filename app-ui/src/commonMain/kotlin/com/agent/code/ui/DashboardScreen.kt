@@ -12,16 +12,19 @@ import androidx.compose.ui.unit.dp
 import com.agent.code.core.journal.LogEntry
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.power.PowerGovernor
+import com.agent.code.provider.HierarchicalModelRouter
 
 /**
  * M3 (§0.1) live dashboard shell. Surfaces the existing 50ms-conflated
- * [TelemetryEngine] stream and the [PowerGovernor] profile. Pure CMP, no
- * Android-specific deps — renders identically on host and device.
+ * [TelemetryEngine] stream, the [PowerGovernor] profile, and the
+ * [HierarchicalModelRouter] cost-routing tiers. Pure CMP, no Android-specific
+ * deps — renders identically on host and device.
  */
 @Composable
 fun DashboardScreen(
     telemetry: TelemetryEngine,
     governor: PowerGovernor,
+    router: HierarchicalModelRouter,
 ) {
     val profile by governor.currentProfile.collectAsState()
     var latestFrame by remember { mutableStateOf<List<LogEntry>>(emptyList()) }
@@ -52,6 +55,8 @@ fun DashboardScreen(
                 Text("• ${logLine(e)}")
             }
         }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        CostRoutingPanel(router)
     }
 }
 

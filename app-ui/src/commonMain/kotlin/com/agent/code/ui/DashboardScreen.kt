@@ -57,6 +57,8 @@ fun DashboardScreen(
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         CostRoutingPanel(router)
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        MissionControlPanel()
     }
 }
 

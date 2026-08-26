@@ -40,6 +40,6 @@ jobs:
           yes | sdkmanager --licenses
 
       - name: Generate and submit dependency graph
-        uses: gradle/actions/dependency-submission@cca926ef8d60d59c0bc5b36cfe99255048accd88 # v4
+        uses: gradle/actions/dependency-submission@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
         with:
           build-scan-publish: false

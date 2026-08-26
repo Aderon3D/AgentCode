@@ -42,6 +42,18 @@ fun App(
         var showDash by remember { mutableStateOf(false) }
         val telemetry = remember { TelemetryEngine() }
         val router: HierarchicalModelRouter = remember { demoModelRouter() }
+
+        // Emit M3 demo telemetry events for DashboardScreen to observe
+        LaunchedEffect(telemetry) {
+            var seq = 0L
+            while (true) {
+                kotlinx.coroutines.delay(2000)
+                val ts = System.currentTimeMillis()
+                telemetry.emit(LogEntry.AgentThought(ts, "Demo thought ${seq++}"))
+                telemetry.emit(LogEntry.ToolCallStarted(ts + 10, "demo_tool", """{"arg":"value"}"""))
+            }
+        }
+
         Column(
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primaryContainer)

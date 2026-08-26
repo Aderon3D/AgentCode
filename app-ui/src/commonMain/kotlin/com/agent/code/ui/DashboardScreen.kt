@@ -27,7 +27,8 @@ fun DashboardScreen(
     router: HierarchicalModelRouter,
 ) {
     val profile by governor.currentProfile.collectAsState()
-    var latestFrame by remember { mutableStateOf<List<LogEntry>>(emptyList()) }
+    // Initialize with retained lastFrame from TelemetryEngine, update via flow collection
+    var latestFrame by remember { mutableStateOf(telemetry.lastFrame) }
     LaunchedEffect(telemetry) {
         telemetry.frames.collect { latestFrame = it }
     }

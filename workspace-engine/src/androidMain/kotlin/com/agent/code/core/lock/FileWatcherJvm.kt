@@ -2,6 +2,7 @@ package com.agent.code.core.lock
 
 import com.agent.code.core.path.VirtualPath
 import kotlinx.coroutines.*
+import java.nio.file.ClosedWatchServiceException
 import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.nio.file.StandardWatchEventKinds
@@ -31,7 +32,15 @@ actual class FileWatcher {
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
             try {
                 while (isActive) {
-                    val key = ws.take() ?: break
+                    // ponytail: closing the watch service (on stopWatching) makes take()
+                    // throw instead of returning null; treat that as a clean shutdown.
+                    val key = try {
+                        ws.take()
+                    } catch (_: ClosedWatchServiceException) {
+                        break
+                    } catch (_: InterruptedException) {
+                        break
+                    } ?: break
                     for (event in key.pollEvents()) {
                         val kind = event.kind()
                         val child = event.context() as? Path ?: continue

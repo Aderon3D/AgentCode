@@ -75,4 +75,21 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
 
     override fun exists(path: VirtualPath): Boolean =
         confinedFile(path).fold({ it.exists() }, { false })
+
+    override fun delete(path: VirtualPath): Result<Unit> = confinedFile(path).fold(
+        onSuccess = { file ->
+            try {
+                if (file.delete()) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(FileError.IOError(path, "delete failed: not a file or not found"))
+                }
+            } catch (e: SecurityException) {
+                Result.failure(FileError.PermissionDenied(path, e.message ?: "delete denied"))
+            } catch (e: Exception) {
+                Result.failure(FileError.IOError(path, e.message ?: "delete failed", e))
+            }
+        },
+        onFailure = { Result.failure(it) }
+    )
 }

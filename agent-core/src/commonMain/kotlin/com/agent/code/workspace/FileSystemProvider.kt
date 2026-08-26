@@ -17,4 +17,5 @@ interface FileSystemProvider {
     fun read(path: VirtualPath): Result<String>
     fun write(path: VirtualPath, content: String): Result<Unit>
     fun exists(path: VirtualPath): Boolean
+    fun delete(path: VirtualPath): Result<Unit>
 }

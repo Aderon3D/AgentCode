@@ -35,6 +35,7 @@ dependencies {
 android {
     namespace = "com.agent.code"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+    ndkVersion = "29.0.14206865"
 
     defaultConfig {
         applicationId = "com.agent.code"

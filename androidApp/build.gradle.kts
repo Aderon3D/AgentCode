@@ -64,9 +64,18 @@ android {
     // Chmod packaged APKs world-readable so the save/copy-out step can read them.
     tasks.withType<com.android.build.gradle.tasks.PackageApplication>().configureEach {
         doLast {
-            outputDirectory.asFile.get().walkTopDown().filter { it.extension == "apk" }.forEach {
+            val apkDir = outputDirectory.asFile.get()
+            apkDir.walkTopDown().filter { it.extension == "apk" }.forEach {
                 it.setReadable(true, false)
                 ProcessBuilder("chmod", "644", it.absolutePath).start().waitFor()
+            }
+            // ponytail: build runs as root in the proot (umask 077) -> output dirs land 700,
+            // blocking the non-root IDE save process from traversing to the APK. Open them up.
+            var dir: File? = apkDir
+            while (dir != null) {
+                ProcessBuilder("chmod", "a+rX", dir.absolutePath).start().waitFor()
+                if (dir.name == "androidApp") break
+                dir = dir.parentFile
             }
         }
     }

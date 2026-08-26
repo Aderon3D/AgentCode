@@ -60,7 +60,7 @@ interface WalStore {
 
 ---
 
-## 0.1 Milestone Status Tracker (as of 2026-08-24)
+## 0.1 Milestone Status Tracker (as of 2026-08-26 — updated after merging PRs #41 M3, #42 M4, #43 M5)
 
 Live status vs the §14 roadmap. Single source of truth for "what's done".
 
@@ -69,9 +69,9 @@ Live status vs the §14 roadmap. Single source of truth for "what's done".
 | **M0.5** Bootstrap spine | FSM + in-mem WAL + MCP loop + SSE JSON parser + Cost Router + Kanban + 50ms Telemetry | ✅ COMPLETE | `:app-ui:testAndroidHostTest` green; 4 M0.5 guarantees asserted in `MissionControlBootstrapTest`/`HierarchicalModelRouterTest`/`StreamingJsonStateMachineTest`/`TelemetryEngineTest`. |
 | **M1** Headless Core | libgit2 NDK, Shizuku elevation, WAL journal, EnergyAwareDispatchers, MCP server, SSE client | ✅ COMPLETE | libgit2 JNI (`LibGit2Backend`), `FileBackedWalStore`, `EnergyAwareDispatchers`, `McpHost`, `ResilientSseClient`, `ShizukuFsProvider` (privileged read/write/exists via `Shizuku.newProcess` reflection; falls back to `RealFileSystem`) all done. |
 | **M2** Multi-Agent Concurrency | Sparse worktrees, auto-squash, lock coordinator, 4-tier semantic funnel, tree-sitter | ✅ COMPLETE | `WorktreeManager`, `TaskLockCoordinator`, `WorkspaceLockManager`, `SemanticConflictFunnel`, `TreeSitterBackend` (JNI) landed; concurrency + tree-sitter tests green. |
-| **M3** UI & Cost Routing | CMP Shell + 50ms conflated telemetry stream + streaming JSON SM + adaptive power governor | 🔴 NOT STARTED | Engine logic exists (`TelemetryEngine`, `StreamingJsonStateMachine`, `AdaptivePowerGovernor`/`StubPowerGovernor`/`AndroidPowerGovernor`). `app-ui` module now exists (CMP `App.kt` shell + Kanban + bootstrap), but **no full CMP dashboard / Live Canvas** — `androidApp` still only ships probe UIs. |
-| **M4** Android Live Testing | Resilient FGS, Geometric Layout Oracle, dual-mode Accessibility Engine | 🔴 NOT STARTED | `GeometricLayoutOracle`/`AccessibilityEngine` contracts in doc only; no impl. No foreground service. |
-| **M5** Security & Hardening | Non-interactive Git auth, visual 3-way merge, SecureVault (KeyStore) | 🔴 NOT STARTED | `CircuitBreaker` + `TaskSafetyBudget` exist; `GitAuthWrapper`/`SecureVault`/`DiagnosticsTools`/`FetchDocTool` not implemented. |
+| **M3** UI & Cost Routing | CMP Shell + 50ms conflated telemetry stream + streaming JSON SM + adaptive power governor | ✅ COMPLETE | CMP dashboard + telemetry + streaming-JSON + cost-routing panels landed (DashboardScreen / MissionControlPanel / CostRoutingPanel / StreamingJsonPanel, TelemetryEngine, App.kt wiring). Live Canvas deferred per §1.2. |
+| **M4** Android Live Testing | Resilient FGS, Geometric Layout Oracle, dual-mode Accessibility Engine | 🟡 PARTIAL | `GeometricLayoutOracle` + `AccessibilityEngine` (impl + `StubAccessibilityEngine`) + `UiTools` + `FileWatcherJvm` landed w/ tests. **`ResilientAgentForegroundService` (FGS) NOT implemented.** |
+| **M5** Security & Hardening | Non-interactive Git auth, visual 3-way merge, SecureVault (KeyStore) | 🟡 PARTIAL | `GitAuthWrapper` + `SecureVault` (KeyStore) + `RuntimeDiagnosticsTool` landed w/ tests. **Visual 3-Way Merge screen + `FetchDocTool` NOT implemented.** |
 
 **Structural gap — RESOLVED (2026-08-24):** The `:shared` package monolith has been promoted to real Gradle modules. Realized: `agent-core`, `provider-subsystem`, `workspace-engine`, `app-ui`, plus the existing `androidApp` (5 `build.gradle.kts`, 0 `:shared`). `:app-ui:testAndroidHostTest` and `:androidApp:assembleDebug` are both green. Deferred (per §14 / not yet needed): `data-layer`, `live-canvas`, `desktopApp` — and `buildSrc` convention plugins were deliberately skipped in favor of standalone per-module build files (see §1.2 note).
 

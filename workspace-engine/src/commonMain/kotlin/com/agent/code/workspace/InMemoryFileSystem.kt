@@ -15,4 +15,12 @@ class InMemoryFileSystem : FileSystemProvider {
     }
 
     override fun exists(path: VirtualPath): Boolean = files.containsKey(path.rawPath)
+
+    override fun delete(path: VirtualPath): Result<Unit> {
+        return if (files.remove(path.rawPath) != null) {
+            Result.success(Unit)
+        } else {
+            Result.failure(FileError.NotFound(path, "No such file: ${path.rawPath}"))
+        }
+    }
 }

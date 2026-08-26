@@ -95,4 +95,8 @@ class ShizukuFsProvider(
         val p = shizuku("test -e ${shellArg(path.rawPath)}") ?: return fallback.exists(path)
         return p.waitFor() == 0
     }
+
+    // ponytail: ephemeral askpass/secret files are sandboxed, so delegate delete
+    // to the confined RealFileSystem; escalate to shizuku rm only if needed later.
+    override fun delete(path: VirtualPath): Result<Unit> = fallback.delete(path)
 }

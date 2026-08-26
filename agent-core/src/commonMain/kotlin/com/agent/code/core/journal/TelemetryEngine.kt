@@ -1,5 +1,6 @@
 package com.agent.code.core.journal
 
+// PR #41 — M3 dashboard telemetry wiring.
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow

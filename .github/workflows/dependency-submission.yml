@@ -1,0 +1,45 @@
+# Dependency submission — feeds the Dependency Review bot (dependency-review.yml)
+# with a snapshot for the PR head SHA, removing the
+# "No snapshots were found for the head SHA" warning.
+#
+# Runs on PRs (so the head commit gets a snapshot) and on push to main.
+name: "Dependency Submission"
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+jobs:
+  submit:
+    name: Submit dependency graph
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+          yes | sdkmanager --licenses
+
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          build-scan-publish: false

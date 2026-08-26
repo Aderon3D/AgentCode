@@ -4,6 +4,7 @@
 name: "Dependency Review"
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [ "main" ]
 
@@ -24,4 +25,5 @@ jobs:
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
-          warn-on-openssf-scorecard-severity: high
+          base-ref: ${{ github.event.pull_request.base.ref || 'main' }}
+          head-ref: ${{ github.event.pull_request.head.ref || github.ref_name }}

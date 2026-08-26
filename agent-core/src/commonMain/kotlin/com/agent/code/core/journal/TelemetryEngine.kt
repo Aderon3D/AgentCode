@@ -1,5 +1,6 @@
 package com.agent.code.core.journal
 
+// PR #41 — M3 dashboard telemetry wiring.
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
@@ -34,6 +35,18 @@ class TelemetryEngine(
     private var scheduled = false
     private val lock = Mutex()
 
+    // Retained state: last emitted frame survives collection lifecycle
+    private var _lastFrame: List<LogEntry> = emptyList()
+    val lastFrame: List<LogEntry>
+        get() {
+            while (!lock.tryLock()) { /* spin until available */ }
+            try {
+                return _lastFrame
+            } finally {
+                lock.unlock()
+            }
+        }
+
     fun emit(entry: LogEntry) {
         var wasScheduled = false
         while (!lock.tryLock()) { /* spin until available */ }
@@ -62,6 +75,7 @@ class TelemetryEngine(
             val snapshot = pending.toList()
             pending.clear()
             scheduled = false
+            _lastFrame = snapshot
             _frames.tryEmit(snapshot)
         } finally {
             lock.unlock()

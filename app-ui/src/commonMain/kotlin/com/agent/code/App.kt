@@ -24,12 +24,36 @@ import androidx.compose.ui.unit.dp
 import com.agent.code.bootstrap.MissionControlBootstrap
 import com.agent.code.bootstrap.Timeline
 import com.agent.code.core.journal.LogEntry
+import com.agent.code.core.journal.TelemetryEngine
+import com.agent.code.core.power.PowerGovernor
+import com.agent.code.core.power.StubPowerGovernor
+import com.agent.code.provider.HierarchicalModelRouter
+import com.agent.code.ui.DashboardScreen
+import com.agent.code.ui.demoModelRouter
 
 @Composable
 @Preview
-fun App(probeDashboard: @Composable (() -> Unit)? = null) {
+fun App(
+    probeDashboard: @Composable (() -> Unit)? = null,
+    governor: PowerGovernor = StubPowerGovernor(),
+) {
     MaterialTheme {
         var showSpine by remember { mutableStateOf(false) }
+        var showDash by remember { mutableStateOf(false) }
+        val telemetry = remember { TelemetryEngine() }
+        val router: HierarchicalModelRouter = remember { demoModelRouter() }
+
+        // Emit M3 demo telemetry events for DashboardScreen to observe
+        LaunchedEffect(telemetry) {
+            var seq = 0L
+            while (true) {
+                kotlinx.coroutines.delay(2000)
+                val ts = System.currentTimeMillis()
+                telemetry.emit(LogEntry.AgentThought(ts, "Demo thought ${seq++}"))
+                telemetry.emit(LogEntry.ToolCallStarted(ts + 10, "demo_tool", """{"arg":"value"}"""))
+            }
+        }
+
         Column(
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primaryContainer)
@@ -42,6 +66,12 @@ fun App(probeDashboard: @Composable (() -> Unit)? = null) {
             }
             AnimatedVisibility(showSpine) {
                 M05SpineDemo()
+            }
+            Button(onClick = { showDash = !showDash }) {
+                Text("M3 Live Dashboard")
+            }
+            AnimatedVisibility(showDash) {
+                DashboardScreen(telemetry = telemetry, governor = governor, router = router)
             }
             probeDashboard?.invoke()
         }

@@ -58,4 +58,16 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+    // ponytail: build runs as root in the proot (umask 077) -> APK lands 600 (root-only).
+    // The IDE's non-root save process cannot read it -> "failed to save apk".
+    // Chmod packaged APKs world-readable so the save/copy-out step can read them.
+    tasks.withType<com.android.build.gradle.tasks.PackageApplication>().configureEach {
+        doLast {
+            outputDirectory.asFile.get().walkTopDown().filter { it.extension == "apk" }.forEach {
+                it.setReadable(true, false)
+                ProcessBuilder("chmod", "644", it.absolutePath).start().waitFor()
+            }
+        }
+    }
 }

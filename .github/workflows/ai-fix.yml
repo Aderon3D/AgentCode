@@ -28,7 +28,8 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.issue.pull_request &&
-       startsWith(github.event.comment.body, '/fix'))
+       (startsWith(github.event.comment.body, '/fix ') ||
+        github.event.comment.body == '/fix'))
     steps:
       - name: Validate comment format
         if: github.event_name != 'workflow_dispatch'
@@ -46,7 +47,6 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
           COMMENTER: ${{ github.event.comment.user.login || github.actor }}
-          REPO: ${{ github.repository }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           # Validate commenter username (GitHub: [a-zA-Z0-9-], max 39 chars)
@@ -118,20 +118,22 @@ jobs:
 
       # CodeQL false positive: this checkout is guarded by collaborator permission
       # check + fork PR block in the "Check commenter permission" step above.
-      - uses: actions/checkout@v4  # lgtm[github/actions/checkout-of-untrusted-code-in-privileged-context]
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4 lgtm[github/actions/checkout-of-untrusted-code-in-privileged-context]
         with:
           ref: ${{ env.HEAD_REF }}
           fetch-depth: 0
 
       - name: Install opencode
         run: |
-          curl -fsSL https://opencode.ai/install | bash
+          curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh
+          bash /tmp/install-opencode.sh
+          rm -f /tmp/install-opencode.sh
           echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
 
       - name: Install opencode plugins
         run: |
           if [ -d .opencode ]; then
-            cd .opencode && npm install --ignore-scripts || echo "::warning::Failed to install opencode plugins"
+            (cd .opencode && npm install --ignore-scripts) || echo "::warning::Failed to install opencode plugins"
           else
             echo "::warning::No .opencode directory found"
           fi
@@ -319,7 +321,7 @@ else:
             if [ -z "$BEFORE" ]; then
               echo "  Skip $FILE (CodeRabbit suggestion, no before-context match)"
               SKIPPED=$((SKIPPED + 1))
-              RESULTS="${RESULTS}- **$FILE**: skipped (no before context)\n"
+              RESULTS="${RESULTS}- **$FILE**: skipped (no before context)"$'\n'
               continue
             fi
 
@@ -328,7 +330,7 @@ else:
             if [ -z "$RESOLVED" ] || [[ "$RESOLVED" != "$REPO_ROOT"/* ]]; then
               echo "  Skip $FILE (path traversal blocked)"
               SKIPPED=$((SKIPPED + 1))
-              RESULTS="${RESULTS}- **$FILE**: skipped (path outside repo)\n"
+              RESULTS="${RESULTS}- **$FILE**: skipped (path outside repo)"$'\n'
               continue
             fi
 
@@ -336,14 +338,14 @@ else:
             if [ -L "$FILE" ]; then
               echo "  Skip $FILE (symlink)"
               SKIPPED=$((SKIPPED + 1))
-              RESULTS="${RESULTS}- **$FILE**: skipped (symlink)\n"
+              RESULTS="${RESULTS}- **$FILE**: skipped (symlink)"$'\n'
               continue
             fi
 
             if [ ! -f "$FILE" ]; then
               echo "  Skip $FILE (not found)"
               SKIPPED=$((SKIPPED + 1))
-              RESULTS="${RESULTS}- **$FILE**: skipped (file not found)\n"
+              RESULTS="${RESULTS}- **$FILE**: skipped (file not found)"$'\n'
               continue
             fi
 
@@ -374,18 +376,22 @@ else:
               APPLIED=$((APPLIED + 1))
               MODIFIED_FILES="${MODIFIED_FILES}${MODIFIED_FILES:+
 }$FILE"
-              RESULTS="${RESULTS}- **$FILE**: applied\n"
+              RESULTS="${RESULTS}- **$FILE**: applied"$'\n'
             else
               echo "  Failed to apply to $FILE"
               FAILED=$((FAILED + 1))
-              RESULTS="${RESULTS}- **$FILE**: failed to apply\n"
+              RESULTS="${RESULTS}- **$FILE**: failed to apply"$'\n'
             fi
           done
 
           echo "applied=$APPLIED" >> "$GITHUB_OUTPUT"
           echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
           echo "skipped=$SKIPPED" >> "$GITHUB_OUTPUT"
-          echo "modified=$MODIFIED_FILES" >> "$GITHUB_OUTPUT"
+          {
+            echo "modified<<MODIFIED_EOF"
+            printf '%s\n' "$MODIFIED_FILES"
+            echo "MODIFIED_EOF"
+          } >> "$GITHUB_OUTPUT"
           printf '%b' "$RESULTS" > /tmp/results.md
 
       - name: Commit and push
@@ -395,7 +401,7 @@ else:
           set -euo pipefail
 
           # Idempotency check: skip if this review was already applied
-          if git log --oneline -10 | grep -q "review comment #${{ env.REVIEW_ID }}"; then
+          if [ -n "${{ env.REVIEW_ID }}" ] && git log --oneline -10 | grep -q "review comment #${{ env.REVIEW_ID }}"; then
             echo "Fixes already applied from review #${{ env.REVIEW_ID }}, skipping"
             exit 0
           fi
@@ -412,10 +418,9 @@ else:
             echo "No modified files to commit"
             exit 0
           fi
-          git commit -m "fix: apply AI review suggestions
-
-          Applied from review comment #${{ env.REVIEW_ID }}.
-          Applied: ${{ steps.apply.outputs.applied }}, Failed: ${{ steps.apply.outputs.failed }}, Skipped: ${{ steps.apply.outputs.skipped }}"
+          git commit -m "fix: apply AI review suggestions" \
+            -m "Applied from review comment #${{ env.REVIEW_ID }}.
+Applied: ${{ steps.apply.outputs.applied }}, Failed: ${{ steps.apply.outputs.failed }}, Skipped: ${{ steps.apply.outputs.skipped }}"
           git push
 
       - name: Post results

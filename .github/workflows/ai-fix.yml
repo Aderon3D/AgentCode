@@ -13,16 +13,6 @@ on:
         description: 'Review comment ID to parse fixes from'
         required: true
         type: number
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to apply fixes to'
-        required: true
-        type: number
-      review_id:
-        description: 'Review comment ID to apply fixes from'
-        required: true
-        type: number
 
 concurrency:
   group: ai-fix-${{ github.event.issue.number || inputs.pr_number }}

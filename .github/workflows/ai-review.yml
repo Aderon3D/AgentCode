@@ -112,7 +112,7 @@ jobs:
                 ERR_FILE=$(mktemp /tmp/opencode-err-XXXXXX)
                 tmp_files+=("$ERR_FILE")
                 if opencode run -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
-                  if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings' "$TMP" 2>/dev/null; then
+                  if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings|No regression risks' "$TMP" 2>/dev/null; then
                     cp "$TMP" "$result_file"
                     return 0
                   else

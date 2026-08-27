@@ -175,6 +175,8 @@ else:
                   if c.get('body', '').startswith('# AI Code Review')
                   and c.get('author', {}).get('login', '') in ('github-actions[bot]', 'ai-review[bot]')]
     if not ai_reviews:
+        with open(os.environ['GITHUB_ENV'], 'a') as f:
+            f.write('NO_REVIEW=true\n')
         print('NO_REVIEW')
         sys.exit(0)
 
@@ -202,6 +204,7 @@ else:
 "
 
       - name: Parse fixes
+        if: env.NO_REVIEW != 'true'
         run: |
           python3 << 'PYEOF'
           import re
@@ -402,7 +405,7 @@ else:
           git push
 
       - name: Post results
-        if: always() && steps.apply.conclusion != 'skipped'
+        if: always() && env.NO_REVIEW != 'true' && steps.apply.conclusion != 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
@@ -445,14 +448,5 @@ else:
         run: |
           # Add rocket reaction to the source review comment
           gh api "repos/$REPO/issues/comments/$REVIEW_ID/reactions" -f content=rocket 2>/dev/null || true
-
-          # Resolve the review thread via GraphQL
-          gh api graphql -f query='
-            mutation($threadId: ID!) {
-              resolveReviewThread(input: {threadId: $threadId}) {
-                thread { isResolved }
-              }
-            }
-          ' -f threadId="$(gh api "repos/$REPO/pulls/comments?pull_request_review_id=$REVIEW_ID" --jq '.[0].pull_request_review_id' 2>/dev/null || echo '')" 2>/dev/null || true
 
           echo "Marked review $REVIEW_ID as fixed"

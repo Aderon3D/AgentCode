@@ -230,7 +230,7 @@ else:
                   continue
 
               # --- Our format: Before/After code blocks ---
-              before_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# Before.*?\n(.*?)(?=\n# After|```)', section, re.DOTALL)
+              before_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# Before.*?\n(.*?)(?=\n# After|\n```\s*$)', section, re.DOTALL)
               after_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# After.*?\n(.*?)```', section, re.DOTALL)
 
               file_match = re.search(r'\*\*(?:file|File):\*\*\s*`?([^`\n]+)`?', section)
@@ -405,9 +405,9 @@ else:
           # Stage only the files we modified
           MODIFIED="${{ steps.apply.outputs.modified }}"
           if [ -n "$MODIFIED" ]; then
-            echo "$MODIFIED" | while IFS= read -r f; do
+            while IFS= read -r f; do
               [ -n "$f" ] && git add "$f"
-            done
+            done < <(printf '%s' "$MODIFIED")
           else
             echo "No modified files to commit"
             exit 0

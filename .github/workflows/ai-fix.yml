@@ -381,3 +381,24 @@ print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
           fi
 
           gh pr comment "$PR_NUMBER" --body "$BODY"
+
+      - name: Mark review as fixed
+        if: always() && steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REVIEW_ID: ${{ env.REVIEW_ID }}
+        run: |
+          # Add rocket reaction to the source review comment
+          gh api "repos/$REPO/issues/comments/$REVIEW_ID/reactions" -f content=rocket 2>/dev/null || true
+
+          # Resolve the review thread via GraphQL
+          gh api graphql -f query='
+            mutation($threadId: ID!) {
+              resolveReviewThread(input: {threadId: $threadId}) {
+                thread { isResolved }
+              }
+            }
+          ' -f threadId="$(gh api "repos/$REPO/pulls/comments?pull_request_review_id=$REVIEW_ID" --jq '.[0].pull_request_review_id' 2>/dev/null || echo '')" 2>/dev/null || true
+
+          echo "Marked review $REVIEW_ID as fixed"

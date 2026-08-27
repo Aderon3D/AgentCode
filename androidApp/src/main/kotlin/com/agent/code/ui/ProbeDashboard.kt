@@ -132,6 +132,8 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                             val stats = withContext(Dispatchers.IO) { collector.collect().format() }
                             deviceStatsText = stats
                             results["Device Stats"] = stats; expanded["Device Stats"] = true
+                        } catch (e: Throwable) {
+                            results["Error"] = "${e::class.simpleName}: ${e.message}"
                         } finally {
                             running = false
                         }

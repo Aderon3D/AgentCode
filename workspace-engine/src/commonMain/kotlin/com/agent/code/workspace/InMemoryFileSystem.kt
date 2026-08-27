@@ -3,7 +3,7 @@ package com.agent.code.workspace
 import com.agent.code.core.path.VirtualPath
 
 class InMemoryFileSystem : FileSystemProvider {
-    private val files = mutableMapOf<String, String>()
+    private val files: MutableMap<String, String> = java.util.Collections.synchronizedMap(mutableMapOf())
 
     override suspend fun read(path: VirtualPath): Result<String> =
         files[path.rawPath]?.let { Result.success(it) }

@@ -14,6 +14,8 @@ import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.core.tools.ToolResult
 import com.agent.code.mcp.McpHost
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
@@ -37,15 +39,16 @@ class AgentOrchestrator(
     private val governor: PowerGovernor = StubPowerGovernor()
 ) {
     private var seq = 0L
-    private fun nextId(): Long = ++seq
+    private val seqMutex = Mutex()
+    private suspend fun nextId(): Long = seqMutex.withLock { ++seq }
     private fun now(): Long = Clock.System.now().toEpochMilliseconds()
 
-    fun startTask(taskId: String, goal: String) {
+    suspend fun startTask(taskId: String, goal: String) {
         journal.append(AgentEvent.TaskStarted(nextId(), taskId, now(), goal))
         telemetry.emit(LogEntry.AgentThought(now(), "Planning: $goal"))
     }
 
-    fun runTool(taskId: String, toolCall: ToolCall): ToolResult {
+    suspend fun runTool(taskId: String, toolCall: ToolCall): ToolResult {
         journal.append(AgentEvent.ToolExecutionRequested(nextId(), taskId, now(), toolCall))
         val result = mcp.dispatch(toolCall)
         journal.append(AgentEvent.ToolExecutionFinished(nextId(), taskId, now(), result))
@@ -57,7 +60,7 @@ class AgentOrchestrator(
         return result
     }
 
-    fun succeed(taskId: String, summary: String) {
+    suspend fun succeed(taskId: String, summary: String) {
         journal.append(AgentEvent.TaskSucceeded(nextId(), taskId, now(), summary))
         telemetry.emit(LogEntry.AgentThought(now(), "Success: $summary"))
     }
@@ -176,7 +179,7 @@ class AgentOrchestrator(
         return StepResult.StepCompletedMoreWorkPending
     }
 
-    private fun processToolExecutionStep(taskId: String, state: AgentState.ExecutingTool): StepResult {
+    private suspend fun processToolExecutionStep(taskId: String, state: AgentState.ExecutingTool): StepResult {
         val result = runTool(taskId, state.toolCall)
         return if (result.isSuccess) {
             StepResult.StepCompletedMoreWorkPending

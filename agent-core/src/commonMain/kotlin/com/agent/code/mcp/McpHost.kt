@@ -22,10 +22,10 @@ class McpHost(
         ApplyPatchTool(fileSystem).let { it.name to it }
     ).toMap()
 
-    fun dispatch(toolCall: com.agent.code.core.fsm.ToolCall): ToolResult {
+    suspend fun dispatch(toolCall: com.agent.code.core.fsm.ToolCall): ToolResult {
         val tool = tools[toolCall.toolName]
             ?: return ToolResult(toolCall.id, false, "unknown tool: ${toolCall.toolName}", 0L)
-        return kotlinx.coroutines.runBlocking { tool.execute(toolCall.argumentsJson, fileSystem, processRunner) }
+        return tool.execute(toolCall.argumentsJson, fileSystem, processRunner)
     }
 
     fun listTools(): List<String> = tools.keys.toList()

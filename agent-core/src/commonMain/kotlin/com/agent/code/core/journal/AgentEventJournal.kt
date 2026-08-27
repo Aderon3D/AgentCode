@@ -68,10 +68,18 @@ class AgentEventJournal(private val store: WalStore) {
     }
 
     fun recoverState(taskId: String): AgentState {
-        val events = store.replay().mapNotNull { runCatching { json.decodeFromString<AgentEvent>(it) }.getOrNull() }
+        val events = store.replay().mapNotNull {
+            runCatching { json.decodeFromString<AgentEvent>(it) }
+                .onFailure { println("WAL: skipping corrupt entry: ${it.message}") }
+                .getOrNull()
+        }
         return FsmStateReconstructor.replay(events.filter { it.taskId == taskId })
     }
 
     fun allEvents(): List<AgentEvent> =
-        store.replay().mapNotNull { runCatching { json.decodeFromString<AgentEvent>(it) }.getOrNull() }
+        store.replay().mapNotNull {
+            runCatching { json.decodeFromString<AgentEvent>(it) }
+                .onFailure { println("WAL: skipping corrupt entry: ${it.message}") }
+                .getOrNull()
+        }
 }

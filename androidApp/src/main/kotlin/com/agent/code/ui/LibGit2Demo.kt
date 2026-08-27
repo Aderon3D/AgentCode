@@ -33,57 +33,64 @@ import kotlinx.coroutines.launch
 fun LibGit2Demo(baseDir: String) {
     val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Button(onClick = {
+            error = null
             scope.launch(Dispatchers.IO) {
-                val probeDir = File("$baseDir/libgit2-probe").also { it.deleteRecursively() }
-                probeDir.mkdirs()
-                val root = VirtualPath.of(probeDir.absolutePath)
-                val git = LibGit2Backend()
-                val wm = WorktreeManager(root, git)
-                val log = mutableListOf<String>()
+                try {
+                    val probeDir = File("$baseDir/libgit2-probe").also { it.deleteRecursively() }
+                    probeDir.mkdirs()
+                    val root = VirtualPath.of(probeDir.absolutePath)
+                    val git = LibGit2Backend()
+                    val wm = WorktreeManager(root, git)
+                    val log = mutableListOf<String>()
 
-                suspend fun step(name: String, block: suspend () -> Unit) {
-                    try { block(); log.add("OK $name") }
-                    catch (e: Throwable) { log.add("FAIL $name: ${e.message}") }
-                }
-
-                step("initRepo") { git.initRepo(root).getOrThrow() }
-                step("write file") {
-                    git.addAll(root).getOrThrow()
-                    val f = File(probeDir, "hello.txt")
-                    f.writeText("libgit2 probe @ ${System.currentTimeMillis()}")
-                    git.addAll(root).getOrThrow()
-                    git.commit(root, "initial commit").getOrThrow()
-                }
-                step("worktreeAdd") {
-                    wm.createSparseWorktree("ui-probe").getOrThrow()
-                }
-                step("write in worktree") {
-                    val wt = File(probeDir.absolutePath, ".worktrees/task-ui-probe")
-                    File(wt, "worktree.txt").writeText("written from worktree")
-                    git.addAll(VirtualPath.of(wt.absolutePath)).getOrThrow()
-                    git.commit(VirtualPath.of(wt.absolutePath), "worktree commit").getOrThrow()
-                }
-                step("squash merge") { wm.promoteToMain("ui-probe").getOrThrow() }
-                step("verify merged") {
-                    val merged = File(probeDir, "worktree.txt")
-                    check(merged.exists() && merged.readText().contains("written from worktree")) {
-                        "file missing or wrong content"
+                    suspend fun step(name: String, block: suspend () -> Unit) {
+                        try { block(); log.add("OK $name") }
+                        catch (e: Throwable) { log.add("FAIL $name: ${e.message}") }
                     }
+
+                    step("initRepo") { git.initRepo(root).getOrThrow() }
+                    step("write file") {
+                        git.addAll(root).getOrThrow()
+                        val f = File(probeDir, "hello.txt")
+                        f.writeText("libgit2 probe @ ${System.currentTimeMillis()}")
+                        git.addAll(root).getOrThrow()
+                        git.commit(root, "initial commit").getOrThrow()
+                    }
+                    step("worktreeAdd") {
+                        wm.createSparseWorktree("ui-probe").getOrThrow()
+                    }
+                    step("write in worktree") {
+                        val wt = File(probeDir.absolutePath, ".worktrees/task-ui-probe")
+                        File(wt, "worktree.txt").writeText("written from worktree")
+                        git.addAll(VirtualPath.of(wt.absolutePath)).getOrThrow()
+                        git.commit(VirtualPath.of(wt.absolutePath), "worktree commit").getOrThrow()
+                    }
+                    step("squash merge") { wm.promoteToMain("ui-probe").getOrThrow() }
+                    step("verify merged") {
+                        val merged = File(probeDir, "worktree.txt")
+                        check(merged.exists() && merged.readText().contains("written from worktree")) {
+                            "file missing or wrong content"
+                        }
+                    }
+
+                    probeDir.deleteRecursively()
+                    result = log.joinToString("\n")
+                } catch (e: Exception) {
+                    error = "${e::class.simpleName}: ${e.message}"
                 }
-
-                // cleanup
-                probeDir.deleteRecursively()
-
-                result = log.joinToString("\n")
             }
         }) {
             Text("Run LibGit2 Probe")
+        }
+        error?.let {
+            Text("Error: $it", color = MaterialTheme.colorScheme.error)
         }
         result?.let {
             HorizontalDivider()

@@ -54,7 +54,11 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           # Get PR branch
-          PR_JSON=$(gh pr view "$PR_NUMBER" --json headRefName,headRepositoryOwner)
+          PR_JSON=$(gh pr view "$PR_NUMBER" --json headRefName,headRepositoryOwner) || {
+            echo "Failed to fetch PR details"
+            gh pr comment "$PR_NUMBER" --body "Failed to fetch PR details."
+            exit 1
+          }
           HEAD_REF=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['headRefName'])")
           HEAD_OWNER=$(echo "$PR_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r.get('headRepositoryOwner',{}).get('login','unknown'))")
 
@@ -64,11 +68,20 @@ jobs:
             exit 1
           fi
 
-          ENV_DELIM=$(uuidgen)
+          # Validate head ref is a valid git ref name
+          SAFE_HEAD_REF=$(printf '%s' "$HEAD_REF" | tr -d '\r\n')
+          if ! echo "$SAFE_HEAD_REF" | grep -qE '^[a-zA-Z0-9._/\-]+$'; then
+            echo "Invalid head ref: $SAFE_HEAD_REF"
+            gh pr comment "$PR_NUMBER" --body "Invalid branch reference."
+            exit 1
+          fi
+
+          # Use unique delimiter to prevent collision
+          DELIM="GHEOF_${GITHUB_RUN_ID}"
           {
-            echo "HEAD_REF<<$ENV_DELIM"
-            echo "$HEAD_REF"
-            echo "$ENV_DELIM"
+            echo "HEAD_REF<<$DELIM"
+            echo "$SAFE_HEAD_REF"
+            echo "$DELIM"
           } >> "$GITHUB_ENV"
 
           # Post initial comment

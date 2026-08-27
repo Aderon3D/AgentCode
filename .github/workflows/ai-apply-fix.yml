@@ -8,11 +8,11 @@ on:
       pr_number:
         description: 'PR number to apply fixes to'
         required: true
-        type: number
+        type: string
       review_id:
         description: 'Review comment ID to parse fixes from'
         required: true
-        type: number
+        type: string
 
 concurrency:
   group: ai-fix-${{ github.event.issue.number || inputs.pr_number }}

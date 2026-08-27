@@ -108,8 +108,9 @@ class AndroidPowerGovernor(private val context: Context) : PowerGovernor {
                 } catch (_: Exception) { return@forEach }
                 if (!isRealTempSensor(type) || raw <= 0f) return@forEach
                 val celsius = when {
-                    raw > 10000 -> raw / 1000f
-                    raw in 500f..10000f -> raw / 10f
+                    raw >= 10000f -> raw / 1000f
+                    raw >= 100f -> raw / 10f
+                    raw >= 20f -> raw
                     else -> return@forEach
                 }
                 if (celsius > max) {

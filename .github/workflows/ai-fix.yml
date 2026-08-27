@@ -127,7 +127,7 @@ jobs:
       - name: Install opencode plugins
         run: |
           if [ -d .opencode ]; then
-            cd .opencode && npm install --ignore-scripts 2>/dev/null || echo "::warning::Failed to install opencode plugins"
+            cd .opencode && npm install --ignore-scripts || echo "::warning::Failed to install opencode plugins"
           else
             echo "::warning::No .opencode directory found"
           fi
@@ -226,7 +226,7 @@ else:
                   continue
 
               # --- Our format: Before/After code blocks ---
-              before_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# Before.*?\n(.*?)```', section, re.DOTALL)
+              before_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# Before.*?\n(.*?)(?=\n# After|```)', section, re.DOTALL)
               after_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# After.*?\n(.*?)```', section, re.DOTALL)
 
               file_match = re.search(r'\*\*(?:file|File):\*\*\s*`?([^`\n]+)`?', section)
@@ -277,7 +277,7 @@ else:
         id: apply
         run: |
           set -euo pipefail
-          cleanup() { rm -f /tmp/fixes.json /tmp/before-*.tmp /tmp/after-*.tmp; }
+          cleanup() { rm -f /tmp/fixes.json /tmp/before-* /tmp/after-*; }
           trap cleanup EXIT
 
           if [ ! -f /tmp/fixes.json ]; then
@@ -440,7 +440,7 @@ else:
           gh pr comment "$PR_NUMBER" --body-file /tmp/comment-body.md
 
       - name: Mark review as fixed
-        if: always() && steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
+        if: steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

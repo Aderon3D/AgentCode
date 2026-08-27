@@ -3,9 +3,29 @@ name: AI Fix
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to apply fixes to'
+        required: true
+        type: number
+      review_id:
+        description: 'Review comment ID to parse fixes from'
+        required: true
+        type: number
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to apply fixes to'
+        required: true
+        type: number
+      review_id:
+        description: 'Review comment ID to apply fixes from'
+        required: true
+        type: number
 
 concurrency:
-  group: ai-fix-${{ github.event.issue.number }}
+  group: ai-fix-${{ github.event.issue.number || inputs.pr_number }}
   cancel-in-progress: true
 
 permissions:
@@ -16,10 +36,12 @@ jobs:
   fix:
     runs-on: ubuntu-latest
     if: >
-      github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/fix')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/fix'))
     steps:
       - name: Validate comment format
+        if: github.event_name != 'workflow_dispatch'
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
@@ -31,8 +53,9 @@ jobs:
       - name: Check commenter permission
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
-          COMMENTER: ${{ github.event.comment.user.login }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
+          COMMENTER: ${{ github.event.comment.user.login || github.actor }}
           REPO: ${{ github.repository }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
@@ -122,7 +145,7 @@ jobs:
       - name: Get PR info
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
           REPO: ${{ github.repository }}
         run: |
           # Use Python to find the latest AI review and fetch its body in one go.
@@ -133,41 +156,59 @@ import os, json, subprocess, sys
 
 pr_number = os.environ['PR_NUMBER']
 repo = os.environ['REPO']
+workflow_dispatch_review_id = os.environ.get('INPUT_REVIEW_ID', '')
 
-result = subprocess.run(
-    ['gh', 'pr', 'view', pr_number, '--json', 'comments'],
-    capture_output=True, text=True
-)
-comments = json.loads(result.stdout).get('comments', [])
+if workflow_dispatch_review_id:
+    # workflow_dispatch: use provided review_id
+    review_id = workflow_dispatch_review_id
+    body_result = subprocess.run(
+        ['gh', 'api', f'repos/{repo}/issues/comments/{review_id}', '--jq', '.body'],
+        capture_output=True, text=True
+    )
+    if body_result.returncode != 0 or not body_result.stdout.strip():
+        print(f'Failed to fetch review comment body', file=sys.stderr)
+        sys.exit(1)
+    with open('/tmp/review.md', 'w') as f:
+        f.write(body_result.stdout)
+    with open(os.environ['GITHUB_ENV'], 'a') as f:
+        f.write(f'REVIEW_ID={review_id}\n')
+    print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
+else:
+    # issue_comment: find latest AI review
+    result = subprocess.run(
+        ['gh', 'pr', 'view', pr_number, '--json', 'comments'],
+        capture_output=True, text=True
+    )
+    comments = json.loads(result.stdout).get('comments', [])
 
-ai_reviews = [c for c in comments
-              if c.get('body', '').startswith('# AI Code Review')
-              and c.get('author', {}).get('login', '') in ('github-actions[bot]', 'ai-review[bot]')]
-if not ai_reviews:
-    print('NO_REVIEW')
-    sys.exit(0)
+    ai_reviews = [c for c in comments
+                  if c.get('body', '').startswith('# AI Code Review')
+                  and c.get('author', {}).get('login', '') in ('github-actions[bot]', 'ai-review[bot]')]
+    if not ai_reviews:
+        print('NO_REVIEW')
+        sys.exit(0)
 
-ai_reviews.sort(key=lambda c: c.get('createdAt', ''))
-latest = ai_reviews[-1]
-review_id = latest['id']
+    ai_reviews.sort(key=lambda c: c.get('createdAt', ''))
+    latest = ai_reviews[-1]
+    review_id = latest['id']
 
-# Write REVIEW_ID to GITHUB_ENV for subsequent steps
-with open(os.environ['GITHUB_ENV'], 'a') as f:
-    f.write(f'REVIEW_ID={review_id}\n')
+    # Write REVIEW_ID to GITHUB_ENV for subsequent steps
+    with open(os.environ['GITHUB_ENV'], 'a') as f:
+        f.write(f'REVIEW_ID={review_id}\n')
 
-# Fetch the review body and write to /tmp/review.md
-body_result = subprocess.run(
-    ['gh', 'api', f'repos/{repo}/issues/comments/{review_id}', '--jq', '.body'],
-    capture_output=True, text=True
-)
-if body_result.returncode != 0 or not body_result.stdout.strip():
-    print(f'Failed to fetch review comment body', file=sys.stderr)
-    sys.exit(1)
+    # Fetch the review body and write to /tmp/review.md
+    body_result = subprocess.run(
+        ['gh', 'api', f'repos/{repo}/issues/comments/{review_id}', '--jq', '.body'],
+        capture_output=True, text=True
+    )
+    if body_result.returncode != 0 or not body_result.stdout.strip():
+        print(f'Failed to fetch review comment body', file=sys.stderr)
+        sys.exit(1)
 
-with open('/tmp/review.md', 'w') as f:
-    f.write(body_result.stdout)
+    with open('/tmp/review.md', 'w') as f:
+        f.write(body_result.stdout)
 
-print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
+    print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
 "
 
       - name: Parse fixes
@@ -374,7 +415,7 @@ print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
         if: always() && steps.apply.conclusion != 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
         run: |
           APPLIED="${{ steps.apply.outputs.applied }}"
           FAILED="${{ steps.apply.outputs.failed }}"

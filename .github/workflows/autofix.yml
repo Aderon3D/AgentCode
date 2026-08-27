@@ -64,7 +64,12 @@ jobs:
             exit 1
           fi
 
-          echo "HEAD_REF=$HEAD_REF" >> "$GITHUB_ENV"
+          ENV_DELIM=$(uuidgen)
+          {
+            echo "HEAD_REF<<$ENV_DELIM"
+            echo "$HEAD_REF"
+            echo "$ENV_DELIM"
+          } >> "$GITHUB_ENV"
 
           # Post initial comment
           gh pr comment "$PR_NUMBER" --body "🤖 **AutoFix started** — I'll iterate fix → review until no Major issues remain.

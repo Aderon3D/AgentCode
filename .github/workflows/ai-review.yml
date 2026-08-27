@@ -63,7 +63,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "Runner IP: $(curl -s https://api.ipify.org)" >&2
           echo "opencode: $(which opencode) $(opencode --version)" >&2
 
           if [ ! -s /tmp/review.diff ]; then
@@ -81,17 +80,18 @@ jobs:
           MAX_RETRIES=2
           RETRY_DELAY=15
           ALL_FINDINGS=""
-          PREV_FINDINGS=""
-          LATEST_FINDINGS=""
           CONVERGENCE_REASON=""
 
           review_round() {
             local prompt_file="$1"
             local round="$2"
             local tmp_files=()
+            local result_file="/tmp/round-review-${round}.md"
 
-            cleanup_local() { rm -f "${tmp_files[@]}"; }
+            cleanup_local() { rm -f "${tmp_files[@]}" "$result_file"; }
             trap cleanup_local RETURN INT TERM
+
+            > "$result_file"
 
             for MODEL in "${MODELS[@]}"; do
               echo "Trying: $MODEL" >&2
@@ -101,11 +101,11 @@ jobs:
 
                 TMP=$(mktemp)
                 tmp_files+=("$TMP")
-                ERR_FILE=$(mktemp /tmp/opencode-err-${MODEL##*/}-${ATTEMPT}-XXXXXX)
+                ERR_FILE=$(mktemp /tmp/opencode-err-XXXXXX)
                 tmp_files+=("$ERR_FILE")
                 if opencode run -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
                   if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings' "$TMP" 2>/dev/null; then
-                    cat "$TMP"
+                    cp "$TMP" "$result_file"
                     return 0
                   else
                     echo "  Response lacked section headers or convergence signal (size=$(wc -c < "$TMP"), first_line=$(head -1 "$TMP"))" >&2
@@ -196,8 +196,8 @@ jobs:
               cat /tmp/review.diff >> "$PROMPT_FILE"
             fi
 
-            ROUND_REVIEW=$(review_round "$PROMPT_FILE" "$ROUND")
-            rm -f "$PROMPT_FILE"
+            review_round "$PROMPT_FILE" "$ROUND" && ROUND_REVIEW=$(cat "/tmp/round-review-${ROUND}.md") || ROUND_REVIEW=""
+            rm -f "$PROMPT_FILE" "/tmp/round-review-${ROUND}.md"
 
             if [ -z "$ROUND_REVIEW" ]; then
               break

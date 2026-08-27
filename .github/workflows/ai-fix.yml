@@ -50,8 +50,14 @@ jobs:
 
           SAFE_HEAD_REF=$(printf '%s' "$HEAD_REF" | tr -d '\r\n')
           SAFE_HEAD_REPO=$(printf '%s' "$HEAD_REPO" | tr -d '\r\n')
-          echo "HEAD_REF=$SAFE_HEAD_REF" >> "$GITHUB_ENV"
-          echo "HEAD_REPO=$SAFE_HEAD_REPO" >> "$GITHUB_ENV"
+          {
+            echo "HEAD_REF<<SAFE_EOF"
+            echo "$SAFE_HEAD_REF"
+            echo "SAFE_EOF"
+            echo "HEAD_REPO<<SAFE_EOF"
+            echo "$SAFE_HEAD_REPO"
+            echo "SAFE_EOF"
+          } >> "$GITHUB_ENV"
 
           # Block fork PRs
           if [ "$HEAD_OWNER" != "${{ github.repository_owner }}" ]; then
@@ -78,46 +84,50 @@ jobs:
           PR_NUMBER: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
         run: |
-          # Use Python to avoid shell interpolation of user-controlled PR_NUMBER
+          # Use Python to find the latest AI review and fetch its body in one go.
+          # Avoids pipe subshell issues where GITHUB_ENV writes aren't visible
+          # to os.environ within the same step.
           python3 -c "
-import os, json, subprocess
+import os, json, subprocess, sys
 
 pr_number = os.environ['PR_NUMBER']
 repo = os.environ['REPO']
-token = os.environ['GH_TOKEN']
 
-# Get PR comments via gh CLI (pr_number passed as list arg, not interpolated)
 result = subprocess.run(
     ['gh', 'pr', 'view', pr_number, '--json', 'comments'],
     capture_output=True, text=True
 )
 comments = json.loads(result.stdout).get('comments', [])
 
-# Find latest AI review comment
-ai_reviews = [c for c in comments if c.get('body', '').startswith('# AI Code Review')]
+ai_reviews = [c for c in comments
+              if c.get('body', '').startswith('# AI Code Review')
+              and c.get('author', {}).get('login', '') in ('github-actions[bot]', 'ai-review[bot]')]
 if not ai_reviews:
     print('NO_REVIEW')
-    exit(0)
+    sys.exit(0)
 
 ai_reviews.sort(key=lambda c: c.get('createdAt', ''))
 latest = ai_reviews[-1]
 review_id = latest['id']
-print(f'REVIEW_ID={review_id}')
-" | while read -r line; do
-            if [ "$line" = "NO_REVIEW" ]; then
-              gh pr comment "$PR_NUMBER" --body "No AI review comment found to apply fixes from."
-              exit 1
-            fi
-            echo "$line" >> "$GITHUB_ENV"
-          done
 
-          # Fetch the review comment body
-          gh api "repos/$REPO/issues/comments/${REVIEW_ID}" \
-            --jq '.body' > /tmp/review.md 2>/dev/null || {
-            echo "Failed to fetch review comment"
-            exit 1
-          }
-          echo "Review comment: $REVIEW_ID"
+# Write REVIEW_ID to GITHUB_ENV for subsequent steps
+with open(os.environ['GITHUB_ENV'], 'a') as f:
+    f.write(f'REVIEW_ID={review_id}\n')
+
+# Fetch the review body and write to /tmp/review.md
+body_result = subprocess.run(
+    ['gh', 'api', f'repos/{repo}/issues/comments/{review_id}', '--jq', '.body'],
+    capture_output=True, text=True
+)
+if body_result.returncode != 0 or not body_result.stdout.strip():
+    print(f'Failed to fetch review comment body', file=sys.stderr)
+    sys.exit(1)
+
+with open('/tmp/review.md', 'w') as f:
+    f.write(body_result.stdout)
+
+print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
+"
 
       - name: Parse fixes
         run: |
@@ -169,11 +179,14 @@ print(f'REVIEW_ID={review_id}')
         id: apply
         run: |
           set -euo pipefail
-          cleanup() { rm -f /tmp/fixes.json; }
+          cleanup() { rm -f /tmp/fixes.json /tmp/before-*.tmp /tmp/after-*.tmp; }
           trap cleanup EXIT
 
           if [ ! -f /tmp/fixes.json ]; then
-            echo "parsed=0" >> "$GITHUB_OUTPUT"
+            echo "applied=0" >> "$GITHUB_OUTPUT"
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+            echo "skipped=0" >> "$GITHUB_OUTPUT"
+            echo "modified=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -186,14 +199,28 @@ print(f'REVIEW_ID={review_id}')
           COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/fixes.json'))))")
 
           if [ "$COUNT" -eq 0 ]; then
-            echo "parsed=0" >> "$GITHUB_OUTPUT"
+            echo "applied=0" >> "$GITHUB_OUTPUT"
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+            echo "skipped=0" >> "$GITHUB_OUTPUT"
+            echo "modified=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          REPO_ROOT=$(pwd)
 
           for i in $(seq 0 $((COUNT - 1))); do
             FILE=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); print(f[$i]['file'])")
             BEFORE=$(python3 -c "import json,sys; f=json.load(open('/tmp/fixes.json')); print(f[$i]['before'])")
             AFTER=$(python3 -c "import json,sys; f=json.load(open('/tmp/fixes.json')); print(f[$i]['after'])")
+
+            # Validate path: must be relative and stay within repo
+            RESOLVED=$(realpath "$FILE" 2>/dev/null || echo "")
+            if [ -z "$RESOLVED" ] || [[ "$RESOLVED" != "$REPO_ROOT"/* ]]; then
+              echo "  Skip $FILE (path traversal blocked)"
+              SKIPPED=$((SKIPPED + 1))
+              RESULTS="${RESULTS}- **$FILE**: skipped (path outside repo)\n"
+              continue
+            fi
 
             if [ ! -f "$FILE" ]; then
               echo "  Skip $FILE (not found)"
@@ -202,12 +229,17 @@ print(f'REVIEW_ID={review_id}')
               continue
             fi
 
-            # Apply the fix using python for multiline safety (atomic check+replace)
-            TARGET_FILE="$FILE" BEFORE_TEXT="$BEFORE" AFTER_TEXT="$AFTER" python3 -c "
+            # Write BEFORE/AFTER to temp files to avoid shell injection via env vars
+            BEFORE_TMP=$(mktemp /tmp/before-XXXXXX)
+            AFTER_TMP=$(mktemp /tmp/after-XXXXXX)
+            printf '%s' "$BEFORE" > "$BEFORE_TMP"
+            printf '%s' "$AFTER" > "$AFTER_TMP"
+
+            TARGET_FILE="$FILE" BEFORE_FILE="$BEFORE_TMP" AFTER_FILE="$AFTER_TMP" python3 -c "
           import sys, os
           target = os.environ['TARGET_FILE']
-          before = os.environ['BEFORE_TEXT']
-          after = os.environ['AFTER_TEXT']
+          with open(os.environ['BEFORE_FILE']) as f: before = f.read()
+          with open(os.environ['AFTER_FILE']) as f: after = f.read()
           with open(target) as f:
               content = f.read()
           if before not in content:
@@ -217,6 +249,7 @@ print(f'REVIEW_ID={review_id}')
           with open(target, 'w') as f:
               f.write(content)
           " && RESULT=0 || RESULT=$?
+            rm -f "$BEFORE_TMP" "$AFTER_TMP"
 
             if [ $RESULT -eq 0 ]; then
               echo "  Applied to $FILE"
@@ -234,19 +267,21 @@ print(f'REVIEW_ID={review_id}')
           echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
           echo "skipped=$SKIPPED" >> "$GITHUB_OUTPUT"
           echo "modified=$MODIFIED_FILES" >> "$GITHUB_OUTPUT"
-          echo -e "$RESULTS" > /tmp/results.md
+          printf '%b' "$RESULTS" > /tmp/results.md
 
       - name: Commit and push
-        if: steps.apply.outputs.applied != '0'
+        if: steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
         run: |
           set -euo pipefail
           git config user.name "ai-review[bot]"
           git config user.email "ai-review[bot]@users.noreply.github.com"
           # Stage only the files we modified
           MODIFIED="${{ steps.apply.outputs.modified }}"
-          for f in $MODIFIED; do
-            git add "$f"
-          done
+          if [ -n "$MODIFIED" ]; then
+            for f in $MODIFIED; do
+              git add "$f"
+            done
+          fi
           git commit -m "fix: apply AI review suggestions
 
           Applied from review comment #${{ env.REVIEW_ID }}.

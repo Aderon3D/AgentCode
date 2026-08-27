@@ -55,8 +55,6 @@ TOOL_BIN=$(find_tool) || {
     echo "1. opencode/mimo-v2.5-free       (79% SWE-bench)"
     echo "2. opencode/hy3-free              (78% SWE-bench)"
     echo "3. opencode/nemotron-3-ultra-free (72% SWE-bench)"
-    echo "4. opencode/laguna-xs-2-1-free    (71% SWE-bench)"
-    echo "5. opencode/north-mini-code-free  (68% SWE-bench)"
     echo ""
     echo "=== Install opencode ==="
     echo "curl -fsSL https://opencode.ai/install | bash"
@@ -83,8 +81,6 @@ if [ "$DRY_RUN" = "--dry-run" ]; then
   echo "1. opencode/mimo-v2.5-free       (79% SWE-bench)"
   echo "2. opencode/hy3-free              (78% SWE-bench)"
   echo "3. opencode/nemotron-3-ultra-free (72% SWE-bench)"
-  echo "4. opencode/laguna-xs-2-1-free    (71% SWE-bench)"
-  echo "5. opencode/north-mini-code-free  (68% SWE-bench)"
   echo ""
   echo "=== First 30 lines of diff ==="
   head -30 "$DIFF"
@@ -95,8 +91,6 @@ MODELS=(
   "opencode/mimo-v2.5-free"
   "opencode/hy3-free"
   "opencode/nemotron-3-ultra-free"
-  "opencode/laguna-xs-2-1-free"
-  "opencode/north-mini-code-free"
 )
 
 PROMPT_FILE=$(mktemp)
@@ -128,8 +122,8 @@ for MODEL in "${MODELS[@]}"; do
     echo "    Attempt $ATTEMPT/$MAX_RETRIES"
 
     TMP=$(mktemp)
-    if timeout 120 $TOOL_BIN run -m "$MODEL" < "$PROMPT_FILE" > "$TMP" 2>"$OPENCODE_ERR"; then
-      if [ -s "$TMP" ] && [ "$(wc -l < "$TMP")" -ge 3 ]; then
+    if "$TOOL_BIN" run -m "$MODEL" < "$PROMPT_FILE" > "$TMP" 2>"$OPENCODE_ERR"; then
+      if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings' "$TMP" 2>/dev/null; then
         mv "$TMP" /tmp/review.md
         echo "    ✓ Success"
         SUCCESS=true
@@ -157,6 +151,7 @@ else
   echo "=== FAILED ==="
   echo "All models exhausted."
   printf "Attempted: %s\n" "${MODELS[@]}"
+  exit 1
 fi
 
 echo ""

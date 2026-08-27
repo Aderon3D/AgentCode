@@ -30,6 +30,7 @@ import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.provider.HierarchicalModelRouter
 import com.agent.code.ui.DashboardScreen
 import com.agent.code.ui.demoModelRouter
+import kotlinx.coroutines.launch
 
 @Composable
 @Preview
@@ -58,7 +59,8 @@ fun App(
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primaryContainer)
                 .safeContentPadding()
-                .fillMaxSize(),
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Button(onClick = { showSpine = !showSpine }) {
@@ -87,6 +89,7 @@ fun App(
 @Composable
 fun M05SpineDemo() {
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     var timeline by remember { mutableStateOf<Timeline?>(null) }
     var copied by remember { mutableStateOf(false) }
     Column(
@@ -95,7 +98,7 @@ fun M05SpineDemo() {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Button(onClick = { timeline = MissionControlBootstrap.runDemo() }) {
+        Button(onClick = { scope.launch { timeline = MissionControlBootstrap.runDemo() } }) {
             Text("Run M0.5 Demo")
         }
         timeline?.let { tl ->
@@ -119,8 +122,7 @@ fun M05SpineDemo() {
             Text("Event journal (WAL)", fontWeight = FontWeight.Bold)
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .fillMaxWidth(),
             ) {
                 tl.events.forEach { Text("• $it") }
             }
@@ -129,8 +131,7 @@ fun M05SpineDemo() {
             Text("Telemetry frames (50ms engine)", fontWeight = FontWeight.Bold)
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .fillMaxWidth(),
             ) {
                 tl.telemetryFrames.forEachIndexed { i, frame ->
                     Text("Frame $i (${frame.size})", fontWeight = FontWeight.Bold)

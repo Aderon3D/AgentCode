@@ -8,9 +8,6 @@ import java.nio.charset.StandardCharsets
 class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
     private val canonicalRoot = File(root.rawPath).canonicalPath
 
-    // ponytail: confine every path to the workspace root; rejects `../../`
-    // escapes and absolute paths outside root. Real backend touches real disk,
-    // so LLM-supplied paths must never reach files outside the sandbox.
     private fun confinedFile(path: VirtualPath): Result<File> {
         val raw = File(path.rawPath)
         val canonical = if (raw.isAbsolute) raw.canonicalPath else File(canonicalRoot, path.rawPath).canonicalPath
@@ -21,7 +18,7 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
         return Result.success(File(canonical))
     }
 
-    override fun read(path: VirtualPath): Result<String> = confinedFile(path).fold(
+    override suspend fun read(path: VirtualPath): Result<String> = confinedFile(path).fold(
         onSuccess = { file ->
             try {
                 if (!file.exists()) {
@@ -40,7 +37,7 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
         onFailure = { Result.failure(it) }
     )
 
-    override fun write(path: VirtualPath, content: String): Result<Unit> = confinedFile(path).fold(
+    override suspend fun write(path: VirtualPath, content: String): Result<Unit> = confinedFile(path).fold(
         onSuccess = { target ->
             try {
                 val parent = target.parentFile ?: File(".")
@@ -50,9 +47,6 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
                     tmp.outputStream().use { os ->
                         os.write(content.toByteArray(StandardCharsets.UTF_8))
                         os.flush()
-                        // ponytail: fsync before rename so a crash mid-write can't leave a
-                        // torn target; upgrade to dir fsync if durability must survive power
-                        // loss, not just process crash.
                         os.fd.sync()
                     }
                     if (!tmp.renameTo(target)) {
@@ -73,10 +67,10 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
         onFailure = { Result.failure(it) }
     )
 
-    override fun exists(path: VirtualPath): Boolean =
+    override suspend fun exists(path: VirtualPath): Boolean =
         confinedFile(path).fold({ it.exists() }, { false })
 
-    override fun delete(path: VirtualPath): Result<Unit> = confinedFile(path).fold(
+    override suspend fun delete(path: VirtualPath): Result<Unit> = confinedFile(path).fold(
         onSuccess = { file ->
             try {
                 if (file.delete()) {
@@ -92,4 +86,47 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
         },
         onFailure = { Result.failure(it) }
     )
+
+    override suspend fun applyPatch(path: VirtualPath, patches: List<PatchOperation>): Result<Unit> {
+        val original = read(path).getOrElse { return Result.failure(it) }
+        var content = original
+        for ((index, patch) in patches.withIndex()) {
+            if (!content.contains(patch.searchBlock)) {
+                return Result.failure(FileError.PatchFailed(path, "search block #${index + 1} not found in ${path.rawPath}"))
+            }
+            content = content.replaceFirst(patch.searchBlock, patch.replaceBlock)
+        }
+        return write(path, content)
+    }
+
+    override suspend fun walkTree(root: VirtualPath, maxDepth: Int, ignorePatterns: List<String>): Result<FileNode.Directory> {
+        return confinedFile(root).fold(
+            onSuccess = { dir ->
+                if (!dir.exists()) return Result.failure(FileError.NotFound(root, "directory not found"))
+                if (!dir.isDirectory) return Result.failure(FileError.NotFound(root, "not a directory"))
+                Result.success(buildTree(dir, root, 0, maxDepth, ignorePatterns))
+            },
+            onFailure = { Result.failure(it) }
+        )
+    }
+
+    private fun buildTree(file: File, virtualPath: VirtualPath, depth: Int, maxDepth: Int, ignorePatterns: List<String>): FileNode.Directory {
+        val children = file.listFiles()
+            ?.filter { child ->
+                val name = child.name
+                ignorePatterns.none { ig -> name == ig || name.startsWith("$ig/") }
+            }
+            ?.sortedWith(compareBy<File> { !it.isDirectory }.thenBy { it.name })
+            ?.takeIf { depth < maxDepth }
+            ?.map { child ->
+                val childPath = virtualPath.resolve(child.name)
+                if (child.isDirectory) {
+                    buildTree(child, childPath, depth + 1, maxDepth, ignorePatterns)
+                } else {
+                    FileNode.File(childPath, child.name, child.length(), child.lastModified())
+                }
+            }
+            ?: emptyList()
+        return FileNode.Directory(virtualPath, virtualPath.fileName, children)
+    }
 }

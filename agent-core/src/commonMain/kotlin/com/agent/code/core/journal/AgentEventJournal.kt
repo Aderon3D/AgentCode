@@ -11,6 +11,7 @@ val eventJson = Json {
     serializersModule = SerializersModule {
         polymorphic(AgentEvent::class) {
             subclass(AgentEvent.TaskStarted::class, AgentEvent.TaskStarted.serializer())
+            subclass(AgentEvent.TokenChunkReceived::class, AgentEvent.TokenChunkReceived.serializer())
             subclass(AgentEvent.ToolExecutionRequested::class, AgentEvent.ToolExecutionRequested.serializer())
             subclass(AgentEvent.ToolExecutionFinished::class, AgentEvent.ToolExecutionFinished.serializer())
             subclass(AgentEvent.FilePatchApplied::class, AgentEvent.FilePatchApplied.serializer())
@@ -34,6 +35,7 @@ object FsmStateReconstructor {
         for (e in events) {
             when (e) {
                 is AgentEvent.TaskStarted -> lastTaskId = e.taskId
+                is AgentEvent.TokenChunkReceived -> { /* accumulate for Planning reconstruction */ }
                 is AgentEvent.ToolExecutionRequested -> outstanding[e.toolCall.id] = e.toolCall
                 is AgentEvent.ToolExecutionFinished -> {
                     lastResult = e.result

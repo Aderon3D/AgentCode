@@ -9,13 +9,15 @@ a pure-Kotlin, dependency-light vertical slice that proves the architecture
 end-to-end and is fully unit-testable on the JVM host test target.
 
 See [`Development_Doc.md`](./Development_Doc.md) for the full master technical
-design (TDD V14.1) and the M0.5 package layout under `com.agent.code`.
+design (TDD V14.1) and the module layout.
 
 ## Project layout
 
-- `shared/` — Kotlin Multiplatform module. M0.5 lives here as packages inside
-  `commonMain` + `androidMain` + `commonTest` (no new Gradle subprojects yet).
-- `androidApp/` — Android launcher (namespace `com.agent.code`).
+- `agent-core/` — Core FSM, journal, policy, power, tools, lock, MCP, workspace interfaces.
+- `provider-subsystem/` — LLM provider, SSE client, streaming JSON, cost router.
+- `workspace-engine/` — Git backends, file system, accessibility, UI tools, lock impls.
+- `app-ui/` — CMP dashboard, kanban, bootstrap, telemetry, all M0.5–M5 tests.
+- `androidApp/` — Android launcher, foreground service, demo screens.
 
 ## Building & testing
 

@@ -13,7 +13,7 @@
 
 **Hard constraints (what M0.5 is NOT).**
 - No NDK / `libgit2` CInterop, no `tree-sitter`, no SQLDelight, no Shizuku, no DCEVM/dex-hotswap, no real network calls.
-- No new Gradle subprojects: M0.5 lives as packages inside the existing `:shared` module (`commonMain` + `androidMain` + `commonTest`). Promotion to the real `agent-core`/`provider-subsystem`/… modules happens in M1.
+- No new Gradle subprojects: M0.5 lives as packages inside the existing module structure (`commonMain` + `androidMain` + `commonTest`). Promotion to the real `agent-core`/`provider-subsystem`/… modules happens in M1.
 - Every storage/IO boundary is an **interface** with an in-memory fake in `commonTest`, so tests never touch the filesystem, the network, or Android APIs.
 
 **Module packages (all under `com.agent.code`).**
@@ -23,7 +23,7 @@
 | `provider` | `LlmProvider` + `LlmEvent`, `ResilientSseClient` (Flow-based stub), `HierarchicalModelRouter`, `StreamingJsonStateMachine` | §5.2, §8, §8.1 |
 | `mcp` | `RiskLevel`, `ToolResult`, `AgentTool`, `FileSystemProvider`, `ProcessRunner`, `McpHost` dispatch loop, scripted `ReadFileTool`/`ApplyPatchTool` | §5.1 |
 | `workspace` | `InMemoryFileSystem` (implements `FileSystemProvider`), `StubProcessRunner` (implements `ProcessRunner`) | §2.5 |
-| `kanban` | `KanbanBoard`, `TaskCard`, column transitions (`BACKLOG→PLANNING→IN_PROGRESS→VERIFICATION→DONE`) | §9 |
+| `kanban` | `KanbanBoard`, `TaskCard`, column transitions (`BACKLOG→PLANNING→IN_PROGRESS→VERIFICATION→HUMAN_REVIEW→DONE`) | §9 |
 | `telemetry` | `TelemetryEngine` with 50ms conflated batching | §10 |
 | `bootstrap` | `MissionControlBootstrap.runDemo(): Timeline` — wires the above with a scripted `LlmProvider` | §7.3 |
 
@@ -54,13 +54,13 @@ interface WalStore {
 3. `StreamingJsonStateMachine` yields a complete object after chunked delivery of a split JSON string.
 4. `TelemetryEngine` batches >1 emit within 50ms into a single frame.
 
-**Required dependencies (added to `gradle/libs.versions.toml` + `shared/build.gradle.kts`).** `kotlinx-coroutines-core`, `kotlinx-coroutines-test`, `kotlinx-serialization-json`, `kotlinx-datetime`. All common-Main-safe and JVM-testable.
+**Required dependencies (added to `gradle/libs.versions.toml` + per-module `build.gradle.kts`).** `kotlinx-coroutines-core`, `kotlinx-coroutines-test`, `kotlinx-serialization-json`, `kotlinx-datetime`. All common-Main-safe and JVM-testable.
 
-**Exit criteria.** `./gradlew :shared:testAndroidHostTest` is green; `MissionControlBootstrapTest` asserts the four guarantees above. No Android manifest, NDK, or network changes required.
+**Exit criteria.** `./gradlew :app-ui:testAndroidHostTest` is green; `MissionControlBootstrapTest` asserts the four guarantees above. No Android manifest, NDK, or network changes required.
 
 ---
 
-## 0.1 Milestone Status Tracker (as of 2026-08-24)
+## 0.1 Milestone Status Tracker (as of 2026-08-26 — updated after merging PRs #41 M3, #42 M4, #43 M5)
 
 Live status vs the §14 roadmap. Single source of truth for "what's done".
 
@@ -69,9 +69,20 @@ Live status vs the §14 roadmap. Single source of truth for "what's done".
 | **M0.5** Bootstrap spine | FSM + in-mem WAL + MCP loop + SSE JSON parser + Cost Router + Kanban + 50ms Telemetry | ✅ COMPLETE | `:app-ui:testAndroidHostTest` green; 4 M0.5 guarantees asserted in `MissionControlBootstrapTest`/`HierarchicalModelRouterTest`/`StreamingJsonStateMachineTest`/`TelemetryEngineTest`. |
 | **M1** Headless Core | libgit2 NDK, Shizuku elevation, WAL journal, EnergyAwareDispatchers, MCP server, SSE client | ✅ COMPLETE | libgit2 JNI (`LibGit2Backend`), `FileBackedWalStore`, `EnergyAwareDispatchers`, `McpHost`, `ResilientSseClient`, `ShizukuFsProvider` (privileged read/write/exists via `Shizuku.newProcess` reflection; falls back to `RealFileSystem`) all done. |
 | **M2** Multi-Agent Concurrency | Sparse worktrees, auto-squash, lock coordinator, 4-tier semantic funnel, tree-sitter | ✅ COMPLETE | `WorktreeManager`, `TaskLockCoordinator`, `WorkspaceLockManager`, `SemanticConflictFunnel`, `TreeSitterBackend` (JNI) landed; concurrency + tree-sitter tests green. |
-| **M3** UI & Cost Routing | CMP Shell + 50ms conflated telemetry stream + streaming JSON SM + adaptive power governor | 🔴 NOT STARTED | Engine logic exists (`TelemetryEngine`, `StreamingJsonStateMachine`, `AdaptivePowerGovernor`/`StubPowerGovernor`/`AndroidPowerGovernor`). `app-ui` module now exists (CMP `App.kt` shell + Kanban + bootstrap), but **no full CMP dashboard / Live Canvas** — `androidApp` still only ships probe UIs. |
-| **M4** Android Live Testing | Resilient FGS, Geometric Layout Oracle, dual-mode Accessibility Engine | 🔴 NOT STARTED | `GeometricLayoutOracle`/`AccessibilityEngine` contracts in doc only; no impl. No foreground service. |
-| **M5** Security & Hardening | Non-interactive Git auth, visual 3-way merge, SecureVault (KeyStore) | 🔴 NOT STARTED | `CircuitBreaker` + `TaskSafetyBudget` exist; `GitAuthWrapper`/`SecureVault`/`DiagnosticsTools`/`FetchDocTool` not implemented. |
+| **M3** UI & Cost Routing | CMP Shell + 50ms conflated telemetry stream + streaming JSON SM + adaptive power governor | ✅ COMPLETE | CMP dashboard + telemetry + streaming-JSON + cost-routing panels landed (DashboardScreen / MissionControlPanel / CostRoutingPanel / StreamingJsonPanel, TelemetryEngine, App.kt wiring). Live Canvas deferred per §1.2. |
+| **M4** Android Live Testing | Resilient FGS, Geometric Layout Oracle, dual-mode Accessibility Engine | ✅ COMPLETE | `ResilientAgentForegroundService` (FGS: wake/Wi-Fi locks + watchdog alarm + START_STICKY) + `GeometricLayoutOracle` + `AccessibilityEngine` (impl + `StubAccessibilityEngine`) + `UiTools` + `FileWatcherJvm`, all w/ tests. |
+| **M5** Security & Hardening | Non-interactive Git auth, visual 3-way merge, SecureVault (KeyStore) | 🟡 PARTIAL | `GitAuthWrapper` + `SecureVault` (KeyStore) + `RuntimeDiagnosticsTool` landed w/ tests. **Visual 3-Way Merge screen + `FetchDocTool` NOT implemented.** |
+
+### M5.x — Scheduled Upgrades (features cut during M0.5–M5 implementation, reintegrated as phased work)
+
+Features originally specified in the TDD that were simplified or deferred during actual implementation. Each upgrade is an additive, backward-compatible enhancement — no breaking changes to existing interfaces.
+
+| Phase | Scope | Depends On | Features |
+|---|---|---|---|
+| **M5.1** Interface Enrichment | Core API surface | M5 complete | `FileSystemProvider` → suspend + `applyPatch`/`walkTree`; `ProcessRunner` → `ProcessConfiguration` + streaming; `AgentEvent.TokenChunkReceived`; Kanban `HUMAN_REVIEW` column doc |
+| **M5.2** Platform Services | Android-native | M5.1 | `AdaptivePowerGovernor` full thermal+battery impl replacing stub; `PrivilegedElevationManager` Shizuku elevation |
+| **M5.3** Tool & Protocol Layer | Agent capabilities | M5.1 | `MissionControlMcpServer` full tool registry; `FetchDocTool`; `CircuitBreaker` budget tracking (`TaskSafetyBudget`) |
+| **M5.4** Doc Hygiene | Documentation | None (parallel) | Fix phantom paths (`platform-android`, `shared/`, `androidApp/src/androidMain/`); README 4-module update; dependency DAG correction |
 
 **Structural gap — RESOLVED (2026-08-24):** The `:shared` package monolith has been promoted to real Gradle modules. Realized: `agent-core`, `provider-subsystem`, `workspace-engine`, `app-ui`, plus the existing `androidApp` (5 `build.gradle.kts`, 0 `:shared`). `:app-ui:testAndroidHostTest` and `:androidApp:assembleDebug` are both green. Deferred (per §14 / not yet needed): `data-layer`, `live-canvas`, `desktopApp` — and `buildSrc` convention plugins were deliberately skipped in favor of standalone per-module build files (see §1.2 note).
 
@@ -132,10 +143,13 @@ root/
 ## 2. Hardware Physics, Low-Level OS & Storage Layer
 
 ### 2.1 Zero-Root Privileged Elevation (Shizuku & Settings)
-On Android 12+, stock Android’s Phantom Process Killer terminates child processes if the app exceeds 32 subprocesses or uses high background CPU. Under the direct APK release model, the platform uses **Shizuku** (or 1-tap Wireless Debugging pairing via standard Developer Options) to neutralize this constraint without rooting the device.
+On Android 12+, stock Android's Phantom Process Killer terminates child processes if the app exceeds 32 subprocesses or uses high background CPU. Under the direct APK release model, the platform uses **Shizuku** (or 1-tap Wireless Debugging pairing via standard Developer Options) to neutralize this constraint without rooting the device.
 
+**Current implementation (M1):** `ShizukuFsProvider` handles privileged file I/O via Shizuku reflection. No dedicated elevation manager yet.
+
+**M5.2 upgrade — add `PrivilegedElevationManager`:**
 ```kotlin
-// platform-android/src/androidMain/kotlin/elevation/PrivilegedElevationManager.kt
+// Planned: agent-core/src/androidMain/kotlin/com/agent/code/core/elevation/PrivilegedElevationManager.kt
 class PrivilegedElevationManager(private val context: Context) {
 
     fun applyZeroRootOptimizations(): Result<ElevationStatus> {
@@ -172,33 +186,53 @@ class PrivilegedElevationManager(private val context: Context) {
 enum class ElevationStatus { StandardUserSpace, PrivilegedAdbUncapped }
 ```
 
+> **Migration note:** Called once at agent startup in `ResilientAgentForegroundService.onStartCommand` or `MainActivity.onCreate`. Non-blocking — returns `StandardUserSpace` if Shizuku unavailable. `ShizukuFsProvider` remains the I/O layer; this manager only tunes OS-level constraints.
+
 ### 2.2 Heterogeneous CPU Topology Scheduling (big.LITTLE Architecture)
 ```kotlin
-// agent-core/src/commonMain/kotlin/concurrency/EnergyAwareDispatchers.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/concurrency/EnergyAwareDispatchers.kt
 object EnergyAwareDispatchers {
     val EfficiencyIO: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(4)
 
     val ComputeBurst: CoroutineDispatcher = Dispatchers.Default.limitedParallelism(
-        (Runtime.getRuntime().availableProcessors() - 2).coerceAtLeast(2)
+        (availableProcessors() - 2).coerceAtLeast(2)
     )
 }
+
+internal expect fun availableProcessors(): Int
 ```
 
 ### 2.3 Adaptive Thermal & Power Governor
+
+**Current implementation (M3):** Stub only — `StubPowerGovernor` returns `BALANCED_BATTERY` always.
+
 ```kotlin
-// androidApp/src/androidMain/kotlin/hardware/AdaptivePowerGovernor.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/power/PowerGovernor.kt
+interface PowerGovernor {
+    val currentProfile: StateFlow<OperatingProfile>
+}
+
+// agent-core/src/commonMain/kotlin/com/agent/code/core/power/StubPowerGovernor.kt
+class StubPowerGovernor : PowerGovernor {
+    override val currentProfile: StateFlow<OperatingProfile> = MutableStateFlow(OperatingProfile.BALANCED_BATTERY)
+}
+```
+
+**M5.2 upgrade — full thermal+battery implementation:**
+```kotlin
+// Planned: agent-core/src/androidMain/kotlin/com/agent/code/core/power/AndroidPowerGovernor.kt
 enum class OperatingProfile {
     TURBO_PLUGGED,       // Charging & Cool: Max concurrency (4 parallel agents), full burst
     BALANCED_BATTERY,    // Battery >20% & Normal Temp: 1-2 concurrent agents, 50ms cooling delay
     ECO_PRESERVATION     // Battery <20% OR Thermal SEVERE: Suspend local builds, serialize steps
 }
 
-class AdaptivePowerGovernor(
+class AndroidPowerGovernor(
     private val context: Context,
     private val powerManager: PowerManager
-) {
+) : PowerGovernor {
     private val _currentProfile = MutableStateFlow(OperatingProfile.BALANCED_BATTERY)
-    val currentProfile: StateFlow<OperatingProfile> = _currentProfile.asStateFlow()
+    override val currentProfile: StateFlow<OperatingProfile> = _currentProfile.asStateFlow()
 
     private var thermalStatus = PowerManager.THERMAL_STATUS_NONE
     private var isPluggedIn = false
@@ -211,14 +245,13 @@ class AdaptivePowerGovernor(
                 evaluateProfile()
             }
         }
-
         val batteryFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
         context.registerReceiver(object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 intent?.let {
-                    val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-                    isPluggedIn = status == BatteryManager.BATTERY_STATUS_CHARGING || 
-                                  status == BatteryManager.BATTERY_STATUS_FULL
+                    isPluggedIn = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1).let { s ->
+                        s == BatteryManager.BATTERY_STATUS_CHARGING || s == BatteryManager.BATTERY_STATUS_FULL
+                    }
                     val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
                     val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
                     batteryLevelPercent = (level * 100) / scale
@@ -230,24 +263,23 @@ class AdaptivePowerGovernor(
 
     private fun evaluateProfile() {
         _currentProfile.value = when {
-            thermalStatus >= PowerManager.THERMAL_STATUS_SEVERE || batteryLevelPercent < 20 -> {
+            thermalStatus >= PowerManager.THERMAL_STATUS_SEVERE || batteryLevelPercent < 20 ->
                 OperatingProfile.ECO_PRESERVATION
-            }
-            isPluggedIn && thermalStatus <= PowerManager.THERMAL_STATUS_MODERATE -> {
+            isPluggedIn && thermalStatus <= PowerManager.THERMAL_STATUS_MODERATE ->
                 OperatingProfile.TURBO_PLUGGED
-            }
-            else -> {
-                OperatingProfile.BALANCED_BATTERY
-            }
+            else -> OperatingProfile.BALANCED_BATTERY
         }
     }
 }
 ```
 
+> **Migration note:** `StubPowerGovernor` stays as the JVM/host test double. `AgentOrchestrator` already accepts `PowerGovernor` interface — swap `StubPowerGovernor()` for `AndroidPowerGovernor(context, powerManager)` in `androidApp` DI wiring. No orchestrator changes needed.
+
 ### 2.4 Virtual Path Abstraction
 ```kotlin
-// agent-core/src/commonMain/kotlin/path/VirtualPath.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/path/VirtualPath.kt
 @JvmInline
+@kotlinx.serialization.Serializable
 value class VirtualPath private constructor(val rawPath: String) {
     val isAbsolute: Boolean get() = rawPath.startsWith("/") || WINDOWS_DRIVE_REGEX.matches(rawPath)
     val fileName: String get() = rawPath.substringAfterLast('/').substringAfterLast('\\')
@@ -260,9 +292,13 @@ value class VirtualPath private constructor(val rawPath: String) {
     }
 
     fun parent(): VirtualPath? {
+        if (rawPath == "/") return null
         val lastSlash = maxOf(rawPath.lastIndexOf('/'), rawPath.lastIndexOf('\\'))
-        if (lastSlash <= 0) return null
-        return VirtualPath(rawPath.substring(0, lastSlash))
+        if (lastSlash < 0) return null
+        if (lastSlash == 0) return VirtualPath("/")
+        val base = rawPath.substring(0, lastSlash)
+        if (base.matches(Regex("^[a-zA-Z]:$"))) return VirtualPath("$base/")
+        return VirtualPath(base)
     }
 
     companion object {
@@ -273,15 +309,32 @@ value class VirtualPath private constructor(val rawPath: String) {
 ```
 
 ### 2.5 Native POSIX File System Provider
+
+**Current implementation (M1):**
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/fs/FileSystemProvider.kt
-sealed interface FileError {
-    data class NotFound(val path: VirtualPath) : FileError
-    data class PermissionDenied(val path: VirtualPath, val message: String) : FileError
-    data class PatchFailed(val path: VirtualPath, val reason: String) : FileError
-    data class IOError(val path: VirtualPath, val cause: Throwable) : FileError
+// agent-core/src/commonMain/kotlin/com/agent/code/workspace/FileSystemProvider.kt
+sealed class FileError(
+    override val message: String,
+    open val path: VirtualPath? = null,
+    cause: Throwable? = null
+) : Exception(message, cause) {
+    class NotFound(path: VirtualPath, message: String) : FileError(message, path)
+    class PermissionDenied(path: VirtualPath, message: String) : FileError(message, path)
+    class PatchFailed(path: VirtualPath, message: String) : FileError(message, path)
+    class IOError(path: VirtualPath?, message: String, cause: Throwable? = null) : FileError(message, path, cause)
 }
 
+interface FileSystemProvider {
+    fun read(path: VirtualPath): Result<String>
+    fun write(path: VirtualPath, content: String): Result<Unit>
+    fun exists(path: VirtualPath): Boolean
+    fun delete(path: VirtualPath): Result<Unit>
+}
+```
+
+**M5.1 upgrade — add `suspend`, `applyPatch`, `walkTree`:**
+```kotlin
+// Planned: agent-core/src/commonMain/kotlin/com/agent/code/workspace/FileSystemProvider.kt
 data class PatchOperation(val searchBlock: String, val replaceBlock: String)
 
 sealed interface FileNode {
@@ -292,39 +345,59 @@ sealed interface FileNode {
 }
 
 interface FileSystemProvider {
-    suspend fun readFile(path: VirtualPath): Result<String>
-    suspend fun writeFile(path: VirtualPath, content: String): Result<Unit>
-    suspend fun applyPatch(path: VirtualPath, patches: List<PatchOperation>): Result<Unit>
-    suspend fun walkTree(root: VirtualPath, maxDepth: Int = 10, ignorePatterns: List<String> = listOf(".git", "build", "node_modules", ".gradle")): Result<FileNode.Directory>
+    suspend fun read(path: VirtualPath): Result<String>
+    suspend fun write(path: VirtualPath, content: String): Result<Unit>
     suspend fun exists(path: VirtualPath): Boolean
     suspend fun delete(path: VirtualPath): Result<Unit>
+    suspend fun applyPatch(path: VirtualPath, patches: List<PatchOperation>): Result<Unit>
+    suspend fun walkTree(root: VirtualPath, maxDepth: Int = 10, ignorePatterns: List<String> = listOf(".git", "build", "node_modules", ".gradle")): Result<FileNode.Directory>
 }
 ```
+
+> **Migration note:** Current callers use synchronous `read`/`write`/`exists`/`delete`. M5.1 wraps them in `suspend`. `InMemoryFileSystem` and `RealFileSystem` gain default `applyPatch` (search-and-replace) and `walkTree` (recursive directory listing) implementations. `ShizukuFsProvider` delegates `applyPatch`/`walkTree` to `fallback` (sandboxed paths) or shells out via Shizuku (escalated paths).
 
 ### 2.6 Bare-Metal `libgit2` NDK Engine
+
+**Current implementation (M1):** `GitBackend` interface with `LibGit2Backend` (JNI) and `CliGitBackend` (host) implementations.
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/git/LibGit2Engine.kt
-expect class LibGit2Engine {
-    fun initializeRepository(repoPath: VirtualPath): Result<Unit>
-    fun createWorktree(repoPath: VirtualPath, worktreeName: String, branch: String): Result<VirtualPath>
-    fun configureSparseCheckout(worktreePath: VirtualPath, targetDirectories: List<String>): Result<Unit>
-    fun removeWorktree(repoPath: VirtualPath, worktreeName: String): Result<Unit>
-    fun commitAll(worktreePath: VirtualPath, message: String, authorName: String, authorEmail: String): Result<String>
-    fun mergeBranches(repoPath: VirtualPath, sourceBranch: String, targetBranch: String): GitMergeResult
-    fun squashMerge(repoPath: VirtualPath, sourceBranch: String, targetBranch: String): Result<Unit>
-    fun garbageCollect(repoPath: VirtualPath, prune: Boolean): Result<Unit>
-    fun pruneWorktrees(repoPath: VirtualPath): Result<Unit>
+// workspace-engine/src/commonMain/kotlin/com/agent/code/workspace/GitBackend.kt
+interface GitBackend {
+    suspend fun initRepo(path: VirtualPath): Result<Unit>
+    suspend fun worktreeAdd(repo: VirtualPath, name: String, path: VirtualPath, baseBranch: String): Result<Unit>
+    suspend fun worktreeRemove(repo: VirtualPath, name: String): Result<Unit>
+    suspend fun checkout(repo: VirtualPath, branch: String): Result<Unit>
+    suspend fun mergeSquash(repo: VirtualPath, branch: String): Result<Unit>
+    suspend fun addAll(repo: VirtualPath): Result<Unit>
+    suspend fun commit(repo: VirtualPath, message: String): Result<Unit>
+    suspend fun branchDelete(repo: VirtualPath, name: String): Result<Unit>
+    suspend fun branchRename(repo: VirtualPath, oldName: String, newName: String): Result<Unit>
+    suspend fun sparseCheckoutSet(repo: VirtualPath, directories: List<String>): Result<Unit>
 }
 
-sealed interface GitMergeResult {
-    data class Clean(val commitSha: String) : GitMergeResult
-    data class Conflict(val conflictedFiles: List<VirtualPath>) : GitMergeResult
+// workspace-engine/src/androidMain/kotlin/com/agent/code/workspace/LibGit2Backend.kt
+class LibGit2Backend : GitBackend {
+    companion object { init { System.loadLibrary("git2jni") } }
+    private external fun nativeInit(): String?
+    private external fun nativeWorktreeAdd(repo: String, name: String, path: String, base: String): String?
+    // ... JNI methods for each GitBackend operation
 }
 ```
 
+> **Doc note:** The original TDD showed `LibGit2Engine` as a standalone `expect class`. The actual implementation uses `GitBackend` interface with `LibGit2Backend` (Android/JNI) and `CliGitBackend` (JVM host) implementations. This is cleaner — `WorktreeManager` depends on the interface, not the implementation.
+
 ### 2.7 Fallback Process Runner & Startup Self-Healer
+
+**Current implementation (M1):**
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/process/ProcessRunner.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/workspace/ProcessRunner.kt
+interface ProcessRunner {
+    suspend fun run(command: List<String>): Result<String>
+}
+```
+
+**M5.1 upgrade — add `ProcessConfiguration`, streaming, `ProcessEvent`:**
+```kotlin
+// Planned: agent-core/src/commonMain/kotlin/com/agent/code/workspace/ProcessRunner.kt
 data class ProcessConfiguration(
     val command: String,
     val args: List<String> = emptyList(),
@@ -342,30 +415,13 @@ sealed interface ProcessEvent {
 }
 
 interface ProcessRunner {
+    suspend fun run(command: List<String>): Result<String>  // retained for M0.5 callers
     suspend fun execute(config: ProcessConfiguration): Result<ProcessOutput>
     fun executeStreaming(config: ProcessConfiguration): Flow<ProcessEvent>
 }
-
-// workspace-engine/src/commonMain/kotlin/boot/StartupSelfHealer.kt
-class StartupSelfHealer(
-    private val processRunner: ProcessRunner,
-    private val fileSystem: FileSystemProvider,
-    private val rootPath: VirtualPath
-) {
-    suspend fun executeBootCleanup(): Result<Unit> {
-        val lockFile = rootPath.resolve(".git/index.lock")
-        if (fileSystem.exists(lockFile)) fileSystem.delete(lockFile)
-
-        val config = ProcessConfiguration(
-            command = "git",
-            args = listOf("worktree", "prune"),
-            workingDir = rootPath
-        )
-        processRunner.execute(config)
-        return Result.success(Unit)
-    }
-}
 ```
+
+> **Migration note:** Existing `run(command)` stays as a convenience shorthand (delegates to `execute` with default config). `GitProcessRunner` and `StubProcessRunner` gain `execute`/`executeStreaming` overrides. `RuntimeDiagnosticsTool` migrates to `execute` for exit-code inspection.
 
 ---
 
@@ -373,46 +429,48 @@ class StartupSelfHealer(
 
 ### 3.1 Worktree Manager with Auto-Squash & GC
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/git/WorktreeManager.kt
+// workspace-engine/src/commonMain/kotlin/com/agent/code/workspace/WorktreeManager.kt
 class WorktreeManager(
-    private val libGit2: LibGit2Engine,
-    private val rootRepoPath: VirtualPath
+    private val rootRepoPath: VirtualPath,
+    private val gitBackend: GitBackend
 ) {
     suspend fun createSparseWorktree(
         taskId: String,
-        targetDirectories: List<String>,
+        targetDirectories: List<String> = emptyList(),
         baseBranch: String = "main"
     ): Result<VirtualPath> {
         val worktreePath = rootRepoPath.resolve(".worktrees/task-$taskId")
-        val branchName = "agent/task-$taskId"
+        val branch = "agent/task-$taskId"
 
-        libGit2.createWorktree(rootRepoPath, "task-$taskId", branchName)
-        libGit2.configureSparseCheckout(worktreePath, targetDirectories)
-        setupSharedCacheSymlinks(worktreePath)
+        gitBackend.worktreeAdd(rootRepoPath, branch, worktreePath, baseBranch)
+            .onFailure { return Result.failure(it) }
 
+        if (targetDirectories.isNotEmpty()) {
+            gitBackend.sparseCheckoutSet(worktreePath, targetDirectories).onFailure { originalError ->
+                gitBackend.worktreeRemove(rootRepoPath, ".worktrees/task-$taskId")
+                gitBackend.branchDelete(rootRepoPath, branch)
+                return Result.failure(originalError)
+            }
+        }
         return Result.success(worktreePath)
     }
 
     suspend fun finalizeAndSquashBranch(taskId: String, targetBranch: String = "main"): Result<Unit> {
         val branch = "agent/task-$taskId"
-        libGit2.squashMerge(rootRepoPath, sourceBranch = branch, targetBranch = targetBranch)
-        libGit2.removeWorktree(rootRepoPath, "task-$taskId")
-        libGit2.garbageCollect(rootRepoPath, prune = true)
+        gitBackend.checkout(rootRepoPath, targetBranch).onFailure { return Result.failure(it) }
+        gitBackend.mergeSquash(rootRepoPath, branch).onFailure { return Result.failure(it) }
+        gitBackend.addAll(rootRepoPath).onFailure { return Result.failure(it) }
+        gitBackend.commit(rootRepoPath, "squash task $taskId").onFailure { return Result.failure(it) }
+        gitBackend.worktreeRemove(rootRepoPath, ".worktrees/task-$taskId").onFailure { return Result.failure(it) }
+        gitBackend.branchDelete(rootRepoPath, branch).onFailure { return Result.failure(it) }
         return Result.success(Unit)
-    }
-
-    private fun setupSharedCacheSymlinks(worktreePath: VirtualPath) {
-        val centralGradle = rootRepoPath.resolve(".gradle_shared")
-        val centralNode = rootRepoPath.resolve("node_modules_shared")
-        createSymlink(target = centralGradle, link = worktreePath.resolve(".gradle"))
-        createSymlink(target = centralNode, link = worktreePath.resolve("node_modules"))
     }
 }
 ```
 
 ### 3.2 Lock Manager & Task Lock Coordinator
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/lock/WorkspaceLockManager.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/lock/WorkspaceLockManager.kt
 sealed interface ConflictRisk {
     object None : ConflictRisk
     data class FileOverlapRequiresMerge(val files: Set<VirtualPath>) : ConflictRisk
@@ -473,7 +531,7 @@ class WorkspaceLockManager {
     }
 }
 
-// workspace-engine/src/commonMain/kotlin/lock/TaskLockCoordinator.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/lock/TaskLockCoordinator.kt
 class TaskLockCoordinator(
     private val lockManager: WorkspaceLockManager
 ) {
@@ -528,7 +586,7 @@ data class ExecutionPermit(
     val overlappingFiles: Set<VirtualPath> = emptySet()
 )
 
-// workspace-engine/src/commonMain/kotlin/fs/FileWatcher.kt
+// workspace-engine/src/commonMain/kotlin/com/agent/code/core/lock/FileWatcher.kt
 enum class ChangeType { CREATED, MODIFIED, DELETED }
 
 expect class FileWatcher {
@@ -545,7 +603,7 @@ expect class FileWatcher {
 ## 4. Semantic Anti-Regression & Conflict Funnel (4-Tier)
 
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/semantic/SemanticConflictFunnel.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/lock/SemanticConflictFunnel.kt
 class SemanticConflictFunnel(
     private val treeSitter: TreeSitterNativeBridge,
     private val lockManager: WorkspaceLockManager,
@@ -585,17 +643,10 @@ sealed interface SemanticVerificationResult {
 ## 5. Model Context Protocol (MCP) & Streaming JSON Parser
 
 ### 5.1 Native MCP Host Architecture & Agent Tool Contracts
+
+**Current implementation (M0.5):** Minimal `McpHost` dispatcher with two built-in tools.
 ```kotlin
-// agent-core/src/commonMain/kotlin/tools/AgentToolContracts.kt
-enum class RiskLevel { READ_ONLY, WRITE, DESTRUCTIVE }
-
-data class ToolResult(
-    val toolCallId: String,
-    val isSuccess: Boolean,
-    val output: String,
-    val executionTimeMs: Long
-)
-
+// agent-core/src/commonMain/kotlin/com/agent/code/mcp/McpHost.kt
 interface AgentTool {
     val name: String
     val description: String
@@ -603,7 +654,28 @@ interface AgentTool {
     suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult
 }
 
-// provider-subsystem/src/commonMain/kotlin/mcp/McpContracts.kt
+class McpHost(
+    private val fileSystem: FileSystemProvider,
+    private val processRunner: ProcessRunner
+) {
+    private val tools: Map<String, AgentTool> = mapOf(
+        ReadFileTool(fileSystem).let { it.name to it },
+        ApplyPatchTool(fileSystem).let { it.name to it }
+    ).toMap()
+
+    fun dispatch(toolCall: ToolCall): ToolResult {
+        val tool = tools[toolCall.toolName]
+            ?: return ToolResult(toolCall.id, false, "unknown tool: ${toolCall.toolName}", 0L)
+        return kotlinx.coroutines.runBlocking { tool.execute(toolCall.argumentsJson, fileSystem, processRunner) }
+    }
+
+    fun listTools(): List<String> = tools.keys.toList()
+}
+```
+
+**M5.3 upgrade — full MCP server with JSON-RPC protocol + extended tool registry:**
+```kotlin
+// Planned: agent-core/src/commonMain/kotlin/com/agent/code/mcp/McpContracts.kt
 data class McpToolDefinition(val name: String, val description: String, val inputSchema: JsonObject)
 data class McpToolCall(val name: String, val arguments: JsonObject)
 data class McpContent(val type: String, val text: String? = null, val data: String? = null)
@@ -611,9 +683,10 @@ data class McpToolResult(val content: List<McpContent>, val isError: Boolean = f
 
 interface McpClient {
     suspend fun listTools(): List<McpToolDefinition>
-    suspend fun callTool(call: McpToolCall): McpToolResult
+    suspend fun callTool(call: McpCall): McpToolResult
 }
 
+// Planned: agent-core/src/commonMain/kotlin/com/agent/code/mcp/MissionControlMcpServer.kt
 class MissionControlMcpServer(
     private val accessibilityEngine: AccessibilityEngine,
     private val fileSystem: FileSystemProvider
@@ -627,9 +700,11 @@ class MissionControlMcpServer(
 }
 ```
 
+> **Migration note:** `McpHost` (current) stays for M0.5 backward compat. `MissionControlMcpServer` wraps it and adds UI tools (`inspect_ui_state`, `interact_ui_element`) via `AccessibilityEngine`. Wired in `androidApp` DI after M5.1 `FileSystemProvider` gains `suspend` (so tools can call async FS ops).
+
 ### 5.2 Streaming Partial-JSON AST Parser
 ```kotlin
-// provider-subsystem/src/commonMain/kotlin/network/StreamingJsonStateMachine.kt
+// provider-subsystem/src/commonMain/kotlin/com/agent/code/provider/StreamingJsonStateMachine.kt
 data class ToolArgumentDelta(val toolName: String, val partialPayload: String)
 
 class StreamingJsonStateMachine {
@@ -677,7 +752,7 @@ enum class State { AWAITING_KEY, READING_KEY, READING_VALUE, SKIPPING_RAW_VALUE,
 
 ### 6.2 Geometric Layout Oracle
 ```kotlin
-// live-canvas/src/commonMain/kotlin/oracle/GeometricLayoutOracle.kt
+// workspace-engine/src/commonMain/kotlin/com/agent/code/ui/GeometricLayoutOracle.kt
 data class Rect(val left: Int, val top: Int, val right: Int, val bottom: Int) {
     fun intersects(other: Rect): Boolean = left < other.right && right > other.left && top < other.bottom && bottom > other.top
     fun isOutOfBounds(container: Rect): Boolean = left < container.left || right > container.right || top < container.top || bottom > container.bottom
@@ -716,7 +791,7 @@ sealed interface LayoutBug {
 
 ### 6.3 Accessibility Engine & Agent UI Tools
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/ui/AccessibilityEngine.kt
+// workspace-engine/src/commonMain/kotlin/com/agent/code/ui/AccessibilityEngine.kt
 enum class UiActionType { CLICK, LONG_CLICK, TYPE_TEXT, SWIPE, CLEAR_TEXT }
 
 data class UiElementSelector(
@@ -733,7 +808,7 @@ interface AccessibilityEngine {
     suspend fun performSwipe(startX: Int, startY: Int, endX: Int, endY: Int, durationMs: Long): Result<Unit>
 }
 
-// workspace-engine/src/commonMain/kotlin/tools/UiTools.kt
+// workspace-engine/src/commonMain/kotlin/com/agent/code/ui/UiTools.kt
 class InspectUiTool(private val accessibilityEngine: AccessibilityEngine) : AgentTool {
     override val name = "inspect_ui_state"
     override val description = "Returns a text-based XML layout tree of the running app screen. Optional screenshot included for vision models."
@@ -762,7 +837,7 @@ class InteractUiTool(private val accessibilityEngine: AccessibilityEngine) : Age
 
 ### 7.1 FSM State Model & Autonomy Policy
 ```kotlin
-// agent-core/src/commonMain/kotlin/fsm/AgentState.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/fsm/AgentState.kt
 data class ToolCall(val id: String, val toolName: String, val argumentsJson: String)
 
 sealed interface AgentState {
@@ -776,7 +851,7 @@ sealed interface AgentState {
     data class Error(val taskId: String, val fatalCause: String) : AgentState
 }
 
-// agent-core/src/commonMain/kotlin/policy/AutonomyPolicy.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/policy/AutonomyPolicy.kt
 enum class AutonomyLevel { FULL_AUTONOMY, MICRO_AGENTIC }
 
 data class AutonomyPolicy(
@@ -790,41 +865,39 @@ data class AutonomyPolicy(
 ```
 
 ### 7.2 Event-Sourced Write-Ahead Log (WAL)
+
+**Current implementation (M0.5):**
 ```kotlin
-// agent-core/src/commonMain/kotlin/journal/AgentEventJournal.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/journal/AgentEvent.kt
 sealed interface AgentEvent {
     val eventId: Long
     val taskId: String
     val timestampMs: Long
 
     data class TaskStarted(override val eventId: Long, override val taskId: String, override val timestampMs: Long, val goal: String) : AgentEvent
-    data class TokenChunkReceived(override val eventId: Long, override val taskId: String, override val timestampMs: Long, val delta: String) : AgentEvent
     data class ToolExecutionRequested(override val eventId: Long, override val taskId: String, override val timestampMs: Long, val toolCall: ToolCall) : AgentEvent
     data class ToolExecutionFinished(override val eventId: Long, override val taskId: String, override val timestampMs: Long, val result: ToolResult) : AgentEvent
     data class FilePatchApplied(override val eventId: Long, override val taskId: String, override val timestampMs: Long, val path: VirtualPath, val diff: String) : AgentEvent
-}
-
-class AgentEventJournal(private val database: MissionControlDatabase) {
-    suspend fun append(event: AgentEvent) = withContext(Dispatchers.IO) {
-        database.agentJournalQueries.insertEvent(
-            eventId = event.eventId,
-            taskId = event.taskId,
-            eventType = event::class.simpleName!!,
-            payloadJson = Json.encodeToString(event),
-            timestampMs = event.timestampMs
-        )
-    }
-
-    suspend fun recoverState(taskId: String): AgentState {
-        val events = database.agentJournalQueries.getEventsForTask(taskId).executeAsList()
-        return FsmStateReconstructor.replay(events)
-    }
+    data class TaskSucceeded(override val eventId: Long, override val taskId: String, override val timestampMs: Long, val summary: String) : AgentEvent
 }
 ```
 
+**M5.1 upgrade — add `TokenChunkReceived` for streaming LLM token tracking:**
+```kotlin
+// Planned addition to AgentEvent sealed interface
+data class TokenChunkReceived(
+    override val eventId: Long,
+    override val taskId: String,
+    override val timestampMs: Long,
+    val delta: String
+) : AgentEvent
+```
+
+> **Migration note:** `FsmStateReconstructor.replay` gains a branch for `TokenChunkReceived` — accumulates token text for `Planning` state reconstruction. Registered in `eventJson` polymorphic module.
+
 ### 7.3 Bounded Atomic Step Execution
 ```kotlin
-// agent-core/src/commonMain/kotlin/fsm/AgentOrchestrator.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/fsm/AgentOrchestrator.kt
 sealed interface StepResult {
     object TaskFinished : StepResult
     object StepCompletedMoreWorkPending : StepResult
@@ -872,7 +945,7 @@ class AgentOrchestrator(
 
 ### 7.4 Universal Tokenizer & Prompt Caching Strategy
 ```kotlin
-// agent-core/src/commonMain/kotlin/token/UniversalTokenizer.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/token/UniversalTokenizer.kt
 enum class TokenizerEncoding { CLAUDE_TIKTOKEN, OPENAI_CL100K, LLAMA_BPE }
 
 interface UniversalTokenizer {
@@ -901,7 +974,7 @@ Prompt Payload Structure (Strict Order for Warm Prefix Caching)
 ## 8. Unified LLM Provider & Network Subsystem
 
 ```kotlin
-// provider-subsystem/src/commonMain/kotlin/provider/LlmProvider.kt
+// provider-subsystem/src/commonMain/kotlin/com/agent/code/provider/LlmProvider.kt
 data class ChatMessage(val role: Role, val content: String)
 enum class Role { SYSTEM, USER, ASSISTANT, TOOL }
 
@@ -928,7 +1001,7 @@ interface LlmProvider {
     suspend fun healthCheck(): Result<List<String>>
 }
 
-// provider-subsystem/src/commonMain/kotlin/network/ResilientSseClient.kt
+// provider-subsystem/src/commonMain/kotlin/com/agent/code/provider/ResilientSseClient.kt
 class ResilientSseClient(
     private val client: HttpClient,
     private val maxRetries: Int = 5
@@ -956,7 +1029,7 @@ class ResilientSseClient(
 
 ### 8.1 Hierarchical Model Cost Router
 ```kotlin
-// provider-subsystem/src/commonMain/kotlin/router/HierarchicalModelRouter.kt
+// provider-subsystem/src/commonMain/kotlin/com/agent/code/provider/HierarchicalModelRouter.kt
 enum class TaskComplexity { LOW_LINT_FORMAT, MEDIUM_CODE_EDIT, HIGH_ARCHITECTURAL_PLAN }
 
 class HierarchicalModelRouter(
@@ -1015,8 +1088,9 @@ Agents advance the Kanban board using dedicated MCP tools:
 
 ## 10. Mission Control UI & Conflated Telemetry Engine
 
+**Current implementation (M3):** Manual buffering with spin-lock mutex, not `Channel` + `.chunked()`.
 ```kotlin
-// app-ui/src/commonMain/kotlin/telemetry/TelemetryEngine.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/journal/TelemetryEngine.kt
 sealed interface LogEntry {
     val timestampMs: Long
     data class AgentThought(override val timestampMs: Long, val markdown: String) : LogEntry
@@ -1025,14 +1099,24 @@ sealed interface LogEntry {
     data class SystemWarning(override val timestampMs: Long, val message: String) : LogEntry
 }
 
-class TelemetryEngine {
-    private val logChannel = Channel<LogEntry>(capacity = 10_000, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+class TelemetryEngine(
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    private val frameMs: Long = 50L
+) {
+    private val _frames = MutableSharedFlow<List<LogEntry>>(
+        replay = 0, extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val frames: Flow<List<LogEntry>> = _frames.asSharedFlow()
 
-    val logStream: Flow<List<LogEntry>> = logChannel.receiveAsFlow()
-        .chunked(timeWindowMs = 50) // Batches incoming events into 50ms UI frame updates
+    private val pending = mutableListOf<LogEntry>()
+    private val lock = Mutex()
 
     fun emit(entry: LogEntry) {
-        logChannel.trySend(entry)
+        // Spin-lock, add to pending, schedule flush after frameMs delay
+    }
+
+    fun flush() {
+        // Snapshot pending → emit to _frames, clear
     }
 }
 ```
@@ -1041,55 +1125,25 @@ class TelemetryEngine {
 
 ## 11. Android Direct-APK Resilient Foreground Service
 
+**Current implementation (M4):** Locks + notification + watchdog alarm. No `serviceScope` coroutine launch.
 ```kotlin
-// androidApp/src/androidMain/kotlin/service/ResilientAgentForegroundService.kt
+// androidApp/src/main/kotlin/com/agent/code/service/ResilientAgentForegroundService.kt
 class ResilientAgentForegroundService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
-    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = buildPersistentNotification()
-        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MissionControl::CpuExecutionLock").apply {
-            setReferenceCounted(false)
-            acquire(12 * 60 * 60 * 1000L)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
         }
-
-        val wifiManager = getSystemService(Context.WIFI_SERVICE) as WifiManager
-        wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MissionControl::WifiLock").apply {
-            setReferenceCounted(false)
-            acquire()
-        }
-
-        scheduleWatchdogAlarm(intervalMs = 10 * 60 * 1000L)
-
-        serviceScope.launch(EnergyAwareDispatchers.EfficiencyIO) {
-            // Execution loop
-        }
-
+        acquireLocks()
+        scheduleWatchdog()
         return START_STICKY
     }
-
-    private fun scheduleWatchdogAlarm(intervalMs: Long) {
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, WatchdogReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + intervalMs,
-            pendingIntent
-        )
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        serviceScope.cancel()
-        wakeLock?.let { if (it.isHeld) it.release() }
-        wifiLock?.let { if (it.isHeld) it.release() }
-    }
+    // ... lock acquire/release, notification channel, watchdog alarm
 }
 ```
 
@@ -1099,7 +1153,7 @@ class ResilientAgentForegroundService : Service() {
 
 ### 12.1 Non-Interactive Git Auth (Injection-Free)
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/git/GitAuthWrapper.kt
+// workspace-engine/src/commonMain/kotlin/com/agent/code/git/GitAuthWrapper.kt
 class GitAuthWrapper(
     private val credentialsVault: SecureVault,
     private val fs: FileSystemProvider
@@ -1133,7 +1187,7 @@ class GitAuthWrapper(
     }
 }
 
-// agent-core/src/commonMain/kotlin/security/SecureVault.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/security/SecureVault.kt
 expect class SecureVault {
     suspend fun storeKey(alias: String, secret: String)
     suspend fun getKey(alias: String): String?
@@ -1142,17 +1196,33 @@ expect class SecureVault {
 ```
 
 ### 12.2 Financial & Resource Circuit Breakers
+
+**Current implementation (M1):** Simple provider-id denylist.
 ```kotlin
-// agent-core/src/commonMain/kotlin/policy/CircuitBreaker.kt
+// agent-core/src/commonMain/kotlin/com/agent/code/core/tools/CircuitBreaker.kt
+class CircuitBreaker(private val openFor: Set<String> = emptySet()) {
+    fun isOpen(providerId: String): Boolean = providerId in openFor
+}
+```
+
+**M5.3 upgrade — add `TaskSafetyBudget` with cost/tool-count/time tracking:**
+```kotlin
+// Planned: agent-core/src/commonMain/kotlin/com/agent/code/core/tools/CircuitBreaker.kt
 data class TaskSafetyBudget(
     val maxCostUsd: Double = 1.50,
     val maxToolCallsCount: Int = 40,
     val maxExecutionTimeMs: Long = 10 * 60 * 1000L
 )
 
-class CircuitBreaker(private val budget: TaskSafetyBudget) {
+class BudgetTrackingCircuitBreaker(
+    private val providerOpenFor: Set<String> = emptySet(),
+    private val budget: TaskSafetyBudget = TaskSafetyBudget()
+) {
     private var currentCostUsd = 0.0
     private var toolCallsCount = 0
+    private val startTimeMs = Clock.System.now().toEpochMilliseconds()
+
+    fun isOpen(providerId: String): Boolean = providerId in providerOpenFor
 
     fun trackUsage(cost: Double) {
         currentCostUsd += cost
@@ -1163,34 +1233,62 @@ class CircuitBreaker(private val budget: TaskSafetyBudget) {
         toolCallsCount++
         if (toolCallsCount >= budget.maxToolCallsCount) throw CircuitBreakerException("Tool Cap Reached ($toolCallsCount calls)")
     }
+
+    fun checkTimeBudget() {
+        val elapsed = Clock.System.now().toEpochMilliseconds() - startTimeMs
+        if (elapsed >= budget.maxExecutionTimeMs) throw CircuitBreakerException("Time Budget Exceeded (${elapsed}ms)")
+    }
 }
+
+class CircuitBreakerException(message: String) : Exception(message)
 ```
 
+> **Migration note:** `HierarchicalModelRouter` already uses `CircuitBreaker.isOpen()` — `BudgetTrackingCircuitBreaker` extends it. `AgentOrchestrator.runTool` calls `incrementToolCall()` after each tool dispatch. LLM provider `streamCompletion` calls `trackUsage` with token cost from `UsageReport`. `executeStepsUntilDone` calls `checkTimeBudget()` each iteration.
+
 ### 12.3 Runtime Crash Diagnostics & Doc Fetcher Tools
+
+**Current implementation (M5):** `RuntimeDiagnosticsTool` only.
 ```kotlin
-// workspace-engine/src/commonMain/kotlin/tools/DiagnosticsTools.kt
+// workspace-engine/src/commonMain/kotlin/com/agent/code/tools/RuntimeDiagnosticsTool.kt
 class RuntimeDiagnosticsTool : AgentTool {
     override val name = "read_runtime_diagnostics"
     override val description = "Reads recent runtime crash stack traces, Android Logcat error dumps, or application error logs."
     override val riskLevel = RiskLevel.READ_ONLY
 
     override suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult {
-        val config = ProcessConfiguration("logcat", listOf("-d", "*:E"), VirtualPath.of("/"))
-        val output = processRunner.execute(config)
-        return ToolResult("diagnostics", true, output.getOrNull()?.stdout ?: "No errors found", 50)
+        val output = processRunner.run(listOf("logcat", "-d", "*:E"))
+        return ToolResult("diagnostics", true, output.getOrNull() ?: "No errors found", 50)
     }
 }
+```
 
+**M5.3 upgrade — add `FetchDocTool`:**
+```kotlin
+// Planned: workspace-engine/src/commonMain/kotlin/com/agent/code/tools/FetchDocTool.kt
 class FetchDocTool(private val httpClient: HttpClient) : AgentTool {
     override val name = "fetch_documentation"
     override val description = "Fetches latest library docs or README markdown from GitHub/web to verify API signatures."
     override val riskLevel = RiskLevel.READ_ONLY
 
     override suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult {
-        return ToolResult("fetch_doc", true, "# API Documentation Summary...", 120)
+        val obj = try {
+            Json.parseToJsonElement(argumentsJson).jsonObject
+        } catch (_: Exception) {
+            return ToolResult(name, false, "invalid arguments json", 0L)
+        }
+        val url = obj["url"]?.jsonPrimitive?.contentOrNull
+            ?: return ToolResult(name, false, "missing url", 0L)
+        return try {
+            val response = httpClient.get(url).bodyAsText()
+            ToolResult(name, true, response, 120)
+        } catch (e: Exception) {
+            ToolResult(name, false, "fetch failed: ${e.message}", 120)
+        }
     }
 }
 ```
+
+> **Migration note:** `FetchDocTool` needs `ktor-client` (or `java.net.HttpURLConnection` for minimal deps). Register in `McpHost` or `MissionControlMcpServer` tool map alongside `read_file`/`apply_diff_patch`. Agent uses it to self-verify API signatures when uncertain about a library's current interface.
 
 ---
 
@@ -1281,6 +1379,19 @@ CREATE TABLE AstNodeIndex (
 ├──────────────────┼───────────────────────────────────────────────────────────────┤
 │ MILESTONE 5      │ Security & Hardening: Non-Interactive Git Auth (Injection-Free│
 │ (Production)     │ Visual 3-Way Merge Screen + Hardware SecureVault (KeyStore).  │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M5.1 (INTERFACES)│ FileSystemProvider → suspend + applyPatch/walkTree;           │
+│                  │ ProcessRunner → ProcessConfiguration + streaming;             │
+│                  │ AgentEvent.TokenChunkReceived; Kanban HUMAN_REVIEW doc.       │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M5.2 (PLATFORM)  │ AdaptivePowerGovernor full thermal+battery impl;              │
+│                  │ PrivilegedElevationManager Shizuku phantom-process bypass.    │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M5.3 (TOOLS)     │ MissionControlMcpServer full JSON-RPC + UI tool registry;    │
+│                  │ FetchDocTool; CircuitBreaker TaskSafetyBudget tracking.       │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M5.4 (DOC)       │ Fix phantom paths (platform-android, shared/); README update; │
+│                  │ Dependency DAG correction; TelemetryEngine actual impl.       │
 └──────────────────┴───────────────────────────────────────────────────────────────┘
 ```
 

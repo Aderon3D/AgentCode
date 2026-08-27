@@ -26,10 +26,9 @@ data class Timeline(
 
 object MissionControlBootstrap {
 
-    fun runDemo(): Timeline {
-        val fs = InMemoryFileSystem().apply {
-            write(com.agent.code.core.path.VirtualPath.of("/src/main.kt"), "fun main() { println(\"hi\") }").getOrThrow()
-        }
+    suspend fun runDemo(): Timeline {
+        val fs = InMemoryFileSystem()
+        fs.write(com.agent.code.core.path.VirtualPath.of("/src/main.kt"), "fun main() { println(\"hi\") }").getOrThrow()
         val mcp = McpHost(fs, StubProcessRunner())
         val wal = InMemoryWalStore()
         val journal = AgentEventJournal(wal)

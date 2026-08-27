@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 class M1RealIoTest {
 
     @Test
-    fun realFileSystemReadWriteExists() {
+    fun realFileSystemReadWriteExists() = runBlocking {
         val dir = createTempDirectory("m1-fs").toFile()
         val fs = RealFileSystem(VirtualPath.of(dir.absolutePath))
         val path = VirtualPath.of("${dir.absolutePath}/sub/note.txt")
@@ -135,7 +135,7 @@ class M1RealIoTest {
     }
 
     @Test
-    fun realFileSystemBlocksTraversalOutsideRoot() {
+    fun realFileSystemBlocksTraversalOutsideRoot() = runBlocking {
         val dir = createTempDirectory("m1-fs-esc").toFile()
         val fs = RealFileSystem(VirtualPath.of(dir.absolutePath))
         val escape = VirtualPath.of("${dir.absolutePath}/../agentcode-escape.txt")

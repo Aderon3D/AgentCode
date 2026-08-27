@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -52,6 +54,7 @@ import kotlinx.coroutines.withContext
 /**
  * Unified probe dashboard: Run All, Copy All, collapsible per-probe sections.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor()) {
     val scope = rememberCoroutineScope()
@@ -91,11 +94,15 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Button(
                 onClick = {
                     running = true
@@ -150,7 +157,6 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                 Text("Copy All Logs")
             }
         }
-
         results.forEach { (name, log) ->
             val displayText = if (name == "Device Stats") (deviceStatsText ?: log) else log
             HorizontalDivider()
@@ -171,7 +177,7 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
     }
 }
 
-private fun runM1Probe(baseDir: String): String {
+private suspend fun runM1Probe(baseDir: String): String {
     val fs = RealFileSystem(VirtualPath.of(baseDir))
 
     val probePath = VirtualPath.of("$baseDir/agentcode-m1-probe.txt")

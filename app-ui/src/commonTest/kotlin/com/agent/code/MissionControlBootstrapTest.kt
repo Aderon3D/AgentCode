@@ -18,11 +18,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 
 class MissionControlBootstrapTest {
 
     @Test
-    fun demoRecoversIdenticalStateAfterSimulatedCrash() {
+    fun demoRecoversIdenticalStateAfterSimulatedCrash() = runBlocking {
         val timeline = MissionControlBootstrap.runDemo()
 
         assertTrue(timeline.finalState is AgentState.Success, "expected Success, got ${timeline.finalState}")

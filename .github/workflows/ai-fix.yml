@@ -1,0 +1,477 @@
+name: AI Fix
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to apply fixes to'
+        required: true
+        type: number
+      review_id:
+        description: 'Review comment ID to parse fixes from'
+        required: true
+        type: number
+
+concurrency:
+  group: ai-fix-${{ github.event.issue.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/fix'))
+    steps:
+      - name: Validate comment format
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if ! echo "$COMMENT_BODY" | grep -qE '^/fix(\s|$)'; then
+            echo "Invalid command format"
+            exit 1
+          fi
+
+      - name: Check commenter permission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
+          COMMENTER: ${{ github.event.comment.user.login || github.actor }}
+          REPO: ${{ github.repository }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          # Validate commenter username (GitHub: [a-zA-Z0-9-], max 39 chars)
+          if ! echo "$COMMENTER" | grep -qE '^[a-zA-Z0-9-]{1,39}$'; then
+            echo "Invalid username: $COMMENTER"
+            gh pr comment "$PR_NUMBER" --body "Invalid commenter username."
+            exit 1
+          fi
+
+          PERM_ERR=$(mktemp)
+          PERM=$(gh api "repos/$REPO/collaborators/$COMMENTER/permission" --jq '.permission' 2>"$PERM_ERR") || {
+            cat "$PERM_ERR" >&2
+            rm -f "$PERM_ERR"
+            gh pr comment "$PR_NUMBER" --body "Failed to verify permissions. Please try again."
+            exit 1
+          }
+          rm -f "$PERM_ERR"
+          if [ "$PERM" != "write" ] && [ "$PERM" != "admin" ]; then
+            echo "User $COMMENTER has $PERM permission, need write or admin"
+            gh pr comment "$PR_NUMBER" --body "@$COMMENTER: only repository collaborators with write access can use /fix."
+            exit 1
+          fi
+          echo "Commenter $COMMENTER has $PERM permission"
+
+          # Fetch PR details (issue_comment event doesn't include head.ref or head.repo)
+          PR_JSON=$(gh pr view "$PR_NUMBER" --json headRefName,headRepository,headRepositoryOwner 2>&1) || {
+            echo "Failed to fetch PR details: $PR_JSON"
+            gh pr comment "$PR_NUMBER" --body "Failed to fetch PR details. Please try again."
+            exit 1
+          }
+          HEAD_REF=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['headRefName'])")
+          HEAD_REPO=$(echo "$PR_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['headRepository']['nameWithOwner'] if r.get('headRepository') else 'unknown')")
+          HEAD_OWNER=$(echo "$PR_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['headRepositoryOwner']['login'] if r.get('headRepositoryOwner') else 'unknown')")
+
+          SAFE_HEAD_REF=$(printf '%s' "$HEAD_REF" | tr -d '\r\n')
+          SAFE_HEAD_REPO=$(printf '%s' "$HEAD_REPO" | tr -d '\r\n')
+
+          # Validate head ref is a valid git ref name
+          if ! echo "$SAFE_HEAD_REF" | grep -qE '^[a-zA-Z0-9._/\-]+$'; then
+            echo "Invalid head ref: $SAFE_HEAD_REF"
+            gh pr comment "$PR_NUMBER" --body "Invalid branch reference."
+            exit 1
+          fi
+
+          # Validate head repo format
+          if ! echo "$SAFE_HEAD_REPO" | grep -qE '^[a-zA-Z0-9._/-]{1,200}$'; then
+            echo "Invalid head repo: $SAFE_HEAD_REPO"
+            gh pr comment "$PR_NUMBER" --body "Invalid head repository reference."
+            exit 1
+          fi
+
+          # Use unique delimiter to prevent collision with branch names
+          DELIM="GHEOF_${GITHUB_RUN_ID}"
+          {
+            echo "HEAD_REF<<$DELIM"
+            echo "$SAFE_HEAD_REF"
+            echo "$DELIM"
+            echo "HEAD_REPO<<$DELIM"
+            echo "$SAFE_HEAD_REPO"
+            echo "$DELIM"
+          } >> "$GITHUB_ENV"
+
+          # Block fork PRs
+          if [ "$HEAD_OWNER" != "${{ github.repository_owner }}" ]; then
+            echo "Fork PR detected: $HEAD_REPO"
+            gh pr comment "$PR_NUMBER" --body "Cannot apply fixes to fork PRs for security reasons."
+            exit 1
+          fi
+
+      # CodeQL false positive: this checkout is guarded by collaborator permission
+      # check + fork PR block in the "Check commenter permission" step above.
+      - uses: actions/checkout@v4  # lgtm[github/actions/checkout-of-untrusted-code-in-privileged-context]
+        with:
+          ref: ${{ env.HEAD_REF }}
+          fetch-depth: 0
+
+      - name: Install opencode
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Install opencode plugins
+        run: |
+          if [ -d .opencode ]; then
+            cd .opencode && npm install --ignore-scripts || echo "::warning::Failed to install opencode plugins"
+          else
+            echo "::warning::No .opencode directory found"
+          fi
+
+      - name: Get PR info
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Use Python to find the latest AI review and fetch its body in one go.
+          # Avoids pipe subshell issues where GITHUB_ENV writes aren't visible
+          # to os.environ within the same step.
+          python3 -c "
+import os, json, subprocess, sys
+
+pr_number = os.environ['PR_NUMBER']
+repo = os.environ['REPO']
+workflow_dispatch_review_id = os.environ.get('INPUT_REVIEW_ID', '')
+
+if workflow_dispatch_review_id:
+    # workflow_dispatch: use provided review_id
+    review_id = workflow_dispatch_review_id
+    body_result = subprocess.run(
+        ['gh', 'api', f'repos/{repo}/issues/comments/{review_id}', '--jq', '.body'],
+        capture_output=True, text=True
+    )
+    if body_result.returncode != 0 or not body_result.stdout.strip():
+        print(f'Failed to fetch review comment body', file=sys.stderr)
+        sys.exit(1)
+    with open('/tmp/review.md', 'w') as f:
+        f.write(body_result.stdout)
+    with open(os.environ['GITHUB_ENV'], 'a') as f:
+        f.write(f'REVIEW_ID={review_id}\n')
+    print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
+else:
+    # issue_comment: find latest AI review
+    result = subprocess.run(
+        ['gh', 'pr', 'view', pr_number, '--json', 'comments'],
+        capture_output=True, text=True
+    )
+    comments = json.loads(result.stdout).get('comments', [])
+
+    ai_reviews = [c for c in comments
+                  if c.get('body', '').startswith('# AI Code Review')
+                  and c.get('author', {}).get('login', '') in ('github-actions[bot]', 'ai-review[bot]')]
+    if not ai_reviews:
+        with open(os.environ['GITHUB_ENV'], 'a') as f:
+            f.write('NO_REVIEW=true\n')
+        print('NO_REVIEW')
+        sys.exit(0)
+
+    ai_reviews.sort(key=lambda c: c.get('createdAt', ''))
+    latest = ai_reviews[-1]
+    review_id = latest['id']
+
+    # Write REVIEW_ID to GITHUB_ENV for subsequent steps
+    with open(os.environ['GITHUB_ENV'], 'a') as f:
+        f.write(f'REVIEW_ID={review_id}\n')
+
+    # Fetch the review body and write to /tmp/review.md
+    body_result = subprocess.run(
+        ['gh', 'api', f'repos/{repo}/issues/comments/{review_id}', '--jq', '.body'],
+        capture_output=True, text=True
+    )
+    if body_result.returncode != 0 or not body_result.stdout.strip():
+        print(f'Failed to fetch review comment body', file=sys.stderr)
+        sys.exit(1)
+
+    with open('/tmp/review.md', 'w') as f:
+        f.write(body_result.stdout)
+
+    print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
+"
+
+      - name: Parse fixes
+        if: env.NO_REVIEW != 'true'
+        run: |
+          python3 << 'PYEOF'
+          import re
+          import json
+
+          with open('/tmp/review.md') as f:
+              content = f.read()
+
+          # Collect already-fixed markers to skip them
+          fixed_markers = set(re.findall(r'<!--\s*fixed:([^:]+:.+?)\s*-->', content))
+
+          fixes = []
+
+          # Split by ## Finding headers (supports our format and CodeRabbit)
+          sections = re.split(r'(?=^## )', content, flags=re.MULTILINE)
+
+          for section in sections:
+              if not section.strip() or 'No issues found' in section:
+                  continue
+
+              # --- Our format: Before/After code blocks ---
+              before_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# Before.*?\n(.*?)(?=\n# After|\n```\s*$)', section, re.DOTALL)
+              after_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# After.*?\n(.*?)```', section, re.DOTALL)
+
+              file_match = re.search(r'\*\*(?:file|File):\*\*\s*`?([^`\n]+)`?', section)
+              file_path = file_match.group(1).strip() if file_match else None
+
+              # Normalize file_path: strip line numbers like :123
+              if file_path:
+                  file_path = re.sub(r':\d+$', '', file_path).strip()
+
+              if before_match and after_match and file_path:
+                  before = before_match.group(1).strip()
+                  after = after_match.group(1).strip()
+                  marker = f"{file_path}:{before[:40]}"
+                  if marker not in fixed_markers:
+                      fixes.append({
+                          'file': file_path,
+                          'before': before,
+                          'after': after,
+                          'source': 'ai-review'
+                      })
+                  continue
+
+              # --- CodeRabbit format: ```suggestion blocks ---
+              suggestion_match = re.search(r'```suggestion\n(.*?)```', section, re.DOTALL)
+              if suggestion_match and file_path:
+                  after = suggestion_match.group(1).strip()
+                  # For CodeRabbit, we don't have explicit "before" text.
+                  # Store the suggestion for the apply step to handle via context matching.
+                  marker = f"{file_path}:{after[:40]}"
+                  if marker not in fixed_markers:
+                      fixes.append({
+                          'file': file_path,
+                          'before': None,  # CodeRabbit: will be resolved during apply
+                          'after': after,
+                          'source': 'coderabbit'
+                      })
+                  continue
+
+          with open('/tmp/fixes.json', 'w') as f:
+              json.dump(fixes, f, indent=2)
+
+          print(f"Found {len(fixes)} parseable fixes ({len(fixed_markers)} already fixed)")
+          for i, fix in enumerate(fixes, 1):
+              print(f"  {i}. [{fix['source']}] {fix['file']}")
+          PYEOF
+
+      - name: Apply fixes
+        id: apply
+        run: |
+          set -euo pipefail
+          cleanup() { rm -f /tmp/fixes.json /tmp/before-* /tmp/after-*; }
+          trap cleanup EXIT
+
+          if [ ! -f /tmp/fixes.json ]; then
+            echo "applied=0" >> "$GITHUB_OUTPUT"
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+            echo "skipped=0" >> "$GITHUB_OUTPUT"
+            echo "modified=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          APPLIED=0
+          FAILED=0
+          SKIPPED=0
+          RESULTS=""
+          MODIFIED_FILES=""
+
+          COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/fixes.json'))))")
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "applied=0" >> "$GITHUB_OUTPUT"
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+            echo "skipped=0" >> "$GITHUB_OUTPUT"
+            echo "modified=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          REPO_ROOT=$(pwd)
+
+          for i in $(seq 0 $((COUNT - 1))); do
+            FILE=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); print(f[$i]['file'])")
+            BEFORE=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); v=f[$i]['before']; print(v if v is not None else '')")
+            AFTER=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); print(f[$i]['after'])")
+
+            # Skip CodeRabbit suggestions without before context
+            if [ -z "$BEFORE" ]; then
+              echo "  Skip $FILE (CodeRabbit suggestion, no before-context match)"
+              SKIPPED=$((SKIPPED + 1))
+              RESULTS="${RESULTS}- **$FILE**: skipped (no before context)\n"
+              continue
+            fi
+
+            # Validate path: must be relative and stay within repo
+            RESOLVED=$(realpath "$FILE" 2>/dev/null || echo "")
+            if [ -z "$RESOLVED" ] || [[ "$RESOLVED" != "$REPO_ROOT"/* ]]; then
+              echo "  Skip $FILE (path traversal blocked)"
+              SKIPPED=$((SKIPPED + 1))
+              RESULTS="${RESULTS}- **$FILE**: skipped (path outside repo)\n"
+              continue
+            fi
+
+            # Skip symlinks
+            if [ -L "$FILE" ]; then
+              echo "  Skip $FILE (symlink)"
+              SKIPPED=$((SKIPPED + 1))
+              RESULTS="${RESULTS}- **$FILE**: skipped (symlink)\n"
+              continue
+            fi
+
+            if [ ! -f "$FILE" ]; then
+              echo "  Skip $FILE (not found)"
+              SKIPPED=$((SKIPPED + 1))
+              RESULTS="${RESULTS}- **$FILE**: skipped (file not found)\n"
+              continue
+            fi
+
+            # Write BEFORE/AFTER to temp files to avoid shell injection via env vars
+            BEFORE_TMP=$(mktemp /tmp/before-XXXXXX)
+            AFTER_TMP=$(mktemp /tmp/after-XXXXXX)
+            printf '%s' "$BEFORE" > "$BEFORE_TMP"
+            printf '%s' "$AFTER" > "$AFTER_TMP"
+
+            TARGET_FILE="$FILE" BEFORE_FILE="$BEFORE_TMP" AFTER_FILE="$AFTER_TMP" python3 -c "
+          import sys, os
+          target = os.environ['TARGET_FILE']
+          with open(os.environ['BEFORE_FILE']) as f: before = f.read()
+          with open(os.environ['AFTER_FILE']) as f: after = f.read()
+          with open(target) as f:
+              content = f.read()
+          if before not in content:
+              print(f'Before text not found in {target}', file=sys.stderr)
+              sys.exit(1)
+          content = content.replace(before, after, 1)
+          with open(target, 'w') as f:
+              f.write(content)
+          " && RESULT=0 || RESULT=$?
+            rm -f "$BEFORE_TMP" "$AFTER_TMP"
+
+            if [ $RESULT -eq 0 ]; then
+              echo "  Applied to $FILE"
+              APPLIED=$((APPLIED + 1))
+              MODIFIED_FILES="${MODIFIED_FILES}${MODIFIED_FILES:+
+}$FILE"
+              RESULTS="${RESULTS}- **$FILE**: applied\n"
+            else
+              echo "  Failed to apply to $FILE"
+              FAILED=$((FAILED + 1))
+              RESULTS="${RESULTS}- **$FILE**: failed to apply\n"
+            fi
+          done
+
+          echo "applied=$APPLIED" >> "$GITHUB_OUTPUT"
+          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+          echo "skipped=$SKIPPED" >> "$GITHUB_OUTPUT"
+          echo "modified=$MODIFIED_FILES" >> "$GITHUB_OUTPUT"
+          printf '%b' "$RESULTS" > /tmp/results.md
+
+      - name: Commit and push
+        id: commit
+        if: steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
+        run: |
+          set -euo pipefail
+
+          # Idempotency check: skip if this review was already applied
+          if git log --oneline -10 | grep -q "review comment #${{ env.REVIEW_ID }}"; then
+            echo "Fixes already applied from review #${{ env.REVIEW_ID }}, skipping"
+            exit 0
+          fi
+
+          git config user.name "ai-review[bot]"
+          git config user.email "ai-review[bot]@users.noreply.github.com"
+          # Stage only the files we modified
+          MODIFIED="${{ steps.apply.outputs.modified }}"
+          if [ -n "$MODIFIED" ]; then
+            while IFS= read -r f; do
+              [ -n "$f" ] && git add "$f"
+            done < <(printf '%s' "$MODIFIED")
+          else
+            echo "No modified files to commit"
+            exit 0
+          fi
+          git commit -m "fix: apply AI review suggestions
+
+          Applied from review comment #${{ env.REVIEW_ID }}.
+          Applied: ${{ steps.apply.outputs.applied }}, Failed: ${{ steps.apply.outputs.failed }}, Skipped: ${{ steps.apply.outputs.skipped }}"
+          git push
+
+      - name: Post results
+        if: always() && env.NO_REVIEW != 'true' && steps.apply.conclusion != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number || inputs.pr_number }}
+        run: |
+          APPLIED="${{ steps.apply.outputs.applied }}"
+          FAILED="${{ steps.apply.outputs.failed }}"
+          SKIPPED="${{ steps.apply.outputs.skipped }}"
+
+          BODY="## AI Fix Results
+
+          | Status | Count |
+          |--------|-------|
+          | Applied | $APPLIED |
+          | Failed | $FAILED |
+          | Skipped | $SKIPPED |"
+
+          if [ -f /tmp/results.md ]; then
+            BODY="${BODY}
+
+          ### Details
+          $(cat /tmp/results.md)"
+          fi
+
+          if [ "${APPLIED:-0}" -gt 0 ]; then
+            COMMIT_CONCLUSION="${{ steps.commit.conclusion }}"
+            if [ "$COMMIT_CONCLUSION" = "success" ]; then
+              SHA=$(git rev-parse --short HEAD)
+              BODY="${BODY}
+
+          Commit: \`${SHA}\`"
+            elif [ -z "$COMMIT_CONCLUSION" ]; then
+              BODY="${BODY}
+
+          *Fixes were applied but commit was skipped (idempotent)."
+            else
+              BODY="${BODY}
+
+          **Warning:** Fixes were applied locally but push failed. Check workflow logs."
+            fi
+          fi
+
+          printf '%s' "$BODY" > /tmp/comment-body.md
+          gh pr comment "$PR_NUMBER" --body-file /tmp/comment-body.md
+
+      - name: Mark review as fixed
+        if: steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REVIEW_ID: ${{ env.REVIEW_ID }}
+        run: |
+          # Add rocket reaction to the source review comment
+          gh api "repos/$REPO/issues/comments/$REVIEW_ID/reactions" -f content=rocket 2>/dev/null || true
+
+          echo "Marked review $REVIEW_ID as fixed"

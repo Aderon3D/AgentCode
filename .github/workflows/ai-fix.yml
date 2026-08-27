@@ -214,7 +214,7 @@ else:
               content = f.read()
 
           # Collect already-fixed markers to skip them
-          fixed_markers = set(re.findall(r'<!--\s*fixed:([^:]+:[^\s]+)\s*-->', content))
+          fixed_markers = set(re.findall(r'<!--\s*fixed:([^:]+:.+?)\s*-->', content))
 
           fixes = []
 
@@ -385,6 +385,7 @@ else:
           printf '%b' "$RESULTS" > /tmp/results.md
 
       - name: Commit and push
+        id: commit
         if: steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
         run: |
           set -euo pipefail
@@ -439,10 +440,16 @@ else:
           fi
 
           if [ "${APPLIED:-0}" -gt 0 ]; then
-            SHA=$(git rev-parse --short HEAD)
-            BODY="${BODY}
+            if [ "${{ steps.commit.conclusion }}" = "success" ]; then
+              SHA=$(git rev-parse --short HEAD)
+              BODY="${BODY}
 
           Commit: \`${SHA}\`"
+            else
+              BODY="${BODY}
+
+          **Warning:** Fixes were applied locally but push failed. Check workflow logs."
+            fi
           fi
 
           printf '%s' "$BODY" > /tmp/comment-body.md

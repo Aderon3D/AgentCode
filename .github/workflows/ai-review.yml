@@ -218,7 +218,7 @@ jobs:
               ALL_FINDINGS=$(printf '%s\n\n%s' "$ALL_FINDINGS" "$ROUND_REVIEW")
             fi
 
-            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '(^|\s)major(\s|:|,|$)' || true)
+            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE 'severity:\s*major' || true)
 
             echo "Round $ROUND: Major=$MAJOR_COUNT" >&2
 
@@ -258,7 +258,7 @@ jobs:
             echo "<details>" >> "$REVIEW_TMP"
             echo "<summary>Previous review (before this commit)</summary>" >> "$REVIEW_TMP"
             echo "" >> "$REVIEW_TMP"
-            echo "$EXISTING" >> "$REVIEW_TMP"
+            cat /tmp/existing-review.md >> "$REVIEW_TMP"
             echo "" >> "$REVIEW_TMP"
             echo "</details>" >> "$REVIEW_TMP"
             echo "" >> "$REVIEW_TMP"

@@ -218,7 +218,7 @@ jobs:
               ALL_FINDINGS=$(printf '%s\n\n%s' "$ALL_FINDINGS" "$ROUND_REVIEW")
             fi
 
-            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE 'severity:\s*major' || true)
+            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '\*{0,2}severity:\*{0,2}\s*major' || true)
 
             echo "Round $ROUND: Major=$MAJOR_COUNT" >&2
 

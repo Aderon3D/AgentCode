@@ -72,7 +72,11 @@ jobs:
           echo "Commenter $COMMENTER has $PERM permission"
 
           # Fetch PR details (issue_comment event doesn't include head.ref or head.repo)
-          PR_JSON=$(gh pr view "$PR_NUMBER" --json headRefName,headRepository,headRepositoryOwner)
+          PR_JSON=$(gh pr view "$PR_NUMBER" --json headRefName,headRepository,headRepositoryOwner 2>&1) || {
+            echo "Failed to fetch PR details: $PR_JSON"
+            gh pr comment "$PR_NUMBER" --body "Failed to fetch PR details. Please try again."
+            exit 1
+          }
           HEAD_REF=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['headRefName'])")
           HEAD_REPO=$(echo "$PR_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['headRepository']['nameWithOwner'] if r.get('headRepository') else 'unknown')")
           HEAD_OWNER=$(echo "$PR_JSON" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['headRepositoryOwner']['login'] if r.get('headRepositoryOwner') else 'unknown')")
@@ -440,11 +444,16 @@ else:
           fi
 
           if [ "${APPLIED:-0}" -gt 0 ]; then
-            if [ "${{ steps.commit.conclusion }}" = "success" ]; then
+            COMMIT_CONCLUSION="${{ steps.commit.conclusion }}"
+            if [ "$COMMIT_CONCLUSION" = "success" ]; then
               SHA=$(git rev-parse --short HEAD)
               BODY="${BODY}
 
           Commit: \`${SHA}\`"
+            elif [ -z "$COMMIT_CONCLUSION" ]; then
+              BODY="${BODY}
+
+          *Fixes were applied but commit was skipped (idempotent)."
             else
               BODY="${BODY}
 

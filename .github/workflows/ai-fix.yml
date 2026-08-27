@@ -76,27 +76,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number }}
-          REPO: ${{ github.repository }}
         run: |
-          # Validate PR number is numeric
-          if ! echo "$PR_NUMBER" | grep -qE '^[0-9]+$'; then
-            echo "Invalid PR number: $PR_NUMBER"
-            exit 1
-          fi
+          # Find the latest AI review comment using gh pr view (no string interpolation in URLs)
+          REVIEW_ID=$(gh pr view "$PR_NUMBER" --json comments --jq '[.comments[] | select(.body | startswith("# AI Code Review"))] | sort_by(.createdAt) | last | .id' 2>/dev/null || true)
 
-          # Find the latest AI review comment (sort by created_at, pick last)
-          REVIEW_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
-            --jq '[.[] | select(.body | startswith("# AI Code Review"))] | sort_by(.created_at) | last | .id' 2>/dev/null || true)
-
-          if [ -z "$REVIEW_ID" ]; then
-            echo "No AI review found"
+          if [ -z "$REVIEW_ID" ] || [ "$REVIEW_ID" = "null" ]; then
             gh pr comment "$PR_NUMBER" --body "No AI review comment found to apply fixes from."
-            exit 1
-          fi
-
-          if ! [[ "$REVIEW_ID" =~ ^[0-9]+$ ]]; then
-            echo "Invalid review ID format"
-            gh pr comment "$PR_NUMBER" --body "Failed to parse a valid AI review comment ID."
             exit 1
           fi
 
@@ -155,7 +140,7 @@ jobs:
         id: apply
         run: |
           set -euo pipefail
-          cleanup() { rm -f /tmp/fixes.json /tmp/results.md; }
+          cleanup() { rm -f /tmp/fixes.json; }
           trap cleanup EXIT
 
           if [ ! -f /tmp/fixes.json ]; then

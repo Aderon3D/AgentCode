@@ -27,7 +27,7 @@ class KanbanBoard {
         KanbanColumn.BACKLOG -> to == KanbanColumn.PLANNING
         KanbanColumn.PLANNING -> to == KanbanColumn.IN_PROGRESS
         KanbanColumn.IN_PROGRESS -> to == KanbanColumn.VERIFICATION
-        KanbanColumn.VERIFICATION -> to == KanbanColumn.HUMAN_REVIEW || to == KanbanColumn.IN_PROGRESS
+        KanbanColumn.VERIFICATION -> to == KanbanColumn.HUMAN_REVIEW || to == KanbanColumn.DONE || to == KanbanColumn.IN_PROGRESS
         KanbanColumn.HUMAN_REVIEW -> to == KanbanColumn.DONE || to == KanbanColumn.IN_PROGRESS
         KanbanColumn.DONE -> false
     }

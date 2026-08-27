@@ -64,7 +64,8 @@ class AgentEventJournal(private val store: WalStore) {
     private val json = eventJson
 
     fun append(event: AgentEvent) {
-        store.append(json.encodeToString(event))
+        runCatching { store.append(json.encodeToString(event)) }
+            .onFailure { println("WAL: failed to append event ${event::class.simpleName}: ${it.message}") }
     }
 
     fun recoverState(taskId: String): AgentState {

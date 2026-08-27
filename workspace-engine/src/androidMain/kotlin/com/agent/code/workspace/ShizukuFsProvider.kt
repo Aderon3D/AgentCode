@@ -5,6 +5,9 @@ import com.agent.code.core.path.VirtualPath
 import java.io.File
 import java.lang.reflect.Method
 import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import rikka.shizuku.Shizuku
 
 // ponytail: real Shizuku-backed FS I/O. Shizuku.newProcess is private/deprecated
@@ -60,13 +63,15 @@ class ShizukuFsProvider(
     override suspend fun read(path: VirtualPath): Result<String> {
         if (!isAvailable() || isSandboxed(path)) return fallback.read(path)
         val p = shizuku("cat ${shellArg(path.rawPath)}") ?: return fallback.read(path)
-        val out = p.inputStream.bufferedReader(StandardCharsets.UTF_8).readText()
-        val err = p.errorStream.bufferedReader(StandardCharsets.UTF_8).readText()
-        val rc = p.waitFor()
-        return if (rc == 0) {
-            Result.success(out)
-        } else {
-            Result.failure(FileError.IOError(path, "shizuku read failed (exit $rc): $err"))
+        return coroutineScope {
+            val out = async(Dispatchers.IO) { p.inputStream.bufferedReader(StandardCharsets.UTF_8).readText() }
+            val err = async(Dispatchers.IO) { p.errorStream.bufferedReader(StandardCharsets.UTF_8).readText() }
+            val rc = p.waitFor()
+            if (rc == 0) {
+                Result.success(out.await())
+            } else {
+                Result.failure(FileError.IOError(path, "shizuku read failed (exit $rc): ${err.await()}"))
+            }
         }
     }
 

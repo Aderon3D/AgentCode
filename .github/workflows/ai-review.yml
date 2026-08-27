@@ -32,7 +32,12 @@ jobs:
           echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
 
       - name: Install opencode plugins
-        run: cd .opencode && npm install --ignore-scripts 2>/dev/null || true
+        run: |
+          if [ -d .opencode ]; then
+            cd .opencode && npm install --ignore-scripts 2>/dev/null || echo "::warning::Failed to install opencode plugins"
+          else
+            echo "::warning::No .opencode directory found"
+          fi
 
       - name: Generate diff
         env:

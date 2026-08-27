@@ -19,6 +19,15 @@ jobs:
       github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '/fix')
     steps:
+      - name: Validate comment format
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if ! echo "$COMMENT_BODY" | grep -qE '^/fix(\s|$)'; then
+            echo "Invalid command format"
+            exit 1
+          fi
+
       - name: Check commenter permission
         env:
           GH_TOKEN: ${{ github.token }}
@@ -50,13 +59,23 @@ jobs:
 
           SAFE_HEAD_REF=$(printf '%s' "$HEAD_REF" | tr -d '\r\n')
           SAFE_HEAD_REPO=$(printf '%s' "$HEAD_REPO" | tr -d '\r\n')
+
+          # Validate head ref is a valid git ref name
+          if ! echo "$SAFE_HEAD_REF" | grep -qE '^[a-zA-Z0-9._/\-]+$'; then
+            echo "Invalid head ref: $SAFE_HEAD_REF"
+            gh pr comment "$PR_NUMBER" --body "Invalid branch reference."
+            exit 1
+          fi
+
+          # Use unique delimiter to prevent collision with branch names
+          DELIM="GHEOF_${GITHUB_RUN_ID}"
           {
-            echo "HEAD_REF<<SAFE_EOF"
+            echo "HEAD_REF<<$DELIM"
             echo "$SAFE_HEAD_REF"
-            echo "SAFE_EOF"
-            echo "HEAD_REPO<<SAFE_EOF"
+            echo "$DELIM"
+            echo "HEAD_REPO<<$DELIM"
             echo "$SAFE_HEAD_REPO"
-            echo "SAFE_EOF"
+            echo "$DELIM"
           } >> "$GITHUB_ENV"
 
           # Block fork PRs
@@ -79,7 +98,12 @@ jobs:
           echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
 
       - name: Install opencode plugins
-        run: cd .opencode && npm install --ignore-scripts 2>/dev/null || true
+        run: |
+          if [ -d .opencode ]; then
+            cd .opencode && npm install --ignore-scripts 2>/dev/null || echo "::warning::Failed to install opencode plugins"
+          else
+            echo "::warning::No .opencode directory found"
+          fi
 
       - name: Get PR info
         env:
@@ -299,6 +323,13 @@ print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
         if: steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
         run: |
           set -euo pipefail
+
+          # Idempotency check: skip if this review was already applied
+          if git log --oneline -10 | grep -q "review comment #${{ env.REVIEW_ID }}"; then
+            echo "Fixes already applied from review #${{ env.REVIEW_ID }}, skipping"
+            exit 0
+          fi
+
           git config user.name "ai-review[bot]"
           git config user.email "ai-review[bot]@users.noreply.github.com"
           # Stage only the files we modified
@@ -307,6 +338,9 @@ print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
             for f in $MODIFIED; do
               git add "$f"
             done
+          else
+            echo "No modified files to commit"
+            exit 0
           fi
           git commit -m "fix: apply AI review suggestions
 

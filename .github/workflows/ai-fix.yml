@@ -328,6 +328,14 @@ else:
               continue
             fi
 
+            # Skip symlinks
+            if [ -L "$FILE" ]; then
+              echo "  Skip $FILE (symlink)"
+              SKIPPED=$((SKIPPED + 1))
+              RESULTS="${RESULTS}- **$FILE**: skipped (symlink)\n"
+              continue
+            fi
+
             if [ ! -f "$FILE" ]; then
               echo "  Skip $FILE (not found)"
               SKIPPED=$((SKIPPED + 1))

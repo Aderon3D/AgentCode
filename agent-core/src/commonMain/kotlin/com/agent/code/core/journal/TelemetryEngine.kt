@@ -1,6 +1,5 @@
 package com.agent.code.core.journal
 
-// PR #41 — M3 dashboard telemetry wiring.
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
@@ -36,26 +35,17 @@ class TelemetryEngine(
     private val lock = Mutex()
 
     // Retained state: last emitted frame survives collection lifecycle
+    // Volatile for lock-free reads from composition (single reference read is atomic on JVM).
+    @Volatile
     private var _lastFrame: List<LogEntry> = emptyList()
-    val lastFrame: List<LogEntry>
-        get() {
-            while (!lock.tryLock()) { /* spin until available */ }
-            try {
-                return _lastFrame
-            } finally {
-                lock.unlock()
-            }
-        }
+    val lastFrame: List<LogEntry> get() = _lastFrame
 
-    fun emit(entry: LogEntry) {
+    suspend fun emit(entry: LogEntry) {
         var wasScheduled = false
-        while (!lock.tryLock()) { /* spin until available */ }
-        try {
+        lock.withLock {
             pending.add(entry)
             wasScheduled = scheduled
             scheduled = true
-        } finally {
-            lock.unlock()
         }
         if (!wasScheduled) {
             scope.launch {
@@ -65,9 +55,8 @@ class TelemetryEngine(
         }
     }
 
-    fun flush() {
-        while (!lock.tryLock()) { /* spin until available */ }
-        try {
+    suspend fun flush() {
+        lock.withLock {
             if (pending.isEmpty()) {
                 scheduled = false
                 return
@@ -77,30 +66,15 @@ class TelemetryEngine(
             scheduled = false
             _lastFrame = snapshot
             _frames.tryEmit(snapshot)
-        } finally {
-            lock.unlock()
         }
     }
 
-    val pendingCount: Int
-        get() {
-            while (!lock.tryLock()) { /* spin until available */ }
-            try {
-                return pending.size
-            } finally {
-                lock.unlock()
-            }
-        }
+    suspend fun pendingCount(): Int = lock.withLock { pending.size }
 
-    fun drainPending(): List<LogEntry> {
-        while (!lock.tryLock()) { /* spin until available */ }
-        try {
-            val snapshot = pending.toList()
-            pending.clear()
-            scheduled = false
-            return snapshot
-        } finally {
-            lock.unlock()
-        }
+    suspend fun drainPending(): List<LogEntry> = lock.withLock {
+        val snapshot = pending.toList()
+        pending.clear()
+        scheduled = false
+        snapshot
     }
 }

@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
-import java.io.InputStreamReader
 
 class GitProcessRunner : ProcessRunner {
     override suspend fun run(command: List<String>): Result<String> = withContext(Dispatchers.IO) {
@@ -49,16 +48,16 @@ class GitProcessRunner : ProcessRunner {
         config.environmentVariables.forEach { (k, v) -> pb.environment()[k] = v }
 
         val proc = pb.start()
-        val stdoutReader = Thread {
+        val stdoutReader = Thread({
             proc.inputStream.bufferedReader().forEachLine { line ->
                 trySend(ProcessEvent.StdoutLine(line))
             }
-        }
-        val stderrReader = Thread {
+        }, "git-stdout-reader").apply { isDaemon = true }
+        val stderrReader = Thread({
             proc.errorStream.bufferedReader().forEachLine { line ->
                 trySend(ProcessEvent.StderrLine(line))
             }
-        }
+        }, "git-stderr-reader").apply { isDaemon = true }
         stdoutReader.start()
         stderrReader.start()
         stdoutReader.join()

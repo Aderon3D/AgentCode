@@ -22,11 +22,12 @@ class SemanticConflictFunnel(
     private val lockManager: WorkspaceLockManager,
     private val testRunner: ProcessRunner? = null,
     private val parser: KotlinParser? = null,
+    private val testCommand: List<String> = listOf("./gradlew"),
 ) {
     /**
      * Tier 1: Check for pre-write collisions against active locks.
      */
-    fun checkPreWriteCollision(taskId: String, requestedSymbols: Set<String>): ConflictRisk {
+    suspend fun checkPreWriteCollision(taskId: String, requestedSymbols: Set<String>): ConflictRisk {
         return lockManager.evaluateCollisionRisk(
             proposedFiles = emptySet(),
             proposedSymbols = requestedSymbols
@@ -152,7 +153,7 @@ class SemanticConflictFunnel(
             listOf("test")
         }
 
-        val result = runner.run(listOf("gradle") + testArgs)
+        val result = runner.run(testCommand + testArgs)
         return if (result.isSuccess) {
             SemanticVerificationResult.Passed
         } else {

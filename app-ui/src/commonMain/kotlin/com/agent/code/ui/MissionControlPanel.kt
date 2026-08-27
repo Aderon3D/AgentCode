@@ -39,6 +39,7 @@ fun MissionControlPanel() {
     }
     var fsmState by remember { mutableStateOf<AgentState?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     val orchestrator = remember {
         AgentOrchestrator(
@@ -71,20 +72,26 @@ fun MissionControlPanel() {
             enabled = !busy,
             onClick = {
                 busy = true
+                error = null
                 scope.launch {
-                    orchestrator.startTask("T1", "Add a greeting")
-                    board.move("T1", KanbanColumn.PLANNING)
-                    orchestrator.runTool("T1", ToolCall("c1", "read_file", """{"path":"/src/main.kt"}"""))
-                    board.move("T1", KanbanColumn.IN_PROGRESS)
-                    orchestrator.runTool(
-                        "T1",
-                        ToolCall("c2", "apply_diff_patch", """{"path":"/src/main.kt","search":"hi","replace":"hello world"}"""),
-                    )
-                    orchestrator.succeed("T1", "patched greeting")
-                    board.move("T1", KanbanColumn.VERIFICATION)
-                    board.move("T1", KanbanColumn.DONE)
-                    fsmState = orchestrator.recover("T1")
-                    busy = false
+                    try {
+                        orchestrator.startTask("T1", "Add a greeting")
+                        board.move("T1", KanbanColumn.PLANNING)
+                        orchestrator.runTool("T1", ToolCall("c1", "read_file", """{"path":"/src/main.kt"}"""))
+                        board.move("T1", KanbanColumn.IN_PROGRESS)
+                        orchestrator.runTool(
+                            "T1",
+                            ToolCall("c2", "apply_diff_patch", """{"path":"/src/main.kt","search":"hi","replace":"hello world"}"""),
+                        )
+                        orchestrator.succeed("T1", "patched greeting")
+                        board.move("T1", KanbanColumn.VERIFICATION)
+                        board.move("T1", KanbanColumn.DONE)
+                        fsmState = orchestrator.recover("T1")
+                    } catch (e: Exception) {
+                        error = "${e::class.simpleName}: ${e.message}"
+                    } finally {
+                        busy = false
+                    }
                 }
             },
         ) { Text("Run agent (T1)") }
@@ -92,6 +99,10 @@ fun MissionControlPanel() {
         fsmState?.let {
             Spacer(Modifier.height(4.dp))
             Text("FSM state: $it", fontWeight = FontWeight.Bold)
+        }
+        error?.let {
+            Spacer(Modifier.height(4.dp))
+            Text("Error: $it", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         }
     }
 }

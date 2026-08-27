@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.agent.code.bootstrap.MissionControlBootstrap
 import com.agent.code.core.concurrency.EnergyAwareDispatchers
 import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.FileBackedWalStore
@@ -108,6 +109,9 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                     running = true
                     scope.launch {
                         try {
+                            val mc = withContext(Dispatchers.IO) { runMissionControlProbe() }
+                            results["Mission Control"] = mc; expanded["Mission Control"] = true
+
                             val m1 = withContext(Dispatchers.IO) { runM1Probe(baseDir) }
                             results["M1 Real IO"] = m1; expanded["M1 Real IO"] = true
 
@@ -132,6 +136,8 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                             val stats = withContext(Dispatchers.IO) { collector.collect().format() }
                             deviceStatsText = stats
                             results["Device Stats"] = stats; expanded["Device Stats"] = true
+                        } catch (e: Throwable) {
+                            results["Error"] = "${e::class.simpleName}: ${e.message}"
                         } finally {
                             running = false
                         }
@@ -215,6 +221,20 @@ private suspend fun runM1Probe(baseDir: String): String {
     )
 
     return "$fsLine\n\n$walLine\n\n$traversalLine"
+}
+
+private suspend fun runMissionControlProbe(): String {
+    val timeline = MissionControlBootstrap.runDemo()
+    val events = timeline.events.size
+    val state = timeline.finalState::class.simpleName
+    val recovered = timeline.recoveredState::class.simpleName
+    val frames = timeline.telemetryFrames.size
+    val ok = state == "Success" && recovered == "Success"
+    val status = if (ok) "OK" else "FAIL"
+    return "$status Mission Control (M0.5)\n" +
+        "  FSM lifecycle: $state → recovered=$recovered\n" +
+        "  Journal events: $events\n" +
+        "  Telemetry frames: $frames"
 }
 
 private suspend fun runLibGit2Probe(baseDir: String): String = withContext(Dispatchers.IO) {
@@ -325,7 +345,8 @@ private fun runM2Probe(governor: PowerGovernor = StubPowerGovernor()): String = 
     val govProfile = governor.currentProfile.value
     val govLine = if (governor is AndroidPowerGovernor) {
         val snap = governor.snapshot()
-        "Governor: ${snap.profile} | battery=${snap.batteryPercent}% | temp=${snap.temperatureCelsius}°C | thermal=${snap.thermalLabel} | pluggedIn=${snap.pluggedIn}"
+        "Governor: ${snap.profile} | battery=${snap.batteryPercent}% | temp=${snap.temperatureCelsius}°C | thermal=${snap.thermalLabel} | pluggedIn=${snap.pluggedIn}" +
+            (snap.temperatureWarning?.let { "\n  $it" } ?: "")
     } else {
         "Governor: $govProfile (stub — no battery/thermal on host)"
     }

@@ -185,10 +185,10 @@ class M2ConcurrencyTest {
     } }
 
     @Test
-    fun funnelPreWriteCheckDelegatesToLockManager() {
+    fun funnelPreWriteCheckDelegatesToLockManager() { runBlocking {
         val funnel = SemanticConflictFunnel(WorkspaceLockManager())
         assertIs<ConflictRisk.None>(funnel.checkPreWriteCollision("t1", setOf("sym1")))
-    }
+    } }
 
     @Test
     fun governorDefaultsToBalanced() {

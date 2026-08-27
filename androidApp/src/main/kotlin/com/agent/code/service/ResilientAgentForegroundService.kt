@@ -64,6 +64,7 @@ class ResilientAgentForegroundService : Service() {
         }
 
         val wifiManager = getSystemService(Context.WIFI_SERVICE) as WifiManager
+        @Suppress("DEPRECATION")
         wifiLock = wifiManager.createWifiLock(
             WifiManager.WIFI_MODE_FULL_HIGH_PERF,
             "MissionControl::WifiLock"
@@ -80,6 +81,7 @@ class ResilientAgentForegroundService : Service() {
 
     private fun buildPersistentNotification(): Notification {
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            ?: Intent().apply { setClassName(packageName, "com.agent.code.MainActivity") }
         val contentIntent = PendingIntent.getActivity(
             this,
             0,

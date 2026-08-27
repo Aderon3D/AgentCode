@@ -91,6 +91,7 @@ fun M05SpineDemo() {
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var timeline by remember { mutableStateOf<Timeline?>(null) }
+    var spineError by remember { mutableStateOf<String?>(null) }
     var copied by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
@@ -98,8 +99,17 @@ fun M05SpineDemo() {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Button(onClick = { scope.launch { timeline = MissionControlBootstrap.runDemo() } }) {
+        Button(onClick = {
+            spineError = null
+            scope.launch {
+                try { timeline = MissionControlBootstrap.runDemo() }
+                catch (e: Exception) { spineError = "${e::class.simpleName}: ${e.message}" }
+            }
+        }) {
             Text("Run M0.5 Demo")
+        }
+        spineError?.let {
+            Text("Error: $it", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         }
         timeline?.let { tl ->
             val recovered = tl.finalState == tl.recoveredState

@@ -14,6 +14,8 @@ import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.core.tools.ToolResult
 import com.agent.code.mcp.McpHost
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
@@ -37,27 +39,30 @@ class AgentOrchestrator(
     private val governor: PowerGovernor = StubPowerGovernor()
 ) {
     private var seq = 0L
-    private fun nextId(): Long = ++seq
+    private val seqMutex = Mutex()
+    private suspend fun nextId(): Long = seqMutex.withLock { ++seq }
     private fun now(): Long = Clock.System.now().toEpochMilliseconds()
 
-    fun startTask(taskId: String, goal: String) {
+    suspend fun startTask(taskId: String, goal: String) {
         journal.append(AgentEvent.TaskStarted(nextId(), taskId, now(), goal))
         telemetry.emit(LogEntry.AgentThought(now(), "Planning: $goal"))
     }
 
-    fun runTool(taskId: String, toolCall: ToolCall): ToolResult {
+    suspend fun runTool(taskId: String, toolCall: ToolCall): ToolResult {
         journal.append(AgentEvent.ToolExecutionRequested(nextId(), taskId, now(), toolCall))
         val result = mcp.dispatch(toolCall)
         journal.append(AgentEvent.ToolExecutionFinished(nextId(), taskId, now(), result))
         if (result.isSuccess && toolCall.toolName == "apply_diff_patch") {
-            val patchedPath = pathFromArgs(toolCall.argumentsJson) ?: VirtualPath.of("/src/main.kt")
-            journal.append(AgentEvent.FilePatchApplied(nextId(), taskId, now(), patchedPath, toolCall.argumentsJson))
+            val patchedPath = pathFromArgs(toolCall.argumentsJson)
+            if (patchedPath != null) {
+                journal.append(AgentEvent.FilePatchApplied(nextId(), taskId, now(), patchedPath, toolCall.argumentsJson))
+            }
         }
         telemetry.emit(LogEntry.ToolCallStarted(now(), toolCall.toolName, toolCall.argumentsJson))
         return result
     }
 
-    fun succeed(taskId: String, summary: String) {
+    suspend fun succeed(taskId: String, summary: String) {
         journal.append(AgentEvent.TaskSucceeded(nextId(), taskId, now(), summary))
         telemetry.emit(LogEntry.AgentThought(now(), "Success: $summary"))
     }
@@ -109,7 +114,7 @@ class AgentOrchestrator(
                 is AgentState.Success -> return StepResult.TaskFinished
                 is AgentState.Error -> return StepResult.FatalError(state.fatalCause)
                 is AgentState.Idle -> return StepResult.TaskFinished
-                is AgentState.Planning -> {
+                is AgentState.Planning, is AgentState.ExecutingTool -> {
                     if (toolIndex < toolCalls.size) {
                         val targetPaths = pathFromArgs(toolCalls[toolIndex].argumentsJson)
                             ?.let { setOf(it) } ?: emptySet()
@@ -123,24 +128,10 @@ class AgentOrchestrator(
                         } finally {
                             if (permit != null) lockCoordinator.releaseTaskExecutionPermit(taskId, emptySet())
                         }
+                    } else if (state is AgentState.ExecutingTool) {
+                        // ExecutingTool with no more tool calls — shouldn't happen, but handle gracefully
                     } else {
                         return StepResult.TaskFinished
-                    }
-                }
-                is AgentState.ExecutingTool -> {
-                    if (toolIndex < toolCalls.size) {
-                        val targetPaths = pathFromArgs(toolCalls[toolIndex].argumentsJson)
-                            ?.let { setOf(it) } ?: emptySet()
-                        val permit = lockCoordinator?.acquireTaskExecutionPermit(
-                            taskId, "agent/task-$taskId",
-                            targetPaths, emptySet()
-                        )
-                        try {
-                            runTool(taskId, toolCalls[toolIndex])
-                            toolIndex++
-                        } finally {
-                            if (permit != null) lockCoordinator.releaseTaskExecutionPermit(taskId, emptySet())
-                        }
                     }
                 }
                 is AgentState.Verifying -> {
@@ -176,7 +167,7 @@ class AgentOrchestrator(
         return StepResult.StepCompletedMoreWorkPending
     }
 
-    private fun processToolExecutionStep(taskId: String, state: AgentState.ExecutingTool): StepResult {
+    private suspend fun processToolExecutionStep(taskId: String, state: AgentState.ExecutingTool): StepResult {
         val result = runTool(taskId, state.toolCall)
         return if (result.isSuccess) {
             StepResult.StepCompletedMoreWorkPending

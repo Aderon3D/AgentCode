@@ -31,6 +31,8 @@ class AndroidPowerGovernor(private val context: Context) : PowerGovernor {
     private var isPluggedIn = false
     private var batteryLevelPercent = 100
     private var maxTemperatureCelsius = 0f
+    var temperatureWarning: String? = null
+        private set
 
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
@@ -96,18 +98,36 @@ class AndroidPowerGovernor(private val context: Context) : PowerGovernor {
             val thermalDir = File("/sys/class/thermal")
             if (!thermalDir.exists()) return
             var max = 0f
+            var maxType = ""
             thermalDir.listFiles()?.filter { it.name.startsWith("thermal_zone") }?.forEach { zone ->
-                val tempFile = File(zone, "temp")
-                if (tempFile.exists()) {
-                    val raw = tempFile.readText().trim().toFloatOrNull() ?: return@forEach
-                    val celsius = if (raw > 1000) raw / 1000f else raw
-                    if (celsius > max) max = celsius
+                val type = try {
+                    File(zone, "type").readText().trim().lowercase()
+                } catch (_: Exception) { "" }
+                val raw = try {
+                    File(zone, "temp").readText().trim().toFloatOrNull() ?: return@forEach
+                } catch (_: Exception) { return@forEach }
+                if (!isRealTempSensor(type) || raw <= 0f) return@forEach
+                val celsius = when {
+                    raw > 10000 -> raw / 1000f
+                    raw in 500f..10000f -> raw / 10f
+                    else -> return@forEach
+                }
+                if (celsius > max) {
+                    max = celsius
+                    maxType = type
                 }
             }
             maxTemperatureCelsius = max
+            temperatureWarning = if (max > 70f) "WARNING: ${max.toInt()}°C from '$maxType'" else null
         } catch (_: Exception) {
             // sysfs may not be readable on all devices
         }
+    }
+
+    private fun isRealTempSensor(type: String): Boolean {
+        if (type.isEmpty()) return false
+        val knownBad = listOf("trip", "bcl", "ibat", "vbat", "socd", "usb")
+        return knownBad.none { type.contains(it) }
     }
 
     private fun evaluateProfile() {
@@ -140,6 +160,7 @@ class AndroidPowerGovernor(private val context: Context) : PowerGovernor {
         batteryPercent = batteryLevelPercent,
         thermalStatus = thermalStatus,
         temperatureCelsius = maxTemperatureCelsius,
+        temperatureWarning = temperatureWarning,
         pluggedIn = isPluggedIn
     )
 }
@@ -149,6 +170,7 @@ data class GovernorSnapshot(
     val batteryPercent: Int,
     val thermalStatus: Int,
     val temperatureCelsius: Float,
+    val temperatureWarning: String? = null,
     val pluggedIn: Boolean
 ) {
     val thermalLabel: String get() = when (thermalStatus) {

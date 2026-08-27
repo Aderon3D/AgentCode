@@ -29,13 +29,8 @@ class WorkspaceLockManager {
         }
     }
 
-    fun releaseLock(taskId: String) {
-        while (!stateMutex.tryLock()) { /* spin until available */ }
-        try {
-            activeLocks.remove(taskId)
-        } finally {
-            stateMutex.unlock()
-        }
+    suspend fun releaseLock(taskId: String) = stateMutex.withLock {
+        activeLocks.remove(taskId)
     }
 
     suspend fun tryAcquireMaintenanceLock(): Boolean = stateMutex.withLock {
@@ -49,23 +44,9 @@ class WorkspaceLockManager {
         maintenanceDeferred = null
     }
 
-    fun activeLockCount(): Int {
-        while (!stateMutex.tryLock()) { /* spin until available */ }
-        try {
-            return activeLocks.size
-        } finally {
-            stateMutex.unlock()
-        }
-    }
+    suspend fun activeLockCount(): Int = stateMutex.withLock { activeLocks.size }
 
-    fun activeTaskIds(): Set<String> {
-        while (!stateMutex.tryLock()) { /* spin until available */ }
-        try {
-            return activeLocks.keys.toSet()
-        } finally {
-            stateMutex.unlock()
-        }
-    }
+    suspend fun activeTaskIds(): Set<String> = stateMutex.withLock { activeLocks.keys.toSet() }
 
     // ponytail: lock-free body; callers either hold stateMutex or go through evaluateCollisionRisk
     private fun evaluateCollisionRiskUnsafe(
@@ -87,15 +68,10 @@ class WorkspaceLockManager {
         return ConflictRisk.None
     }
 
-    fun evaluateCollisionRisk(
+    suspend fun evaluateCollisionRisk(
         proposedFiles: Set<VirtualPath>,
         proposedSymbols: Set<String>
-    ): ConflictRisk {
-        while (!stateMutex.tryLock()) { /* spin until available */ }
-        try {
-            return evaluateCollisionRiskUnsafe(proposedFiles, proposedSymbols)
-        } finally {
-            stateMutex.unlock()
-        }
+    ): ConflictRisk = stateMutex.withLock {
+        evaluateCollisionRiskUnsafe(proposedFiles, proposedSymbols)
     }
 }

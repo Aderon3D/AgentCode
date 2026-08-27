@@ -129,7 +129,7 @@ class AgentOrchestrator(
                             if (permit != null) lockCoordinator.releaseTaskExecutionPermit(taskId, emptySet())
                         }
                     } else if (state is AgentState.ExecutingTool) {
-                        // ExecutingTool with no more tool calls — shouldn't happen, but handle gracefully
+                        return StepResult.FatalError("ExecutingTool persisted with no pending tool calls — unrecoverable state")
                     } else {
                         return StepResult.TaskFinished
                     }

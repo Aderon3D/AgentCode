@@ -14,6 +14,8 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.os.SystemClock
+import com.agent.code.core.elevation.PrivilegedElevationManager
+
 
 /**
  * Resilient foreground service that keeps the autonomous agent runtime alive
@@ -25,12 +27,14 @@ class ResilientAgentForegroundService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
+    private lateinit var elevationManager: PrivilegedElevationManager
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        elevationManager = PrivilegedElevationManager(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -41,6 +45,7 @@ class ResilientAgentForegroundService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
+        elevationManager.applyZeroRootOptimizations()
         acquireLocks()
         scheduleWatchdog()
 

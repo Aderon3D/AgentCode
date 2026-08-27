@@ -368,7 +368,8 @@ else:
             if [ $RESULT -eq 0 ]; then
               echo "  Applied to $FILE"
               APPLIED=$((APPLIED + 1))
-              MODIFIED_FILES="$MODIFIED_FILES $FILE"
+              MODIFIED_FILES="${MODIFIED_FILES}${MODIFIED_FILES:+
+}$FILE"
               RESULTS="${RESULTS}- **$FILE**: applied\n"
             else
               echo "  Failed to apply to $FILE"
@@ -399,8 +400,8 @@ else:
           # Stage only the files we modified
           MODIFIED="${{ steps.apply.outputs.modified }}"
           if [ -n "$MODIFIED" ]; then
-            for f in $MODIFIED; do
-              git add "$f"
+            echo "$MODIFIED" | while IFS= read -r f; do
+              [ -n "$f" ] && git add "$f"
             done
           else
             echo "No modified files to commit"

@@ -121,7 +121,7 @@ jobs:
                 else
                   EXIT_CODE=$?
                   echo "  Failed (exit=$EXIT_CODE):" >&2
-                  head -5 "$ERR_FILE" >&2 || true
+                  head -20 "$ERR_FILE" >&2 || true
                   echo "  stdout: $(head -1 "$TMP")" >&2 || true
                 fi
                 rm -f "$TMP" "$ERR_FILE"

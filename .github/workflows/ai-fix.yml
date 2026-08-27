@@ -43,7 +43,14 @@ jobs:
             exit 1
           fi
 
-          PERM=$(gh api "repos/$REPO/collaborators/$COMMENTER/permission" --jq '.permission' 2>/dev/null || echo "none")
+          PERM_ERR=$(mktemp)
+          PERM=$(gh api "repos/$REPO/collaborators/$COMMENTER/permission" --jq '.permission' 2>"$PERM_ERR") || {
+            cat "$PERM_ERR" >&2
+            rm -f "$PERM_ERR"
+            gh pr comment "$PR_NUMBER" --body "Failed to verify permissions. Please try again."
+            exit 1
+          }
+          rm -f "$PERM_ERR"
           if [ "$PERM" != "write" ] && [ "$PERM" != "admin" ]; then
             echo "User $COMMENTER has $PERM permission, need write or admin"
             gh pr comment "$PR_NUMBER" --body "@$COMMENTER: only repository collaborators with write access can use /fix."
@@ -64,6 +71,13 @@ jobs:
           if ! echo "$SAFE_HEAD_REF" | grep -qE '^[a-zA-Z0-9._/\-]+$'; then
             echo "Invalid head ref: $SAFE_HEAD_REF"
             gh pr comment "$PR_NUMBER" --body "Invalid branch reference."
+            exit 1
+          fi
+
+          # Validate head repo format
+          if ! echo "$SAFE_HEAD_REPO" | grep -qE '^[a-zA-Z0-9._/-]{1,200}$'; then
+            echo "Invalid head repo: $SAFE_HEAD_REPO"
+            gh pr comment "$PR_NUMBER" --body "Invalid head repository reference."
             exit 1
           fi
 
@@ -260,8 +274,16 @@ print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
 
           for i in $(seq 0 $((COUNT - 1))); do
             FILE=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); print(f[$i]['file'])")
-            BEFORE=$(python3 -c "import json,sys; f=json.load(open('/tmp/fixes.json')); print(f[$i]['before'])")
-            AFTER=$(python3 -c "import json,sys; f=json.load(open('/tmp/fixes.json')); print(f[$i]['after'])")
+            BEFORE=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); v=f[$i]['before']; print(v if v is not None else '')")
+            AFTER=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); print(f[$i]['after'])")
+
+            # Skip CodeRabbit suggestions without before context
+            if [ -z "$BEFORE" ]; then
+              echo "  Skip $FILE (CodeRabbit suggestion, no before-context match)"
+              SKIPPED=$((SKIPPED + 1))
+              RESULTS="${RESULTS}- **$FILE**: skipped (no before context)\n"
+              continue
+            fi
 
             # Validate path: must be relative and stay within repo
             RESOLVED=$(realpath "$FILE" 2>/dev/null || echo "")
@@ -380,7 +402,8 @@ print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
           Commit: \`${SHA}\`"
           fi
 
-          gh pr comment "$PR_NUMBER" --body "$BODY"
+          printf '%s' "$BODY" > /tmp/comment-body.md
+          gh pr comment "$PR_NUMBER" --body-file /tmp/comment-body.md
 
       - name: Mark review as fixed
         if: always() && steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'

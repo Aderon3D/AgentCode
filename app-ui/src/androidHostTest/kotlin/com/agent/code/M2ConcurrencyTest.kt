@@ -141,6 +141,8 @@ class M2ConcurrencyTest {
                 executedCommand = command
                 return Result.success("BUILD SUCCESSFUL")
             }
+            override suspend fun execute(config: com.agent.code.workspace.ProcessConfiguration) = TODO()
+            override fun executeStreaming(config: com.agent.code.workspace.ProcessConfiguration) = TODO()
         }
         val funnel = SemanticConflictFunnel(WorkspaceLockManager(), runner)
 
@@ -155,6 +157,8 @@ class M2ConcurrencyTest {
         val runner = object : com.agent.code.workspace.ProcessRunner {
             override suspend fun run(command: List<String>): Result<String> =
                 Result.failure(RuntimeException("2 tests failed"))
+            override suspend fun execute(config: com.agent.code.workspace.ProcessConfiguration) = TODO()
+            override fun executeStreaming(config: com.agent.code.workspace.ProcessConfiguration) = TODO()
         }
         val funnel = SemanticConflictFunnel(WorkspaceLockManager(), runner)
 
@@ -171,6 +175,8 @@ class M2ConcurrencyTest {
                 invoked = true
                 return Result.success("ok")
             }
+            override suspend fun execute(config: com.agent.code.workspace.ProcessConfiguration) = TODO()
+            override fun executeStreaming(config: com.agent.code.workspace.ProcessConfiguration) = TODO()
         }
         val funnel = SemanticConflictFunnel(WorkspaceLockManager(), runner)
         val result = funnel.verifyBranchIntegration("main", emptyList())

@@ -123,11 +123,22 @@ class ResilientAgentForegroundService : Service() {
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + WATCHDOG_INTERVAL_MS,
-            pendingIntent
-        )
+        val triggerAt = SystemClock.elapsedRealtime() + WATCHDOG_INTERVAL_MS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            !alarmManager.canScheduleExactAlarms()
+        ) {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                triggerAt,
+                pendingIntent
+            )
+        } else {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                triggerAt,
+                pendingIntent
+            )
+        }
     }
 
     private fun cancelWatchdog() {

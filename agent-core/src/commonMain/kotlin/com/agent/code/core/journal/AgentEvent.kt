@@ -20,6 +20,14 @@ sealed interface AgentEvent {
     ) : AgentEvent
 
     @Serializable
+    data class TokenChunkReceived(
+        override val eventId: Long,
+        override val taskId: String,
+        override val timestampMs: Long,
+        val delta: String
+    ) : AgentEvent
+
+    @Serializable
     data class ToolExecutionRequested(
         override val eventId: Long,
         override val taskId: String,

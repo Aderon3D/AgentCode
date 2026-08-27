@@ -57,7 +57,7 @@ class ShizukuFsProvider(
         }
     }
 
-    override fun read(path: VirtualPath): Result<String> {
+    override suspend fun read(path: VirtualPath): Result<String> {
         if (!isAvailable() || isSandboxed(path)) return fallback.read(path)
         val p = shizuku("cat ${shellArg(path.rawPath)}") ?: return fallback.read(path)
         val out = p.inputStream.bufferedReader(StandardCharsets.UTF_8).readText()
@@ -70,7 +70,7 @@ class ShizukuFsProvider(
         }
     }
 
-    override fun write(path: VirtualPath, content: String): Result<Unit> {
+    override suspend fun write(path: VirtualPath, content: String): Result<Unit> {
         if (!isAvailable() || isSandboxed(path)) return fallback.write(path, content)
         val p = shizuku("cat > ${shellArg(path.rawPath)}") ?: return fallback.write(path, content)
         return try {
@@ -90,7 +90,7 @@ class ShizukuFsProvider(
         }
     }
 
-    override fun exists(path: VirtualPath): Boolean {
+    override suspend fun exists(path: VirtualPath): Boolean {
         if (!isAvailable() || isSandboxed(path)) return fallback.exists(path)
         val p = shizuku("test -e ${shellArg(path.rawPath)}") ?: return fallback.exists(path)
         return p.waitFor() == 0
@@ -98,5 +98,11 @@ class ShizukuFsProvider(
 
     // ponytail: ephemeral askpass/secret files are sandboxed, so delegate delete
     // to the confined RealFileSystem; escalate to shizuku rm only if needed later.
-    override fun delete(path: VirtualPath): Result<Unit> = fallback.delete(path)
+    override suspend fun delete(path: VirtualPath): Result<Unit> = fallback.delete(path)
+
+    override suspend fun applyPatch(path: VirtualPath, patches: List<PatchOperation>): Result<Unit> =
+        fallback.applyPatch(path, patches)
+
+    override suspend fun walkTree(root: VirtualPath, maxDepth: Int, ignorePatterns: List<String>): Result<FileNode.Directory> =
+        fallback.walkTree(root, maxDepth, ignorePatterns)
 }

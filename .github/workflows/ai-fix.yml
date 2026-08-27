@@ -78,6 +78,9 @@ jobs:
           curl -fsSL https://opencode.ai/install | bash
           echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
 
+      - name: Install opencode plugins
+        run: cd .opencode && npm install --ignore-scripts 2>/dev/null || true
+
       - name: Get PR info
         env:
           GH_TOKEN: ${{ github.token }}
@@ -138,41 +141,64 @@ print(f'Fetched review comment {review_id} ({len(body_result.stdout)} bytes)')
           with open('/tmp/review.md') as f:
               content = f.read()
 
+          # Collect already-fixed markers to skip them
+          fixed_markers = set(re.findall(r'<!--\s*fixed:([^:]+:[^\s]+)\s*-->', content))
+
           fixes = []
-          # Split by ## Finding headers
+
+          # Split by ## Finding headers (supports our format and CodeRabbit)
           sections = re.split(r'(?=^## )', content, flags=re.MULTILINE)
 
           for section in sections:
               if not section.strip() or 'No issues found' in section:
                   continue
 
-              # Find Before/After code blocks
+              # --- Our format: Before/After code blocks ---
               before_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# Before.*?\n(.*?)```', section, re.DOTALL)
               after_match = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# After.*?\n(.*?)```', section, re.DOTALL)
 
-              if not before_match or not after_match:
-                  continue
-
-              before = before_match.group(1).strip()
-              after = after_match.group(1).strip()
-
-              # Extract file from section
               file_match = re.search(r'\*\*(?:file|File):\*\*\s*`?([^`\n]+)`?', section)
               file_path = file_match.group(1).strip() if file_match else None
 
-              if file_path and before and after:
-                  fixes.append({
-                      'file': file_path,
-                      'before': before,
-                      'after': after
-                  })
+              # Normalize file_path: strip line numbers like :123
+              if file_path:
+                  file_path = re.sub(r':\d+$', '', file_path).strip()
+
+              if before_match and after_match and file_path:
+                  before = before_match.group(1).strip()
+                  after = after_match.group(1).strip()
+                  marker = f"{file_path}:{before[:40]}"
+                  if marker not in fixed_markers:
+                      fixes.append({
+                          'file': file_path,
+                          'before': before,
+                          'after': after,
+                          'source': 'ai-review'
+                      })
+                  continue
+
+              # --- CodeRabbit format: ```suggestion blocks ---
+              suggestion_match = re.search(r'```suggestion\n(.*?)```', section, re.DOTALL)
+              if suggestion_match and file_path:
+                  after = suggestion_match.group(1).strip()
+                  # For CodeRabbit, we don't have explicit "before" text.
+                  # Store the suggestion for the apply step to handle via context matching.
+                  marker = f"{file_path}:{after[:40]}"
+                  if marker not in fixed_markers:
+                      fixes.append({
+                          'file': file_path,
+                          'before': None,  # CodeRabbit: will be resolved during apply
+                          'after': after,
+                          'source': 'coderabbit'
+                      })
+                  continue
 
           with open('/tmp/fixes.json', 'w') as f:
               json.dump(fixes, f, indent=2)
 
-          print(f"Found {len(fixes)} parseable fixes")
+          print(f"Found {len(fixes)} parseable fixes ({len(fixed_markers)} already fixed)")
           for i, fix in enumerate(fixes, 1):
-              print(f"  {i}. {fix['file']}")
+              print(f"  {i}. [{fix['source']}] {fix['file']}")
           PYEOF
 
       - name: Apply fixes

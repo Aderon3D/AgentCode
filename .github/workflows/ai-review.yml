@@ -31,6 +31,9 @@ jobs:
           curl -fsSL https://opencode.ai/install | bash
           echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
 
+      - name: Install opencode plugins
+        run: cd .opencode && npm install --ignore-scripts 2>/dev/null || true
+
       - name: Generate diff
         env:
           GH_TOKEN: ${{ github.token }}
@@ -88,7 +91,7 @@ jobs:
             local tmp_files=()
             local result_file="/tmp/round-review-${round}.md"
 
-            cleanup_local() { rm -f "${tmp_files[@]}" "$result_file"; }
+            cleanup_local() { rm -f "${tmp_files[@]}"; }
             trap cleanup_local RETURN INT TERM
 
             > "$result_file"

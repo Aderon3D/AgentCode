@@ -31,8 +31,9 @@ class BudgetTrackingCircuitBreaker(
     }
 
     fun checkTimeBudget() {
-        val elapsed = startMark.elapsedNow().inWholeMilliseconds
-        if (elapsed >= budget.maxExecutionTimeMs) throw CircuitBreakerException("Time Budget Exceeded (${elapsed}ms)")
+        val elapsed = startMark.elapsedNow()
+        if (elapsed >= budget.maxExecutionTimeMs.toDuration(kotlin.time.DurationUnit.MILLISECONDS))
+            throw CircuitBreakerException("Time Budget Exceeded (${elapsed.inWholeMilliseconds}ms)")
     }
 
     fun snapshot() = BudgetSnapshot(currentCostUsd, toolCallsCount, budget)

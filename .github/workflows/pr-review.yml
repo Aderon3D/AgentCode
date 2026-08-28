@@ -34,14 +34,32 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache opencode
+        id: cache-opencode
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HOME }}/.opencode
+          key: opencode-${{ runner.os }}-v1
+
       - name: Install opencode
+        if: steps.cache-opencode.outputs.cache-hit != 'true'
         run: |
           curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh
           bash /tmp/install-opencode.sh
           rm -f /tmp/install-opencode.sh
-          echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Add opencode to PATH
+        run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Cache opencode plugins
+        id: cache-plugins
+        uses: actions/cache@v4
+        with:
+          path: .opencode/node_modules
+          key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}
 
       - name: Install opencode plugins
+        if: steps.cache-plugins.outputs.cache-hit != 'true'
         run: |
           if [ -d .opencode ]; then
             (cd .opencode && npm install --ignore-scripts) || echo "::warning::Failed to install opencode plugins"
@@ -233,7 +251,7 @@ jobs:
               ALL_FINDINGS=$(printf '%s\n\n%s' "$ALL_FINDINGS" "$ROUND_REVIEW")
             fi
 
-            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '^\s*\*{0,2}severity:\s*\*{0,2}major' || true)
+            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '^\s*\*{0,2}severity:\s*\*{0,2}\s*major' || true)
 
             echo "Round $ROUND: Major=$MAJOR_COUNT" >&2
 
@@ -336,7 +354,7 @@ jobs:
           AUTH=$(echo "$PR_DATA" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r.get('headRepositoryOwner',{}).get('login',''))")
           [ "$AUTH" = "$OWNER" ] || { echo "Fork PRs blocked"; exit 1; }
           SAFE=$(printf '%s' "$BRANCH" | tr -d '\r\n')
-          case "$SAFE" in *..*) echo "Bad branch ref (path traversal)"; exit 1;; esac
+          case "$SAFE" in *..*|refs/*|remotes/*) echo "Bad branch ref (path traversal)"; exit 1;; esac
           printf '%s' "$SAFE" | grep -qE '^[a-zA-Z0-9._/\-]+$' || { echo "Bad branch ref"; exit 1; }
           D="GHEOF_${GITHUB_RUN_ID}"
           { echo "HEAD_REF<<$D"; echo "$SAFE"; echo "$D"; } >> "$GITHUB_ENV"
@@ -346,14 +364,32 @@ jobs:
           ref: ${{ env.HEAD_REF }}
           fetch-depth: 0
 
+      - name: Cache opencode
+        id: cache-opencode
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HOME }}/.opencode
+          key: opencode-${{ runner.os }}-v1
+
       - name: Install opencode
+        if: steps.cache-opencode.outputs.cache-hit != 'true'
         run: |
           curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh
           bash /tmp/install-opencode.sh
           rm -f /tmp/install-opencode.sh
-          echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Add opencode to PATH
+        run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Cache opencode plugins
+        id: cache-plugins
+        uses: actions/cache@v4
+        with:
+          path: .opencode/node_modules
+          key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}
 
       - name: Install plugins
+        if: steps.cache-plugins.outputs.cache-hit != 'true'
         run: |
           if [ -d .opencode ]; then
             (cd .opencode && npm install --ignore-scripts) || true
@@ -428,35 +464,72 @@ jobs:
             exit 0
           fi
 
-          REVIEW_BODY=$(cat /tmp/review.md)
           MOD=$(echo "$MODEL" | tr -d '\r\n')
-
-          opencode -p -m "$MOD" -q "You are a code fixer. Here is an AI code review of this repository:
-
-          ${REVIEW_BODY}
-
-          For each Major-severity finding that has a concrete code fix suggestion (Before/After or Fix blocks), read the file and apply the fix to disk. Only fix Major findings. After applying all fixes, output ONLY a JSON object like: {\"applied\": 3, \"modified\": [\"file1.py\", \"file2.yml\"]}. If no fixes possible, output {\"applied\": 0, \"modified\": []}. Do not output anything else." \
-            > /tmp/opencode-fix-result.txt 2>&1 || true
-
-          APPLIED=0; FAILED=0; MODIFIED=""
-          if [ -f /tmp/opencode-fix-result.txt ]; then
-            JSON_LINE=$(grep -o '{[^}]*"applied"[^}]*}' /tmp/opencode-fix-result.txt | head -1 || true)
-            if [ -n "$JSON_LINE" ]; then
-              APPLIED=$(echo "$JSON_LINE" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('applied',0))" 2>/dev/null || echo 0)
-              MODIFIED=$(echo "$JSON_LINE" | python3 -c "import sys,json; print('\n'.join(json.loads(sys.stdin.read()).get('modified',[])))" 2>/dev/null || echo "")
-            fi
-          fi
-
-          FAILED_COUNT=$(git diff --name-only | wc -l)
-          if [ "$APPLIED" -eq 0 ] && [ "$FAILED_COUNT" -gt 0 ]; then
-            APPLIED=$FAILED_COUNT
-            MODIFIED=$(git diff --name-only)
-          fi
-
-          echo "Applied=$APPLIED Failed=$FAILED" >&2
-          DELIM="MODOUT_${GITHUB_RUN_ID}"
-          { echo "applied=$APPLIED" >> "$GITHUB_OUTPUT"; echo "failed=$FAILED" >> "$GITHUB_OUTPUT"; }
-          { echo "modified<<$DELIM"; printf '%s\n' "$MODIFIED"; echo "$DELIM"; } >> "$GITHUB_OUTPUT"
+          export MOD
+          python3 - <<'PYEOF'
+          import os, re, subprocess, sys
+          mod = os.environ.get('MOD', '')
+          if not mod:
+              mod = 'opencode/mimo-v2.5-free'
+          review = open('/tmp/review.md').read()
+          prompt = (
+            "You are a code fixer. Apply fixes for Major-severity findings in the AI review below.\n"
+            "For each Major finding that has a concrete fix (a Before/After or Fix code block), "
+            "output ONE fenced replace block.\n\n"
+            "Format (repeat for each fix):\n"
+            "```replace\n"
+            "FILE: <relative/path/to/file>\n"
+            "<<<<<<< SEARCH\n<exact existing lines>\n=======\n<exact new lines>\n>>>>>>> REPLACE\n"
+            "```\n\n"
+            "Rules:\n"
+            "- SEARCH must exactly match existing file content (copy verbatim from the file).\n"
+            "- Only fix Major findings. If none are fixable, output exactly: NONE\n"
+            "- Do not edit files yourself; only output the replace blocks.\n\n"
+            "REVIEW:\n" + review
+          )
+          try:
+              r = subprocess.run(['opencode', '-p', '-m', mod, '-q', prompt],
+                                  capture_output=True, text=True, timeout=600)
+              out = (r.stdout or '') + (r.stderr or '')
+          except Exception as e:
+              out = ''
+              print('opencode call failed: %s' % e, file=sys.stderr)
+          open('/tmp/opencode-fix-result.txt', 'w').write(out)
+          blocks = re.findall(r'```replace\s*(.*?)```', out, re.DOTALL)
+          applied = failed = 0
+          modified = []
+          for b in blocks:
+              m = re.search(r'FILE:\s*(\S+)\s*<<<<<<< SEARCH\n(.*?)\n=======\n(.*?)\n>>>>>>> REPLACE', b, re.DOTALL)
+              if not m:
+                  failed += 1
+                  continue
+              fp, old, new = m.group(1).strip(), m.group(2), m.group(3)
+              if not os.path.exists(fp):
+                  failed += 1
+                  continue
+              try:
+                  c = open(fp).read()
+              except Exception:
+                  failed += 1
+                  continue
+              if old not in c:
+                  failed += 1
+                  continue
+              open(fp, 'w').write(c.replace(old, new, 1))
+              applied += 1
+              if fp not in modified:
+                  modified.append(fp)
+          gh_out = os.environ.get('GITHUB_OUTPUT', '')
+          run_id = os.environ.get('GITHUB_RUN_ID', '')
+          with open(gh_out, 'a') as f:
+              f.write('applied=%d\n' % applied)
+              f.write('failed=%d\n' % failed)
+              delim = 'MODOUT_' + run_id
+              f.write('modified<<%s\n' % delim)
+              f.write('\n'.join(modified) + '\n')
+              f.write('%s\n' % delim)
+          print('applied=%d failed=%d modified=%s' % (applied, failed, modified))
+          PYEOF
 
       - name: Fallback diff-based detection
         if: steps.apply.outputs.applied == '0'
@@ -564,7 +637,7 @@ jobs:
           AUTH=$(echo "$PR_DATA" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r.get('headRepositoryOwner',{}).get('login',''))")
           [ "$AUTH" = "$OWNER" ] || { echo "Fork PRs blocked"; exit 1; }
           SAFE=$(printf '%s' "$BRANCH" | tr -d '\r\n')
-          case "$SAFE" in *..*) echo "Bad branch ref (path traversal)"; exit 1;; esac
+          case "$SAFE" in *..*|refs/*|remotes/*) echo "Bad branch ref (path traversal)"; exit 1;; esac
           printf '%s' "$SAFE" | grep -qE '^[a-zA-Z0-9._/\-]+$' || { echo "Bad branch ref"; exit 1; }
           D="GHEOF_${GITHUB_RUN_ID}"
           { echo "HEAD_REF<<$D"; echo "$SAFE"; echo "$D"; } >> "$GITHUB_ENV"
@@ -574,14 +647,32 @@ jobs:
           ref: ${{ env.HEAD_REF }}
           fetch-depth: 0
 
+      - name: Cache opencode
+        id: cache-opencode
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HOME }}/.opencode
+          key: opencode-${{ runner.os }}-v1
+
       - name: Install opencode
+        if: steps.cache-opencode.outputs.cache-hit != 'true'
         run: |
           curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh
           bash /tmp/install-opencode.sh
           rm -f /tmp/install-opencode.sh
-          echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Add opencode to PATH
+        run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Cache opencode plugins
+        id: cache-plugins
+        uses: actions/cache@v4
+        with:
+          path: .opencode/node_modules
+          key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}
 
       - name: Install plugins
+        if: steps.cache-plugins.outputs.cache-hit != 'true'
         run: |
           if [ -d .opencode ]; then
             (cd .opencode && npm install --ignore-scripts) || true

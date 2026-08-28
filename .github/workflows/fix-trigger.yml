@@ -33,7 +33,9 @@ jobs:
     steps:
       - name: Validate command
         if: github.event_name != 'workflow_dispatch'
-        run: echo "${{ github.event.comment.body }}" | grep -qE '^/fix(\s|$)'
+        env:
+          CMD: ${{ github.event.comment.body }}
+        run: echo "$CMD" | grep -qE '^/fix(\s|$)'
 
       - name: Check permissions
         env:

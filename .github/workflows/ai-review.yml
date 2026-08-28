@@ -397,8 +397,6 @@ jobs:
       - name: Apply AI fixes
         id: apply
         if: env.NO_REVIEW != 'true'
-        env:
-          OPENCODE_MODEL: ${{ vars.REVIEW_MODEL || 'opencode/mimo-v2.5-free' }}
         run: |
           set -euo pipefail
 
@@ -409,70 +407,17 @@ jobs:
             exit 0
           fi
 
-          if grep -q "No issues found" /tmp/review.md 2>/dev/null; then
-            echo "applied=0" >> "$GITHUB_OUTPUT"
-            echo "failed=0" >> "$GITHUB_OUTPUT"
-            echo "modified=" >> "$GITHUB_OUTPUT"
-            exit 0
+          python3 scripts/apply_review_fixes.py /tmp/review.md
+
+          if [ -f /tmp/fix-result.json ]; then
+            APPLIED=$(python3 -c "import json; print(json.load(open('/tmp/fix-result.json')).get('applied',0))" 2>/dev/null || echo 0)
+            FAILED=$(python3 -c "import json; print(json.load(open('/tmp/fix-result.json')).get('failed',0))" 2>/dev/null || echo 0)
+            MODIFIED=$(python3 -c "import json; print('\n'.join(json.load(open('/tmp/fix-result.json')).get('modified',[])))" 2>/dev/null || echo "")
+          else
+            APPLIED=0; FAILED=0; MODIFIED=""
           fi
 
-          python3 scripts/extract_major.py > /tmp/major-findings.md
-
-          MAJOR_SIZE=$(wc -c < /tmp/major-findings.md)
-          echo "Major findings size: ${MAJOR_SIZE} bytes" >&2
-
-          if grep -q "No Major findings" /tmp/major-findings.md; then
-            echo "applied=0" >> "$GITHUB_OUTPUT"
-            echo "failed=0" >> "$GITHUB_OUTPUT"
-            echo "modified=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          MODELS=(
-            "opencode/mimo-v2.5-free"
-            "opencode/hy3-free"
-            "opencode/nemotron-3-ultra-free"
-          )
-
-          APPLIED=0
-          FAILED=0
-          MODIFIED=""
-
-          for MODEL in "${MODELS[@]}"; do
-            echo "Attempting fixes with: $MODEL" >&2
-
-            PROMPT_FILE=$(mktemp)
-            printf 'import sys\nfindings = open("/tmp/major-findings.md").read()\nsys.stdout.write(\n    "For each code finding below, output a JSON line with fields: file, before, after.\\n"\n    "The before field is the exact current code to replace.\\n"\n    "The after field is the replacement code.\\n"\n    "Output one JSON object per line, no arrays. Example:\\n"\n    \'{"file": "path/to/file.py", "before": "old code", "after": "new code"}\\n\'\n    "\\nOnly output valid JSON lines, nothing else.\\n\\n"\n    "FINDINGS:\\n\\n"\n) + findings\n' > /tmp/gen-prompt.py
-            python3 /tmp/gen-prompt.py > "$PROMPT_FILE"
-
-            RESULT_FILE=$(mktemp)
-            ERR_FILE=$(mktemp)
-
-            if opencode run -m "$MODEL" < "$PROMPT_FILE" > "$RESULT_FILE" 2>"$ERR_FILE"; then
-              echo "  $MODEL completed" >&2
-
-              python3 scripts/apply_fixes.py "$RESULT_FILE"
-
-              if [ -f /tmp/fix-result.json ]; then
-                APPLIED=$(python3 -c "import json; print(json.load(open('/tmp/fix-result.json')).get('applied',0))" 2>/dev/null || echo 0)
-                FAILED=$(python3 -c "import json; print(json.load(open('/tmp/fix-result.json')).get('failed',0))" 2>/dev/null || echo 0)
-                MODIFIED=$(python3 -c "import json; print('\n'.join(json.load(open('/tmp/fix-result.json')).get('modified',[])))" 2>/dev/null || echo "")
-
-                echo "  Applied=$APPLIED Failed=$FAILED" >&2
-
-                if [ "$APPLIED" -gt 0 ]; then
-                  break
-                fi
-              fi
-            else
-              EXIT_CODE=$?
-              echo "  Failed (exit=$EXIT_CODE):" >&2
-              head -5 "$ERR_FILE" >&2 || true
-            fi
-
-            rm -f "$PROMPT_FILE" "$RESULT_FILE" "$ERR_FILE"
-          done
-
+          echo "Applied=$APPLIED Failed=$FAILED" >&2
           DELIM="MODOUT_${GITHUB_RUN_ID}"
           { echo "applied=$APPLIED" >> "$GITHUB_OUTPUT"; echo "failed=$FAILED" >> "$GITHUB_OUTPUT"; }
           { echo "modified<<$DELIM"; printf '%s\n' "$MODIFIED"; echo "$DELIM"; } >> "$GITHUB_OUTPUT"

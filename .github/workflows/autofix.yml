@@ -1,3 +1,4 @@
+# 2026-08-28: force re-parse to restore issue_comment trigger registration
 name: AI AutoFix
 
 on:

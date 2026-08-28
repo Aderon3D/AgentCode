@@ -1,0 +1,180 @@
+name: Fix Trigger
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number'
+        required: true
+        type: string
+      review_id:
+        description: 'Review ID'
+        required: true
+        type: string
+
+concurrency:
+  group: fix-${{ github.event.issue.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request &&
+       (startsWith(github.event.comment.body, '/fix ') ||
+        github.event.comment.body == '/fix'))
+    steps:
+      - name: Validate command
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          CMD: ${{ github.event.comment.body }}
+        run: echo "$CMD" | grep -qE '^/fix(\s|$)'
+
+      - name: Check permissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUM: ${{ github.event.issue.number || inputs.pr_number }}
+          WHO: ${{ github.event.comment.user.login || github.actor }}
+        run: |
+          PERM=$(gh api "repos/$REPO/collaborators/$WHO/permission" --jq '.permission')
+          [ "$PERM" = "write" ] || [ "$PERM" = "admin" ] || { echo "Need write access"; exit 1; }
+          PR_DATA=$(gh pr view "$NUM" --json headRefName,headRepositoryOwner)
+          BRANCH=$(echo "$PR_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin)['headRefName'])")
+          AUTH=$(echo "$PR_DATA" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r.get('headRepositoryOwner',{}).get('login',''))")
+          [ "$AUTH" = "${{ github.repository_owner }}" ] || { echo "Fork blocked"; exit 1; }
+          SAFE=$(printf '%s' "$BRANCH" | tr -d '\r\n')
+          echo "$SAFE" | grep -qE '^[a-zA-Z0-9._/\-]+$' || { echo "Bad ref"; exit 1; }
+          D="GHEOF_${GITHUB_RUN_ID}"
+          { echo "HEAD_REF<<$D"; echo "$SAFE"; echo "$D"; } >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          ref: ${{ env.HEAD_REF }}
+          fetch-depth: 0
+
+      - name: Setup opencode
+        run: |
+          curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh
+          bash /tmp/install-opencode.sh
+          rm -f /tmp/install-opencode.sh
+          echo "$HOME/.local/share/opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Install plugins
+        run: [ -d .opencode ] && (cd .opencode && npm install --ignore-scripts) || true
+
+      - name: Locate review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.issue.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 << 'PYEOF'
+import os, json, subprocess, sys
+pr = os.environ['NUM']; repo = os.environ['REPO']
+rid = os.environ.get('INPUT_REVIEW_ID', '')
+env = os.environ['GITHUB_ENV']
+if rid:
+    r = subprocess.run(['gh','api',f'repos/{repo}/issues/comments/{rid}','--jq','.body'], capture_output=True, text=True)
+    if r.returncode or not r.stdout.strip(): sys.exit(1)
+    open('/tmp/review.md','w').write(r.stdout)
+    open(env,'a').write(f'REVIEW_ID={rid}\n')
+else:
+    r = subprocess.run(['gh','pr','view',pr,'--json','comments'], capture_output=True, text=True)
+    cs = json.loads(r.stdout).get('comments',[])
+    ai = [c for c in cs if c.get('body','').startswith('# AI Code Review') and c.get('author',{}).get('login','') in ('github-actions[bot]','ai-review[bot]')]
+    if not ai:
+        open(env,'a').write('NO_REVIEW=true\n'); print('NO_REVIEW'); sys.exit(0)
+    ai.sort(key=lambda c: c.get('createdAt','')); latest = ai[-1]
+    open(env,'a').write(f'REVIEW_ID={latest["id"]}\n')
+    r2 = subprocess.run(['gh','api',f'repos/{repo}/issues/comments/{latest["id"]}','--jq','.body'], capture_output=True, text=True)
+    if r2.returncode or not r2.stdout.strip(): sys.exit(1)
+    open('/tmp/review.md','w').write(r2.stdout)
+    print(f'Review {latest["id"]}')
+PYEOF
+
+      - name: Extract fixes
+        if: env.NO_REVIEW != 'true'
+        run: |
+          python3 << 'PYEOF'
+import re, json
+with open('/tmp/review.md') as f: content = f.read()
+skip = set(re.findall(r'<!--\s*fixed:([^:]+:.+?)\s*-->', content))
+fixes = []
+for sec in re.split(r'(?=^## )', content, flags=re.MULTILINE):
+    if not sec.strip() or 'No issues found' in sec: continue
+    bm = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# Before.*?\n(.*?)(?=\n# After|\n```\s*$)', sec, re.DOTALL)
+    am = re.search(r'```(?:bash|sh|yaml|yml|json|typescript|javascript|python|java)?\s*\n# After.*?\n(.*?)```', sec, re.DOTALL)
+    fm = re.search(r'\*\*(?:file|File):\*\*\s*`?([^`\n]+)`?', sec)
+    fp = fm.group(1).strip() if fm else None
+    if fp: fp = re.sub(r':\d+$', '', fp).strip()
+    if bm and am and fp:
+        b = bm.group(1).strip(); a = am.group(1).strip()
+        if f"{fp}:{b[:40]}" not in skip: fixes.append({'file':fp,'before':b,'after':a})
+open('/tmp/fixes.json','w').write(json.dumps(fixes, indent=2))
+print(f'{len(fixes)} fixes')
+PYEOF
+
+      - name: Apply
+        id: apply
+        run: |
+          set -euo pipefail
+          [ -f /tmp/fixes.json ] || { echo "applied=0" >> "$GITHUB_OUTPUT"; echo "failed=0" >> "$GITHUB_OUTPUT"; echo "modified=" >> "$GITHUB_OUTPUT"; exit 0; }
+          N=$(python3 -c "import json; print(len(json.load(open('/tmp/fixes.json'))))")
+          [ "$N" -eq 0 ] && { echo "applied=0" >> "$GITHUB_OUTPUT"; echo "failed=0" >> "$GITHUB_OUTPUT"; echo "modified=" >> "$GITHUB_OUTPUT"; exit 0; }
+          AP=0; FL=0; MF=""; ROOT=$(pwd)
+          for i in $(seq 0 $((N-1))); do
+            F=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); print(f[$i]['file'])")
+            B=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); v=f[$i]['before']; print(v if v is not None else '')")
+            A=$(python3 -c "import json; f=json.load(open('/tmp/fixes.json')); print(f[$i]['after'])")
+            [ -z "$B" ] && continue
+            R=$(realpath "$F" 2>/dev/null || echo "")
+            [ -z "$R" ] || [[ "$R" != "$ROOT"/* ]] && continue
+            [ -L "$F" ] || [ ! -f "$F" ] && continue
+            BT=$(mktemp /tmp/before-XXXXXX); AT=$(mktemp /tmp/after-XXXXXX)
+            printf '%s' "$B" > "$BT"; printf '%s' "$A" > "$AT"
+            TF="$F" BEFORE_FILE="$BT" AFTER_FILE="$AT" python3 -c "
+import sys,os
+t=os.environ['TARGET_FILE']
+b=open(os.environ['BEFORE_FILE']).read(); a=open(os.environ['AFTER_FILE']).read()
+c=open(t).read()
+if b not in c: sys.exit(1)
+open(t,'w').write(c.replace(b,a,1))
+" && AP=$((AP+1)) && MF="${MF}${MF:+
+}$F" || FL=$((FL+1))
+            rm -f "$BT" "$AT"
+          done
+          echo "applied=$AP" >> "$GITHUB_OUTPUT"; echo "failed=$FL" >> "$GITHUB_OUTPUT"
+          { echo "modified<<MEOF"; printf '%s\n' "$MF"; echo "MEOF"; } >> "$GITHUB_OUTPUT"
+
+      - name: Commit
+        id: commit
+        if: steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
+        run: |
+          set -euo pipefail
+          if [ -n "${{ env.REVIEW_ID }}" ] && git log --oneline -10 | grep -q "review #${{ env.REVIEW_ID }}"; then exit 0; fi
+          git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
+          MOD="${{ steps.apply.outputs.modified }}"
+          [ -n "$MOD" ] || exit 0
+          while IFS= read -r f; do [ -n "$f" ] && git add "$f"; done < <(printf '%s' "$MOD")
+          git commit -m "fix: apply AI review suggestions" -m "Review #${{ env.REVIEW_ID }}"
+          git push
+
+      - name: Post results
+        if: always() && env.NO_REVIEW != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.issue.number || inputs.pr_number }}
+        run: |
+          AP="${{ steps.apply.outputs.applied }}"; FL="${{ steps.apply.outputs.failed }}"
+          B="## AI Fix Results\nApplied: $AP, Failed: $FL"
+          [ "${AP:-0}" -gt 0 ] && [ "${{ steps.commit.conclusion }}" = "success" ] && B="$B\nCommit: \`$(git rev-parse --short HEAD)\`"
+          printf '%b' "$B" > /tmp/comment-body.md
+          gh pr comment "$NUM" --body-file /tmp/comment-body.md

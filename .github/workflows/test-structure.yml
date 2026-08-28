@@ -1,0 +1,34 @@
+name: Test Structure
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number'
+        required: true
+        type: string
+      review_id:
+        description: 'Review ID'
+        required: true
+        type: string
+
+concurrency:
+  group: ai-fix-${{ github.event.issue.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request &&
+       (startsWith(github.event.comment.body, '/fix ') ||
+        github.event.comment.body == '/fix'))
+    steps:
+      - run: echo "works"

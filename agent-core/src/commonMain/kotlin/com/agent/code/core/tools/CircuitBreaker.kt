@@ -16,7 +16,7 @@ class BudgetTrackingCircuitBreaker(
 ) {
     private var currentCostUsd = 0.0
     private var toolCallsCount = 0
-    private val startTimeMs = kotlin.time.TimeSource.Monotonic.markNow().elapsedNow().inWholeMilliseconds
+    private val startMark = kotlin.time.TimeSource.Monotonic.markNow()
 
     fun isOpen(providerId: String): Boolean = providerId in providerOpenFor
 
@@ -31,7 +31,7 @@ class BudgetTrackingCircuitBreaker(
     }
 
     fun checkTimeBudget() {
-        val elapsed = kotlin.time.TimeSource.Monotonic.markNow().elapsedNow().inWholeMilliseconds
+        val elapsed = startMark.elapsedNow().inWholeMilliseconds
         if (elapsed >= budget.maxExecutionTimeMs) throw CircuitBreakerException("Time Budget Exceeded (${elapsed}ms)")
     }
 

@@ -416,6 +416,18 @@ jobs:
             exit 0
           fi
 
+          python3 scripts/extract_major.py > /tmp/major-findings.md
+
+          MAJOR_SIZE=$(wc -c < /tmp/major-findings.md)
+          echo "Major findings size: ${MAJOR_SIZE} bytes" >&2
+
+          if grep -q "No Major findings" /tmp/major-findings.md; then
+            echo "applied=0" >> "$GITHUB_OUTPUT"
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+            echo "modified=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           MODELS=(
             "opencode/mimo-v2.5-free"
             "opencode/hy3-free"
@@ -430,7 +442,7 @@ jobs:
             echo "Attempting fixes with: $MODEL" >&2
 
             PROMPT_FILE=$(mktemp)
-            printf 'import sys\nreview = open("/tmp/review.md").read()\nprompt = (\n    "You are a code fixer. A code review found issues in this repository.\\n\\n"\n    "Your task: read the review, then apply each fix to the actual files.\\n\\n"\n    "INSTRUCTIONS:\\n"\n    "1. Read the review at /tmp/review.md\\n"\n    "2. For each finding marked Major severity with a concrete fix:\\n"\n    "   - Read the target file\\n"\n    "   - Apply the fix using the edit tool\\n"\n    "3. Track which files you modified\\n\\n"\n    "CONSTRAINTS:\\n"\n    "- Only apply fixes for findings with severity Major\\n"\n    "- Only fix files that exist in this repository\\n"\n    "- Never modify files outside the repo root\\n"\n    "- Do not add comments or explanations to the code\\n"\n    "- Make minimal changes - apply exactly what the review suggests\\n\\n"\n    "After applying all fixes, write a JSON summary to /tmp/fix-result.json:\\n"\n    "{\\\"applied\\\": <number>, \\\"failed\\\": <number>, \\\"modified\\\": [\\\"file1\\\", \\\"file2\\\"]}\\n\\n"\n    "Start by reading the review, then apply fixes one at a time.\\n\\n"\n    "REVIEW CONTENT:\\n"\n)\nsys.stdout.write(prompt + review)\n' > /tmp/gen-prompt.py
+            printf 'import sys\nfindings = open("/tmp/major-findings.md").read()\nsys.stdout.write(\n    "Apply these code fixes to the repository files.\\n\\n"\n    "For each finding:\\n"\n    "1. Read the file specified in the finding\\n"\n    "2. Apply the suggested code change\\n"\n    "3. Move to the next finding\\n\\n"\n    "After all fixes, run: python3 -c \\'import json; json.dump({\\\"applied\\\": N, \\\"failed\\\": N, \\\"modified\\\": [files]}, open(\\\"/tmp/fix-result.json\\\", \\\"w\\\"))\\'\\n\\n"\n    "FINDINGS:\\n\\n"\n    "Write each fix to the actual file using the edit tool.\\n"\n    "Do not just describe the fix - actually edit the file.\\n\\n"\n) + findings\n' > /tmp/gen-prompt.py
             python3 /tmp/gen-prompt.py > "$PROMPT_FILE"
 
             RESULT_FILE=$(mktemp)
@@ -449,15 +461,14 @@ jobs:
                 if [ "$APPLIED" -gt 0 ]; then
                   break
                 fi
-              else
-                echo "  No fix-result.json found, checking git diff" >&2
-                CHANGED=$(git diff --name-only 2>/dev/null || true)
-                if [ -n "$CHANGED" ]; then
-                  APPLIED=$(echo "$CHANGED" | wc -l)
-                  MODIFIED="$CHANGED"
-                  echo "  Applied=$APPLIED (from git diff)" >&2
-                  break
-                fi
+              fi
+
+              CHANGED=$(git diff --name-only 2>/dev/null || true)
+              if [ -n "$CHANGED" ]; then
+                APPLIED=$(echo "$CHANGED" | wc -l)
+                MODIFIED="$CHANGED"
+                echo "  Applied=$APPLIED (from git diff)" >&2
+                break
               fi
             else
               EXIT_CODE=$?

@@ -1,4 +1,4 @@
-name: AI Code Review
+name: ai-review
 
 on:
   pull_request:

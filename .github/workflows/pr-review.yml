@@ -530,7 +530,7 @@ For each Major-severity finding that has a concrete code fix suggestion (Before/
           NUM: ${{ github.event.number }}
         run: |
           sleep 10
-          gh workflow run code-review.yml -f pr_number="$NUM" 2>/dev/null || true
+          gh workflow run pr-review.yml -f pr_number="$NUM" 2>/dev/null || true
 
   autofix:
     runs-on: ubuntu-latest
@@ -728,10 +728,10 @@ For each Major-severity finding that has a concrete code fix suggestion (Before/
           fi
           echo "pushed=true" >> "$GITHUB_OUTPUT"
           echo "Dispatching review for round $COUNT..."
-          gh workflow run code-review.yml -f pr_number="$PR_NUMBER" 2>/dev/null || true
+          gh workflow run pr-review.yml -f pr_number="$PR_NUMBER" 2>/dev/null || true
           sleep 5
           for i in $(seq 1 30); do
-            LATEST=$(gh run list --workflow=code-review.yml --limit=5 --json databaseId,event \
+            LATEST=$(gh run list --workflow=pr-review.yml --limit=5 --json databaseId,event \
               --jq '[.[] | select(.event=="workflow_dispatch")] | first | .databaseId // 0' 2>/dev/null || echo "0")
             [ "$LATEST" = "0" ] && sleep 5 && continue
             gh run watch "$LATEST" --exit-status 2>/dev/null && break || sleep 10
@@ -787,4 +787,4 @@ For each Major-severity finding that has a concrete code fix suggestion (Before/
           NUM: ${{ github.event.number }}
         run: |
           sleep 10
-          gh workflow run code-review.yml -f pr_number="$NUM" 2>/dev/null || true
+          gh workflow run pr-review.yml -f pr_number="$NUM" 2>/dev/null || true

@@ -1,5 +1,8 @@
 package com.agent.code.core.tools
 
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
+
 class CircuitBreaker(private val openFor: Set<String> = emptySet()) {
     fun isOpen(providerId: String): Boolean = providerId in openFor
 }
@@ -31,8 +34,9 @@ class BudgetTrackingCircuitBreaker(
     }
 
     fun checkTimeBudget() {
-        val elapsed = startMark.elapsedNow().inWholeMilliseconds
-        if (elapsed >= budget.maxExecutionTimeMs) throw CircuitBreakerException("Time Budget Exceeded (${elapsed}ms)")
+        val elapsed = startMark.elapsedNow()
+        if (elapsed >= budget.maxExecutionTimeMs.toDuration(DurationUnit.MILLISECONDS))
+            throw CircuitBreakerException("Time Budget Exceeded (${elapsed.inWholeMilliseconds}ms)")
     }
 
     fun snapshot() = BudgetSnapshot(currentCostUsd, toolCallsCount, budget)

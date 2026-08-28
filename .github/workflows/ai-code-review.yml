@@ -430,12 +430,11 @@ jobs:
           REVIEW_BODY=$(cat /tmp/review.md)
           MOD=$(echo "$MODEL" | tr -d '\r\n')
 
-          opencode -p -m "$MOD" -q \
-            "You are a code fixer. Here is an AI code review of this repository:
+          opencode -p -m "$MOD" -q "You are a code fixer. Here is an AI code review of this repository:
 
-${REVIEW_BODY}
+          ${REVIEW_BODY}
 
-For each Major-severity finding that has a concrete code fix suggestion (Before/After or Fix blocks), read the file and apply the fix to disk. Only fix Major findings. After applying all fixes, output ONLY a JSON object like: {\"applied\": 3, \"modified\": [\"file1.py\", \"file2.yml\"]}. If no fixes possible, output {\"applied\": 0, \"modified\": []}. Do not output anything else." \
+          For each Major-severity finding that has a concrete code fix suggestion (Before/After or Fix blocks), read the file and apply the fix to disk. Only fix Major findings. After applying all fixes, output ONLY a JSON object like: {\"applied\": 3, \"modified\": [\"file1.py\", \"file2.yml\"]}. If no fixes possible, output {\"applied\": 0, \"modified\": []}. Do not output anything else." \
             > /tmp/opencode-fix-result.txt 2>&1 || true
 
           APPLIED=0; FAILED=0; MODIFIED=""

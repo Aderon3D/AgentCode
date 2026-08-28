@@ -1,17 +1,12 @@
-import re, json, sys, os, tempfile
+import json, sys, os, tempfile
 
 review_file = sys.argv[1] if len(sys.argv) > 1 else "/tmp/review.md"
+debug = "--debug" in sys.argv
 
-try:
-    content = open(review_file).read()
-except:
-    print("Cannot read review file", file=sys.stderr)
-    json.dump({"applied": 0, "failed": 0, "modified": []}, open("/tmp/fix-result.json", "w"))
-    sys.exit(0)
+content = open(review_file, encoding="utf-8").read()
 
-# Remove details blocks line by line (no regex on large content)
 lines = content.split("\n")
-cleaned_lines = []
+cleaned = []
 in_details = 0
 for line in lines:
     if "<details>" in line:
@@ -19,112 +14,177 @@ for line in lines:
     elif "</details>" in line:
         in_details = max(0, in_details - 1)
     elif in_details == 0:
-        cleaned_lines.append(line)
-content = "\n".join(cleaned_lines)
+        cleaned.append(line)
+
+findings = []
+current = []
+in_finding = False
+for line in cleaned:
+    if line.startswith("## Finding "):
+        if current and in_finding:
+            findings.append("\n".join(current))
+        current = [line]
+        in_finding = True
+    elif in_finding:
+        current.append(line)
+if current and in_finding:
+    findings.append("\n".join(current))
 
 applied = 0
 failed = 0
 modified = []
 
-# Split into sections by ## headers
-sections = re.split(r"(?=^## )", content, flags=re.MULTILINE)
+SPLIT_MARKERS = ["# Fix:", "# Fix -", "# Fix —", "# Should be:", "# Change to:", "# Replace with:", "# Updated"]
 
-for sec in sections:
-    if not sec.strip():
-        continue
 
-    # Check severity is Major
-    if not re.search(r"severity:\s*Major", sec, re.IGNORECASE):
-        continue
+def is_meta_comment(line):
+    """Check if a line is an instructional comment (not actual code)."""
+    stripped = line.strip()
+    if not stripped.startswith("#"):
+        return False
+    # "# Line N:" references
+    if stripped.startswith("# Line "):
+        return True
+    # "# In the X — do Y" descriptive comments
+    if "change" in stripped.lower() or "add" in stripped.lower():
+        return True
+    if "fix" in stripped.lower() and "—" in stripped:
+        return True
+    if "should be" in stripped.lower():
+        return True
+    if stripped.startswith("# Fix"):
+        return True
+    return False
 
-    # Extract file path
-    file_match = re.search(r"\*\*file:\*\*\s*`?([^`\n]+)`?", sec)
-    if not file_match:
-        continue
-    filepath = file_match.group(1).strip()
 
-    # Clean filepath (remove line numbers like :5)
-    if ":" in filepath and filepath.rsplit(":", 1)[1].isdigit():
-        filepath = filepath.rsplit(":", 1)[0]
-
-    # Find code blocks
-    blocks = list(re.finditer(r"```(\w+)?\s*\n(.*?)```", sec, re.DOTALL))
-
-    before_text = None
-    after_text = None
-
-    for i, m in enumerate(blocks):
-        block = m.group(2)
-
-        # Look for # Before marker
-        if re.search(r"# [Bb]efore", block):
-            # Extract text after # Before
-            bmatch = re.search(r"# [Bb]efore[^\n]*\n(.*?)(?=# [Aa]fter|# [Ff]ix:?\s*$|\Z)", block, re.DOTALL | re.MULTILINE)
-            if bmatch:
-                before_text = bmatch.group(1).strip()
-
-            # Look for # After or # Fix in same block
-            amatch = re.search(r"# [Aa]fter[^\n]*\n(.*?)$", block, re.DOTALL | re.MULTILINE)
-            if not amatch:
-                amatch = re.search(r"# [Ff]ix:?[^\n]*\n(.*?)$", block, re.DOTALL | re.MULTILINE)
-            if amatch:
-                after_text = amatch.group(1).strip()
-
-            # If no after in same block, check next block
-            if not after_text and i + 1 < len(blocks):
-                next_block = blocks[i + 1].group(2)
-                if not re.search(r"# [Bb]efore", next_block):
-                    after_text = next_block.strip()
+for i, sec in enumerate(findings):
+    sev_line = ""
+    for line in sec.split("\n")[:10]:
+        if "severity:" in line.lower():
+            sev_line = line.lower()
             break
-
-    # Fallback: look for "Concrete fix:" then two code blocks
-    if not before_text or not after_text:
-        fix_idx = sec.find("Concrete fix")
-        if fix_idx == -1:
-            fix_idx = sec.find("Suggested fix")
-        if fix_idx >= 0:
-            after_fix = sec[fix_idx:]
-            fix_blocks = list(re.finditer(r"```(\w+)?\s*\n(.*?)```", after_fix, re.DOTALL))
-            if len(fix_blocks) >= 2:
-                before_text = fix_blocks[0].group(2).strip()
-                after_text = fix_blocks[1].group(2).strip()
-            elif len(fix_blocks) == 1:
-                after_text = fix_blocks[0].group(2).strip()
-
-    # Fallback: "Replace X with Y"
-    if not before_text or not after_text:
-        rmatch = re.search(r"replace\s+`([^`]+)`\s+with\s+`([^`]+)`", sec, re.IGNORECASE)
-        if rmatch:
-            before_text = rmatch.group(1)
-            after_text = rmatch.group(2)
-
-    if not before_text or not after_text:
-        print(f"Skip: no before/after for {filepath}", file=sys.stderr)
-        failed += 1
+    if "major" not in sev_line:
         continue
 
-    if not os.path.isfile(filepath):
-        print(f"File not found: {filepath}", file=sys.stderr)
-        failed += 1
+    filepath = None
+    for line in sec.split("\n")[:10]:
+        if "file:" in line.lower():
+            start = line.find("`")
+            if start >= 0:
+                end = line.find("`", start + 1)
+                if end > start:
+                    filepath = line[start + 1 : end]
+            break
+    if not filepath:
         continue
+    if ":" in filepath:
+        parts = filepath.rsplit(":", 1)
+        if parts[1].replace("-", "").isdigit():
+            filepath = parts[0]
 
-    try:
-        file_content = open(filepath).read()
-        if before_text not in file_content:
-            print(f"Before text not found in {filepath}", file=sys.stderr)
+    code_blocks = []
+    block_lines = []
+    in_block = False
+    for line in sec.split("\n"):
+        if line.startswith("```") and not in_block:
+            in_block = True
+            block_lines = []
+        elif line.startswith("```") and in_block:
+            in_block = False
+            code_blocks.append("\n".join(block_lines))
+        elif in_block:
+            block_lines.append(line)
+
+    for block in code_blocks:
+        before_text = None
+        after_text = None
+
+        for marker in SPLIT_MARKERS:
+            # Find marker as start of a line
+            search_from = 0
+            while True:
+                idx = block.find(marker, search_from)
+                if idx < 0:
+                    break
+                # Check it's at start of line (or after only whitespace)
+                line_start = block.rfind("\n", 0, idx) + 1
+                prefix = block[line_start:idx]
+                if prefix.strip() == "":
+                    # Found at start of a line
+                    before_text = block[:idx].strip()
+                    after_start = idx + len(marker)
+                    while after_start < len(block) and block[after_start] in "\n\r":
+                        after_start += 1
+                    after_text = block[after_start:].strip()
+                    break
+                search_from = idx + 1
+            if before_text:
+                break
+
+        if not before_text or not after_text:
+            continue
+        if len(before_text) < 5 or len(after_text) < 3:
+            continue
+
+        # Strip meta-comment lines from before text
+        before_lines = before_text.split("\n")
+        before_lines = [l for l in before_lines if not is_meta_comment(l)]
+        before_text = "\n".join(before_lines)
+
+        if not before_text.strip():
+            continue
+
+        # Normalize indentation
+        before_lines = before_text.split("\n")
+        after_lines = after_text.split("\n")
+        non_empty = [l for l in before_lines if l.strip()]
+        if non_empty:
+            min_indent = min(len(l) - len(l.lstrip()) for l in non_empty)
+            before_text = "\n".join(
+                l[min_indent:] if len(l) >= min_indent else l.lstrip()
+                for l in before_lines
+            )
+            after_text = "\n".join(
+                l[min_indent:] if len(l) >= min_indent else l.lstrip()
+                for l in after_lines
+            )
+
+        if debug:
+            print("Finding %d: %s" % (i + 1, filepath))
+            print("  Before (%d chars):" % len(before_text))
+            for line in before_text.split("\n")[:5]:
+                print("    |%s|" % line)
+            print("  After (%d chars):" % len(after_text))
+            for line in after_text.split("\n")[:5]:
+                print("    |%s|" % line)
+
+        if not os.path.isfile(filepath):
+            print("File not found: %s" % filepath, file=sys.stderr)
             failed += 1
             continue
-        new_content = file_content.replace(before_text, after_text, 1)
-        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(filepath) or ".")
-        with os.fdopen(fd, "w") as tmpf:
-            tmpf.write(new_content)
-        os.replace(tmp, filepath)
-        applied += 1
-        modified.append(filepath)
-        print(f"Applied fix to {filepath}")
-    except Exception as e:
-        print(f"Error: {filepath}: {e}", file=sys.stderr)
-        failed += 1
 
-json.dump({"applied": applied, "failed": failed, "modified": modified}, open("/tmp/fix-result.json", "w"))
-print(f"Applied={applied} Failed={failed}")
+        try:
+            file_content = open(filepath, encoding="utf-8").read()
+            if before_text not in file_content:
+                print("Before text not found in %s" % filepath, file=sys.stderr)
+                failed += 1
+                continue
+
+            new_content = file_content.replace(before_text, after_text, 1)
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(filepath) or ".")
+            with os.fdopen(fd, "w") as tmpf:
+                tmpf.write(new_content)
+            os.replace(tmp, filepath)
+            applied += 1
+            modified.append(filepath)
+            print("Applied fix to %s" % filepath)
+            break
+        except Exception as e:
+            print("Error: %s: %s" % (filepath, e), file=sys.stderr)
+            failed += 1
+
+json.dump(
+    {"applied": applied, "failed": failed, "modified": modified},
+    open("/tmp/fix-result.json", "w"),
+)
+print("Applied=%d Failed=%d" % (applied, failed))

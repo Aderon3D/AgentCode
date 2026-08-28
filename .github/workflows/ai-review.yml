@@ -55,7 +55,8 @@ jobs:
           PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          echo "$PR_NUMBER" | grep -qE '^[0-9]+$' || { echo "Invalid PR number"; exit 1; }
+          NUMBER" ] && k that PR_NUMBER is actually set before validation:
+[ -n "$PR_NUMBER" ] && echo "$PR_NUMBER" | grep -qE '^[0-9]+$' || { echo "Invalid PR number"; exit 1; }
           if [ -n "$PR_NUMBER" ]; then
             gh pr diff "$PR_NUMBER" > /tmp/review.diff
           elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
@@ -357,6 +358,23 @@ jobs:
             (cd .opencode && npm install --ignore-scripts) || true
           fi
 
+      - name: Resolve model
+        run: |
+          FAIL=""
+          for MODEL in "opencode/mimo-v2.5-free" "opencode/hy3-free" "opencode/nemotron-3-ultra-free"; do
+            echo "Testing $MODEL..."
+            RESPONSE=$(timeout 30 opencode -p --model "$MODEL" "Respond with only the word PONG" 2>&1 || true)
+            if echo "$RESPONSE" | grep -qi "PONG"; then
+              echo "MODEL=$MODEL" >> "$GITHUB_ENV"
+              echo "Model resolved: $MODEL"
+              exit 0
+            fi
+            FAIL="$FAIL$MODEL "
+            sleep 2
+          done
+          echo "MODEL=opencode/mimo-v2.5-free" >> "$GITHUB_ENV"
+          echo "All models failed: $FAIL, using default"
+
       - name: Locate review
         env:
           GH_TOKEN: ${{ github.token }}
@@ -397,24 +415,42 @@ jobs:
       - name: Apply AI fixes
         id: apply
         if: env.NO_REVIEW != 'true'
+        env:
+          MODEL: ${{ env.MODEL || 'opencode/mimo-v2.5-free' }}
         run: |
           set -euo pipefail
 
-          if [ ! -f /tmp/review.md ]; then
+          if [ ! -f /tmp/review.md ] || [ ! -s /tmp/review.md ]; then
             echo "applied=0" >> "$GITHUB_OUTPUT"
             echo "failed=0" >> "$GITHUB_OUTPUT"
             echo "modified=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          python3 scripts/apply_review_fixes.py /tmp/review.md
+          REVIEW_BODY=$(cat /tmp/review.md)
+          MOD=$(echo "$MODEL" | tr -d '\r\n')
 
-          if [ -f /tmp/fix-result.json ]; then
-            APPLIED=$(python3 -c "import json; print(json.load(open('/tmp/fix-result.json')).get('applied',0))" 2>/dev/null || echo 0)
-            FAILED=$(python3 -c "import json; print(json.load(open('/tmp/fix-result.json')).get('failed',0))" 2>/dev/null || echo 0)
-            MODIFIED=$(python3 -c "import json; print('\n'.join(json.load(open('/tmp/fix-result.json')).get('modified',[])))" 2>/dev/null || echo "")
-          else
-            APPLIED=0; FAILED=0; MODIFIED=""
+          opencode -p -m "$MOD" -q \
+            "You are a code fixer. Here is an AI code review of this repository:
+
+${REVIEW_BODY}
+
+For each Major-severity finding that has a concrete code fix suggestion (Before/After or Fix blocks), read the file and apply the fix to disk. Only fix Major findings. After applying all fixes, output ONLY a JSON object like: {\"applied\": 3, \"modified\": [\"file1.py\", \"file2.yml\"]}. If no fixes possible, output {\"applied\": 0, \"modified\": []}. Do not output anything else." \
+            > /tmp/opencode-fix-result.txt 2>&1 || true
+
+          APPLIED=0; FAILED=0; MODIFIED=""
+          if [ -f /tmp/opencode-fix-result.txt ]; then
+            JSON_LINE=$(grep -o '{[^}]*"applied"[^}]*}' /tmp/opencode-fix-result.txt | head -1 || true)
+            if [ -n "$JSON_LINE" ]; then
+              APPLIED=$(echo "$JSON_LINE" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('applied',0))" 2>/dev/null || echo 0)
+              MODIFIED=$(echo "$JSON_LINE" | python3 -c "import sys,json; print('\n'.join(json.loads(sys.stdin.read()).get('modified',[])))" 2>/dev/null || echo "")
+            fi
+          fi
+
+          FAILED_COUNT=$(git diff --name-only | wc -l)
+          if [ "$APPLIED" -eq 0 ] && [ "$FAILED_COUNT" -gt 0 ]; then
+            APPLIED=$FAILED_COUNT
+            MODIFIED=$(git diff --name-only)
           fi
 
           echo "Applied=$APPLIED Failed=$FAILED" >&2
@@ -422,11 +458,27 @@ jobs:
           { echo "applied=$APPLIED" >> "$GITHUB_OUTPUT"; echo "failed=$FAILED" >> "$GITHUB_OUTPUT"; }
           { echo "modified<<$DELIM"; printf '%s\n' "$MODIFIED"; echo "$DELIM"; } >> "$GITHUB_OUTPUT"
 
+      - name: Fallback diff-based detection
+        if: steps.apply.outputs.applied == '0'
+        id: fallback
+        run: |
+          MODIFIED=$(git diff --name-only)
+          if [ -n "$MODIFIED" ]; then
+            COUNT=$(echo "$MODIFIED" | wc -l)
+            echo "applied=$COUNT" >> "$GITHUB_OUTPUT"
+            DELIM="MODOUT_${GITHUB_RUN_ID}"
+            { echo "modified<<$DELIM"; printf '%s\n' "$MODIFIED"; echo "$DELIM"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "applied=0" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Commit and push
         id: commit
-        if: steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0'
+        if: |
+          (steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0') ||
+          (steps.fallback.outputs.applied != '' && steps.fallback.outputs.applied != '0')
         env:
-          MOD: ${{ steps.apply.outputs.modified }}
+          MOD: ${{ steps.apply.outputs.modified || steps.fallback.outputs.modified }}
         run: |
           set -euo pipefail
           if [ -n "${REVIEW_ID:-}" ] && git log --oneline --grep="Review #$REVIEW_ID" --fixed-strings HEAD | grep -q .; then
@@ -539,7 +591,7 @@ jobs:
           FAIL=""
           for MODEL in "opencode/mimo-v2.5-free" "opencode/hy3-free" "opencode/nemotron-3-ultra-free"; do
             echo "Testing $MODEL..."
-            RESPONSE=$(timeout 30 opencode --headless --yes --model "$MODEL" -p "Respond with only the word PONG" 2>&1 || true)
+            RESPONSE=$(timeout 30 opencode -p -m "$MODEL" -q "Respond with only the word PONG" 2>&1 || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then
               echo "MODEL=$MODEL" >> "$GITHUB_ENV"
               echo "MODEL_LOADED=true" >> "$GITHUB_ENV"
@@ -665,7 +717,9 @@ jobs:
           fi
           HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
-          git add -u
+          -name-only | while IFS= read -r f; do
+  [ -n "$f" ] && git add "$f"
+done
           MSG="fix: apply review findings (round $COUNT) - Hash: $HASH"
           git commit -m "$MSG" || { echo "Nothing to commit"; LAST_DONE="true"; break; }
           if ! git push; then

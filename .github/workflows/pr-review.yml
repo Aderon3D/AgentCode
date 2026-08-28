@@ -233,7 +233,7 @@ jobs:
               ALL_FINDINGS=$(printf '%s\n\n%s' "$ALL_FINDINGS" "$ROUND_REVIEW")
             fi
 
-            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '\*{0,2}severity:\*{0,2}\s*major' || true)
+            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '^\s*\*{0,2}severity:\s*\*{0,2}major' || true)
 
             echo "Round $ROUND: Major=$MAJOR_COUNT" >&2
 
@@ -336,7 +336,8 @@ jobs:
           AUTH=$(echo "$PR_DATA" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r.get('headRepositoryOwner',{}).get('login',''))")
           [ "$AUTH" = "$OWNER" ] || { echo "Fork PRs blocked"; exit 1; }
           SAFE=$(printf '%s' "$BRANCH" | tr -d '\r\n')
-          echo "$SAFE" | grep -qE '^[a-zA-Z0-9._/\-]+$' || { echo "Bad branch ref"; exit 1; }
+          case "$SAFE" in *..*) echo "Bad branch ref (path traversal)"; exit 1;; esac
+          printf '%s' "$SAFE" | grep -qE '^[a-zA-Z0-9._/\-]+$' || { echo "Bad branch ref"; exit 1; }
           D="GHEOF_${GITHUB_RUN_ID}"
           { echo "HEAD_REF<<$D"; echo "$SAFE"; echo "$D"; } >> "$GITHUB_ENV"
 
@@ -563,7 +564,8 @@ jobs:
           AUTH=$(echo "$PR_DATA" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r.get('headRepositoryOwner',{}).get('login',''))")
           [ "$AUTH" = "$OWNER" ] || { echo "Fork PRs blocked"; exit 1; }
           SAFE=$(printf '%s' "$BRANCH" | tr -d '\r\n')
-          echo "$SAFE" | grep -qE '^[a-zA-Z0-9._/\-]+$' || { echo "Bad branch ref"; exit 1; }
+          case "$SAFE" in *..*) echo "Bad branch ref (path traversal)"; exit 1;; esac
+          printf '%s' "$SAFE" | grep -qE '^[a-zA-Z0-9._/\-]+$' || { echo "Bad branch ref"; exit 1; }
           D="GHEOF_${GITHUB_RUN_ID}"
           { echo "HEAD_REF<<$D"; echo "$SAFE"; echo "$D"; } >> "$GITHUB_ENV"
 

@@ -16,7 +16,6 @@ class BudgetTrackingCircuitBreaker(
 ) {
     private var currentCostUsd = 0.0
     private var toolCallsCount = 0
-    private val startTimeMs = kotlin.time.TimeSource.Monotonic.markNow().elapsedNow().inWholeMilliseconds
 
     fun isOpen(providerId: String): Boolean = providerId in providerOpenFor
 

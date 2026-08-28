@@ -36,7 +36,7 @@ jobs:
 
       - name: Cache opencode
         id: cache-opencode
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: ${{ env.HOME }}/.opencode
           key: opencode-${{ runner.os }}-v1
@@ -53,7 +53,7 @@ jobs:
 
       - name: Cache opencode plugins
         id: cache-plugins
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: .opencode/node_modules
           key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}
@@ -366,7 +366,7 @@ jobs:
 
       - name: Cache opencode
         id: cache-opencode
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: ${{ env.HOME }}/.opencode
           key: opencode-${{ runner.os }}-v1
@@ -383,7 +383,7 @@ jobs:
 
       - name: Cache opencode plugins
         id: cache-plugins
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: .opencode/node_modules
           key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}
@@ -649,7 +649,7 @@ jobs:
 
       - name: Cache opencode
         id: cache-opencode
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: ${{ env.HOME }}/.opencode
           key: opencode-${{ runner.os }}-v1
@@ -666,7 +666,7 @@ jobs:
 
       - name: Cache opencode plugins
         id: cache-plugins
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: .opencode/node_modules
           key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}

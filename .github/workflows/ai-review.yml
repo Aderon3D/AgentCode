@@ -409,9 +409,7 @@ jobs:
             exit 0
           fi
 
-          REVIEW_CONTENT=$(cat /tmp/review.md)
-
-          if echo "$REVIEW_CONTENT" | grep -q "No issues found"; then
+          if grep -q "No issues found" /tmp/review.md 2>/dev/null; then
             echo "applied=0" >> "$GITHUB_OUTPUT"
             echo "failed=0" >> "$GITHUB_OUTPUT"
             echo "modified=" >> "$GITHUB_OUTPUT"
@@ -432,32 +430,8 @@ jobs:
             echo "Attempting fixes with: $MODEL" >&2
 
             PROMPT_FILE=$(mktemp)
-            cat > "$PROMPT_FILE" << 'FIXPROMPT'
-You are a code fixer. A code review found issues in this repository.
-
-Your task: read the review, then apply each fix to the actual files.
-
-INSTRUCTIONS:
-1. Read the review at /tmp/review.md
-2. For each finding marked Major severity with a concrete fix:
-   - Read the target file
-   - Apply the fix using the edit tool
-3. Track which files you modified
-
-CONSTRAINTS:
-- Only apply fixes for findings with severity Major
-- Only fix files that exist in this repository
-- Never modify files outside the repo root
-- Do not add comments or explanations to the code
-- Make minimal changes — apply exactly what the review suggests
-
-After applying all fixes, write a JSON summary to /tmp/fix-result.json:
-{"applied": <number>, "failed": <number>, "modified": ["file1", "file2"]}
-
-Start by reading the review, then apply fixes one at a time.
-FIXPROMPT
-
-            echo "$REVIEW_CONTENT" >> "$PROMPT_FILE"
+            printf 'import sys\nreview = open("/tmp/review.md").read()\nprompt = (\n    "You are a code fixer. A code review found issues in this repository.\\n\\n"\n    "Your task: read the review, then apply each fix to the actual files.\\n\\n"\n    "INSTRUCTIONS:\\n"\n    "1. Read the review at /tmp/review.md\\n"\n    "2. For each finding marked Major severity with a concrete fix:\\n"\n    "   - Read the target file\\n"\n    "   - Apply the fix using the edit tool\\n"\n    "3. Track which files you modified\\n\\n"\n    "CONSTRAINTS:\\n"\n    "- Only apply fixes for findings with severity Major\\n"\n    "- Only fix files that exist in this repository\\n"\n    "- Never modify files outside the repo root\\n"\n    "- Do not add comments or explanations to the code\\n"\n    "- Make minimal changes - apply exactly what the review suggests\\n\\n"\n    "After applying all fixes, write a JSON summary to /tmp/fix-result.json:\\n"\n    "{\\\"applied\\\": <number>, \\\"failed\\\": <number>, \\\"modified\\\": [\\\"file1\\\", \\\"file2\\\"]}\\n\\n"\n    "Start by reading the review, then apply fixes one at a time.\\n\\n"\n    "REVIEW CONTENT:\\n"\n)\nsys.stdout.write(prompt + review)\n' > /tmp/gen-prompt.py
+            python3 /tmp/gen-prompt.py > "$PROMPT_FILE"
 
             RESULT_FILE=$(mktemp)
             ERR_FILE=$(mktemp)

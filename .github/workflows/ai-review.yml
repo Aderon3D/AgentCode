@@ -20,14 +20,13 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
-  actions: write
 
 jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: >
-      github.event.action != 'labeled' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'ai-review') &&
       !contains(github.event.pull_request.labels.*.name, 'fix-requested') &&
       !contains(github.event.pull_request.labels.*.name, 'autofix-requested')
     steps:
@@ -59,6 +58,9 @@ jobs:
           echo "$PR_NUMBER" | grep -qE '^[0-9]+$' || { echo "Invalid PR number"; exit 1; }
           if [ -n "$PR_NUMBER" ]; then
             gh pr diff "$PR_NUMBER" > /tmp/review.diff
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "::error::workflow_dispatch requires pr_number input"
+            exit 1
           else
             git diff HEAD~1 HEAD > /tmp/review.diff 2>/dev/null || git show HEAD > /tmp/review.diff 2>/dev/null || touch /tmp/review.diff
           fi

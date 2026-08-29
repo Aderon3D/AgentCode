@@ -328,6 +328,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      workflows: write
       actions: write
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
@@ -591,6 +592,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      workflows: write
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false

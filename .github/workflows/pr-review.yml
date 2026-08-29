@@ -537,6 +537,8 @@ jobs:
           fi
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
           git add -A -- ':!.opencode'
+          # Drop any symlinks the agent staged (path-traversal guard, issue #65)
+          git diff --cached --name-only | while IFS= read -r f; do [ -L "$f" ] && git restore --staged --quiet "$f" && echo "Skipped symlink: $f"; done
           if git diff --cached --quiet; then
             echo "Nothing staged to commit"
             exit 0

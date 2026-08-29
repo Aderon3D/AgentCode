@@ -528,8 +528,6 @@ jobs:
         if: |
           (steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0') ||
           (steps.fallback.outputs.applied != '' && steps.fallback.outputs.applied != '0')
-        env:
-          MOD: ${{ steps.apply.outputs.modified || steps.fallback.outputs.modified }}
         run: |
           set -euo pipefail
           if [ -n "${REVIEW_ID:-}" ] && git log --oneline --grep="Review #$REVIEW_ID" --fixed-strings HEAD | grep -q .; then
@@ -537,8 +535,11 @@ jobs:
             exit 0
           fi
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
-          [ -n "$MOD" ] || exit 0
-          while IFS= read -r f; do [ -n "$f" ] && git add "$f"; done < <(printf '%s' "$MOD")
+          git add -A -- ':!.opencode'
+          if git diff --cached --quiet; then
+            echo "Nothing staged to commit"
+            exit 0
+          fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
           git commit -m "fix: apply AI review suggestions${EXTRA}"
           if ! git push; then

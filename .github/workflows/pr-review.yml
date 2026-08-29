@@ -861,3 +861,5 @@ jobs:
         run: |
           sleep 10
           gh workflow run pr-review.yml -f pr_number="$NUM" 2>/dev/null || true
+
+# ponytail: fixer edits repo files directly via agent tools; commit step stages the real diff.

@@ -328,6 +328,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      workflows: write
       actions: write
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
@@ -454,6 +455,15 @@ jobs:
         if: env.NO_REVIEW != 'true'
         env:
           MODEL: ${{ env.MODEL || 'opencode/mimo-v2.5-free' }}
+          FIX_PROMPT: |
+            You are a code fixer agent. Apply fixes for Major-severity findings in the AI review below.
+
+            Use your file-editing tools to edit the repository files directly.
+            Rules:
+            - Only fix Major-severity findings that have a concrete fix.
+            - Apply the minimal change that resolves each finding; do not refactor unrelated code.
+            - Do not add explanatory comments or summaries to the code.
+            - If no Major finding is fixable, make no changes at all.
         run: |
           set -euo pipefail
 
@@ -465,71 +475,40 @@ jobs:
           fi
 
           MOD=$(echo "$MODEL" | tr -d '\r\n')
-          export MOD
-          python3 - <<'PYEOF'
-          import os, re, subprocess, sys
-          mod = os.environ.get('MOD', '')
-          if not mod:
-              mod = 'opencode/mimo-v2.5-free'
-          review = open('/tmp/review.md').read()
-          prompt = (
-            "You are a code fixer. Apply fixes for Major-severity findings in the AI review below.\n"
-            "For each Major finding that has a concrete fix (a Before/After or Fix code block), "
-            "output ONE fenced replace block.\n\n"
-            "Format (repeat for each fix):\n"
-            "```replace\n"
-            "FILE: <relative/path/to/file>\n"
-            "<<<<<<< SEARCH\n<exact existing lines>\n=======\n<exact new lines>\n>>>>>>> REPLACE\n"
-            "```\n\n"
-            "Rules:\n"
-            "- SEARCH must exactly match existing file content (copy verbatim from the file).\n"
-            "- Only fix Major findings. If none are fixable, output exactly: NONE\n"
-            "- Do not edit files yourself; only output the replace blocks.\n\n"
-            "REVIEW:\n" + review
-          )
-          try:
-              r = subprocess.run(['opencode', '-p', '-m', mod, '-q', prompt],
-                                  capture_output=True, text=True, timeout=600)
-              out = (r.stdout or '') + (r.stderr or '')
-          except Exception as e:
-              out = ''
-              print('opencode call failed: %s' % e, file=sys.stderr)
-          open('/tmp/opencode-fix-result.txt', 'w').write(out)
-          blocks = re.findall(r'```replace\s*(.*?)```', out, re.DOTALL)
-          applied = failed = 0
-          modified = []
-          for b in blocks:
-              m = re.search(r'FILE:\s*(\S+)\s*<<<<<<< SEARCH\n(.*?)\n=======\n(.*?)\n>>>>>>> REPLACE', b, re.DOTALL)
-              if not m:
-                  failed += 1
-                  continue
-              fp, old, new = m.group(1).strip(), m.group(2), m.group(3)
-              if not os.path.exists(fp):
-                  failed += 1
-                  continue
-              try:
-                  c = open(fp).read()
-              except Exception:
-                  failed += 1
-                  continue
-              if old not in c:
-                  failed += 1
-                  continue
-              open(fp, 'w').write(c.replace(old, new, 1))
-              applied += 1
-              if fp not in modified:
-                  modified.append(fp)
-          gh_out = os.environ.get('GITHUB_OUTPUT', '')
-          run_id = os.environ.get('GITHUB_RUN_ID', '')
-          with open(gh_out, 'a') as f:
-              f.write('applied=%d\n' % applied)
-              f.write('failed=%d\n' % failed)
-              delim = 'MODOUT_' + run_id
-              f.write('modified<<%s\n' % delim)
-              f.write('\n'.join(modified) + '\n')
-              f.write('%s\n' % delim)
-          print('applied=%d failed=%d modified=%s' % (applied, failed, modified))
-          PYEOF
+          PROMPT=/tmp/fix-prompt.txt
+          {
+            printf '%s\n' "$FIX_PROMPT"
+            echo ""
+            echo "REVIEW:"
+            cat /tmp/review.md
+          } > "$PROMPT"
+
+          echo "opencode: $(which opencode) $MOD" >&2
+          set +e
+          opencode run -m "$MOD" < "$PROMPT" > /tmp/opencode-fix-result.txt 2>&1
+          RC=$?
+          set -e
+          echo "opencode exit=$RC" >&2
+          tail -30 /tmp/opencode-fix-result.txt >&2
+
+          COUNT=0
+          MODIFIED=$({ git diff --name-only; git ls-files --others --exclude-standard; } | grep -v '^\.opencode/' | sort -u)
+          if [ -n "$MODIFIED" ]; then
+            COUNT=$(printf '%s\n' "$MODIFIED" | wc -l)
+            DELIM="MODOUT_${GITHUB_RUN_ID}"
+            {
+              echo "applied=$COUNT"
+              echo "failed=0"
+              echo "modified<<$DELIM"
+              printf '%s\n' "$MODIFIED"
+              echo "$DELIM"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "applied=0" >> "$GITHUB_OUTPUT"
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+            echo "modified=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "applied=$COUNT" >&2
 
       - name: Fallback diff-based detection
         if: steps.apply.outputs.applied == '0'
@@ -550,8 +529,6 @@ jobs:
         if: |
           (steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0') ||
           (steps.fallback.outputs.applied != '' && steps.fallback.outputs.applied != '0')
-        env:
-          MOD: ${{ steps.apply.outputs.modified || steps.fallback.outputs.modified }}
         run: |
           set -euo pipefail
           if [ -n "${REVIEW_ID:-}" ] && git log --oneline --grep="Review #$REVIEW_ID" --fixed-strings HEAD | grep -q .; then
@@ -559,8 +536,11 @@ jobs:
             exit 0
           fi
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
-          [ -n "$MOD" ] || exit 0
-          while IFS= read -r f; do [ -n "$f" ] && git add "$f"; done < <(printf '%s' "$MOD")
+          git add -A -- ':!.opencode'
+          if git diff --cached --quiet; then
+            echo "Nothing staged to commit"
+            exit 0
+          fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
           git commit -m "fix: apply AI review suggestions${EXTRA}"
           if ! git push; then
@@ -612,6 +592,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      workflows: write
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false
@@ -880,3 +861,5 @@ jobs:
         run: |
           sleep 10
           gh workflow run pr-review.yml -f pr_number="$NUM" 2>/dev/null || true
+
+# ponytail: fixer edits repo files directly via agent tools; commit step stages the real diff.

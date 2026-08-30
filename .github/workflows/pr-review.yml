@@ -546,10 +546,20 @@ jobs:
           fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
           git commit -m "fix: apply AI review suggestions${EXTRA}"
+          echo "=== DEBUG: SAFE=$SAFE HEAD_REF=$HEAD_REF ==="
+          echo "=== DEBUG: git remote -v ==="
+          git remote -v
+          echo "=== DEBUG: git branch -vv ==="
+          git branch -vv
+          echo "=== DEBUG: git status ==="
+          git status --short
+          echo "=== DEBUG: git diff HEAD~1 --stat ==="
+          git diff HEAD~1 --stat 2>/dev/null || echo "no previous commit"
           set +e
-          PUSH_OUT=$(git push "origin" "$SAFE" 2>&1)
+          PUSH_OUT=$(git push "origin" "HEAD:refs/heads/$HEAD_REF" 2>&1)
           PRC=$?
           set -e
+          echo "=== DEBUG: push exit=$PRC output=$PUSH_OUT ==="
           if [ "$PRC" -ne 0 ]; then
             echo "Push failed (exit $PRC): $PUSH_OUT"
             echo "pushed=false" >> "$GITHUB_OUTPUT"

@@ -32,13 +32,13 @@ jobs:
       !contains(github.event.pull_request.labels.*.name, 'fix-requested') &&
       !contains(github.event.pull_request.labels.*.name, 'autofix-requested')
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Cache opencode
         id: cache-opencode
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ env.HOME }}/.opencode
           key: opencode-${{ runner.os }}-v1
@@ -55,7 +55,7 @@ jobs:
 
       - name: Cache opencode plugins
         id: cache-plugins
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .opencode/node_modules
           key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}
@@ -357,14 +357,14 @@ jobs:
           D="GHEOF_${GITHUB_RUN_ID}"
           { echo "HEAD_REF<<$D"; echo "$SAFE"; echo "$D"; } >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.HEAD_REF }}
           fetch-depth: 0
 
       - name: Cache opencode
         id: cache-opencode
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ env.HOME }}/.opencode
           key: opencode-${{ runner.os }}-v1
@@ -381,7 +381,7 @@ jobs:
 
       - name: Cache opencode plugins
         id: cache-plugins
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .opencode/node_modules
           key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}
@@ -650,14 +650,14 @@ jobs:
           D="GHEOF_${GITHUB_RUN_ID}"
           { echo "HEAD_REF<<$D"; echo "$SAFE"; echo "$D"; } >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ env.HEAD_REF }}
           fetch-depth: 0
 
       - name: Cache opencode
         id: cache-opencode
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ env.HOME }}/.opencode
           key: opencode-${{ runner.os }}-v1
@@ -674,7 +674,7 @@ jobs:
 
       - name: Cache opencode plugins
         id: cache-plugins
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .opencode/node_modules
           key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}

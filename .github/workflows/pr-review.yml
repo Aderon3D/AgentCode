@@ -18,8 +18,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
+  workflows: write
 
 jobs:
   review:
@@ -325,11 +326,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'fix-requested')
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
-      workflows: write
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false
@@ -604,10 +600,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'autofix-requested')
-    permissions:
-      contents: write
-      pull-requests: write
-      workflows: write
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false

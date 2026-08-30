@@ -548,14 +548,23 @@ jobs:
           fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
           git commit -m "fix: apply AI review suggestions${EXTRA}"
-          set +e
-          PUSH_OUT=$(git push "origin" "$SAFE" 2>&1)
-          PRC=$?
-          set -e
-          if [ "$PRC" -ne 0 ]; then
-            echo "Push failed (exit $PRC): $PUSH_OUT"
-            echo "pushed=false" >> "$GITHUB_OUTPUT"
-            exit 1
+          # Push via GitHub API (GITHUB_TOKEN cannot git push to PR branches)
+          BRANCH="$HEAD_REF"
+          BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha' 2>/dev/null)
+          if [ -z "$BASE_SHA" ]; then
+            echo "Cannot get branch SHA"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
+          fi
+          TREE_SHA=$(git rev-parse HEAD^{tree})
+          COMMIT_MSG="fix: apply AI review suggestions${EXTRA}"
+          NEW_SHA=$(gh api -X POST "repos/$REPO/git/commits" \
+            -f message="$COMMIT_MSG" -f tree="$TREE_SHA" -f parents[]="$BASE_SHA" \
+            --jq '.sha' 2>/dev/null)
+          if [ -z "$NEW_SHA" ]; then
+            echo "Cannot create commit"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
+          fi
+          gh api -X PATCH "repos/$REPO/git/refs/heads/$BRANCH" -f sha="$NEW_SHA" -f force="false" 2>/dev/null
+          if [ $? -ne 0 ]; then
+            echo "Cannot update ref"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
           fi
           echo "pushed=true" >> "$GITHUB_OUTPUT"
 
@@ -808,15 +817,14 @@ jobs:
           done
           MSG="fix: apply review findings (round $COUNT) - Hash: $HASH"
           git commit -m "$MSG" || { echo "Nothing to commit"; LAST_DONE="true"; break; }
-          set +e
-          PUSH_OUT=$(git push "origin" "$SAFE" 2>&1)
-          PRC=$?
-          set -e
-          if [ "$PRC" -ne 0 ]; then
-            echo "Push failed (exit $PRC): $PUSH_OUT"
-            echo "pushed=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
+          BRANCH="$HEAD_REF"
+          BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha' 2>/dev/null)
+          TREE_SHA=$(git rev-parse HEAD^{tree})
+          NEW_SHA=$(gh api -X POST "repos/$REPO/git/commits" \
+            -f message="$MSG" -f tree="$TREE_SHA" -f parents[]="$BASE_SHA" \
+            --jq '.sha' 2>/dev/null)
+          if [ -z "$NEW_SHA" ]; then echo "Cannot create commit"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1; fi
+          gh api -X PATCH "repos/$REPO/git/refs/heads/$BRANCH" -f sha="$NEW_SHA" -f force="false" 2>/dev/null || { echo "Cannot update ref"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1; }
           echo "pushed=true" >> "$GITHUB_OUTPUT"
           echo "Dispatching review for round $COUNT..."
           gh workflow run pr-review.yml -f pr_number="$PR_NUMBER" 2>/dev/null || true

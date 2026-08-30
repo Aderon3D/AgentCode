@@ -526,6 +526,11 @@ jobs:
         if: |
           (steps.apply.outputs.applied != '' && steps.apply.outputs.applied != '0') ||
           (steps.fallback.outputs.applied != '' && steps.fallback.outputs.applied != '0')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.head_ref }}
+          NUM: ${{ github.event.number }}
         run: |
           set -euo pipefail
           if [ -n "${REVIEW_ID:-}" ] && git log --oneline --grep="Review #$REVIEW_ID" --fixed-strings HEAD | grep -q .; then
@@ -718,6 +723,9 @@ jobs:
         env:
           MOD: ${{ env.MODEL }}
           PR_NUMBER: ${{ github.event.number }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           MAX_ROUNDS=5; COUNT=0; LAST_DONE="false"

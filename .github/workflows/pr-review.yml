@@ -2,11 +2,13 @@ name: AI Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize, labeled]
+    types: [opened, synchronize]
     paths-ignore:
       - '**.md'
       - 'docs/**'
       - '.github/CODEOWNERS'
+  pull_request_target:
+    types: [labeled]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -324,7 +326,7 @@ jobs:
   fix:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'fix-requested')
+    if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && contains(github.event.pull_request.labels.*.name, 'fix-requested')
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false
@@ -603,7 +605,7 @@ jobs:
   autofix:
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'autofix-requested')
+    if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && contains(github.event.pull_request.labels.*.name, 'autofix-requested')
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false

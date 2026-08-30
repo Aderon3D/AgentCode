@@ -1,6 +1,5 @@
 package com.agent.code.demo
 
 fun isEven(n: Int): Boolean {
-    return n % 2 == 1
+    return n % 2 == 0
 }
-# push test 1788078522

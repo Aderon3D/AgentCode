@@ -795,7 +795,12 @@ jobs:
           done
           MSG="fix: apply review findings (round $COUNT) - Hash: $HASH"
           git commit -m "$MSG" || { echo "Nothing to commit"; LAST_DONE="true"; break; }
-          if ! git push; then
+          set +e
+          git push "origin" "$SAFE" 2> /tmp/push-err.txt
+          PRC=$?
+          set -e
+          if [ "$PRC" -ne 0 ]; then
+            echo "Push failed:"; cat /tmp/push-err.txt
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
@@ -1125,7 +1130,12 @@ jobs:
           done
           MSG="fix: apply review findings (round $COUNT) - Hash: $HASH"
           git commit -m "$MSG" || { echo "Nothing to commit"; LAST_DONE="true"; break; }
-          if ! git push; then
+          set +e
+          git push "origin" "$SAFE" 2> /tmp/push-err.txt
+          PRC=$?
+          set -e
+          if [ "$PRC" -ne 0 ]; then
+            echo "Push failed:"; cat /tmp/push-err.txt
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi

@@ -2,11 +2,13 @@ name: AI Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize, labeled]
+    types: [opened, synchronize]
     paths-ignore:
       - '**.md'
       - 'docs/**'
       - '.github/CODEOWNERS'
+  pull_request_target:
+    types: [labeled]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -324,7 +326,7 @@ jobs:
   fix:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'fix-requested')
+    if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && contains(github.event.pull_request.labels.*.name, 'fix-requested')
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false
@@ -546,20 +548,10 @@ jobs:
           fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
           git commit -m "fix: apply AI review suggestions${EXTRA}"
-          echo "=== DEBUG: SAFE=$SAFE HEAD_REF=$HEAD_REF ==="
-          echo "=== DEBUG: git remote -v ==="
-          git remote -v
-          echo "=== DEBUG: git branch -vv ==="
-          git branch -vv
-          echo "=== DEBUG: git status ==="
-          git status --short
-          echo "=== DEBUG: git diff HEAD~1 --stat ==="
-          git diff HEAD~1 --stat 2>/dev/null || echo "no previous commit"
           set +e
           PUSH_OUT=$(git push "origin" "HEAD:refs/heads/$HEAD_REF" 2>&1)
           PRC=$?
           set -e
-          echo "=== DEBUG: push exit=$PRC output=$PUSH_OUT ==="
           if [ "$PRC" -ne 0 ]; then
             echo "Push failed (exit $PRC): $PUSH_OUT"
             echo "pushed=false" >> "$GITHUB_OUTPUT"
@@ -613,7 +605,7 @@ jobs:
   autofix:
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'autofix-requested')
+    if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && contains(github.event.pull_request.labels.*.name, 'autofix-requested')
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false

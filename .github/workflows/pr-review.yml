@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -325,11 +325,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'fix-requested')
-    permissions:
-      contents: write
-      pull-requests: write
-      workflows: write
-      actions: write
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false
@@ -533,12 +528,20 @@ jobs:
           set -euo pipefail
           if [ -n "${REVIEW_ID:-}" ] && git log --oneline --grep="Review #$REVIEW_ID" --fixed-strings HEAD | grep -q .; then
             echo "Already applied from review #$REVIEW_ID, skipping"
+            echo "pushed=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
-          git add -A -- ':!.opencode'
+          git add -A -- ':!.opencode' ':!.github/workflows'
+          # Drop any symlinks the agent staged (path-traversal guard, issue #65)
+          git diff --cached --name-only | while IFS= read -r f; do [ -L "$f" ] && git restore --staged --quiet "$f" && echo "Skipped symlink: $f"; done
           if git diff --cached --quiet; then
             echo "Nothing staged to commit"
+            ALLMOD=$({ git diff --name-only; git ls-files --others --exclude-standard; } | grep -v '^\.opencode/')
+            if printf '%s\n' "$ALLMOD" | grep -q '^\.github/workflows/'; then
+              echo "reason=workflows-excluded" >> "$GITHUB_OUTPUT"
+            fi
+            echo "pushed=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
@@ -554,17 +557,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NUM: ${{ github.event.number }}
-          APPLIED: ${{ steps.apply.outputs.applied }}
-          FAILED: ${{ steps.apply.outputs.failed }}
           PUSHED: ${{ steps.commit.outputs.pushed }}
+          REASON: ${{ steps.commit.outputs.reason }}
         run: |
-          AP="${APPLIED:-0}"; FL="${FAILED:-0}"
-          B="## AI Fix Results\n\n| Applied | Failed |\n|---------|--------|\n| $AP | $FL |"
-          if [ "${AP:-0}" -gt 0 ] && [ "${PUSHED:-}" = "true" ]; then
+          PUSHED="${PUSHED:-}"
+          B="## AI Fix Results"
+          if [ "$PUSHED" = "true" ]; then
+            FILES=$(git show --pretty=format: --name-only HEAD | sed '/^$/d')
             HASH=$(git rev-parse --short HEAD)
-            B="$B\n\nCommit: \`$HASH\`"
-          elif [ "${PUSHED:-}" = "false" ]; then
-            B="$B\n\nPush failed -- commit exists locally only."
+            B="$B\n\nCommitted \`$HASH\` with fixes in:\n"
+            while IFS= read -r f; do [ -n "$f" ] && B="$B\n- \`$f\`"; done <<< "$FILES"
+          elif [ "$PUSHED" = "none" ]; then
+            if [ "${REASON:-}" = "workflows-excluded" ]; then
+              B="$B\n\nNo commit created. The agent's edits touched only \`.github/workflows\`, which is excluded from automated fixes (workflow changes need manual review). Apply manually or enable workflow editing."
+            else
+              B="$B\n\nNo commit created -- the agent made no committable changes."
+            fi
+          else
+            B="$B\n\nPush failed -- commit exists in the runner only."
           fi
           printf '%b' "$B" > /tmp/comment-body.md
           gh pr comment "$NUM" --body-file /tmp/comment-body.md
@@ -589,10 +599,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'autofix-requested')
-    permissions:
-      contents: write
-      pull-requests: write
-      workflows: write
     concurrency:
       group: fix-${{ github.event.pull_request.number }}
       cancel-in-progress: false

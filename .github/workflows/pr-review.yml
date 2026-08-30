@@ -532,7 +532,10 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           NUM: ${{ github.event.number }}
         run: |
+          echo "=== COMMIT STEP START ==="
+          echo "REPO=$REPO HEAD_REF=$HEAD_REF NUM=$NUM"
           set -euo pipefail
+          echo "set -euo pipefail passed"
           if [ -n "${REVIEW_ID:-}" ] && git log --oneline --grep="Review #$REVIEW_ID" --fixed-strings HEAD | grep -q .; then
             echo "Already applied from review #$REVIEW_ID, skipping"
             echo "pushed=none" >> "$GITHUB_OUTPUT"
@@ -540,30 +543,22 @@ jobs:
           fi
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
           git add -A -- ':!.opencode' ':!.github/workflows'
-          # Drop any symlinks the agent staged (path-traversal guard, issue #65)
-          git diff --cached --name-only | while IFS= read -r f; do [ -L "$f" ] && git restore --staged --quiet "$f" && echo "Skipped symlink: $f"; done
           if git diff --cached --quiet; then
             echo "Nothing staged to commit"
-            ALLMOD=$({ git diff --name-only; git ls-files --others --exclude-standard; } | grep -v '^\.opencode/')
-            if printf '%s\n' "$ALLMOD" | grep -q '^\.github/workflows/'; then
-              echo "reason=workflows-excluded" >> "$GITHUB_OUTPUT"
-            fi
             echo "pushed=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
           git commit -m "fix: apply AI review suggestions${EXTRA}"
-          # Push via GitHub API (GITHUB_TOKEN cannot git push to PR branches)
           BRANCH="$HEAD_REF"
-          BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha' 2>/dev/null)
+          BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha' 2>/dev/null || echo "")
           if [ -z "$BASE_SHA" ]; then
             echo "Cannot get branch SHA"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
           fi
           TREE_SHA=$(git rev-parse HEAD^{tree})
-          COMMIT_MSG="fix: apply AI review suggestions${EXTRA}"
           NEW_SHA=$(gh api -X POST "repos/$REPO/git/commits" \
-            -f message="$COMMIT_MSG" -f tree="$TREE_SHA" -f parents[]="$BASE_SHA" \
-            --jq '.sha' 2>/dev/null)
+            -f message="fix: apply AI review suggestions${EXTRA}" -f tree="$TREE_SHA" -f parents[]="$BASE_SHA" \
+            --jq '.sha' 2>/dev/null || echo "")
           if [ -z "$NEW_SHA" ]; then
             echo "Cannot create commit"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
           fi
@@ -572,6 +567,7 @@ jobs:
             echo "Cannot update ref"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
           fi
           echo "pushed=true" >> "$GITHUB_OUTPUT"
+          echo "=== COMMIT STEP DONE ==="
 
       - name: Comment on PR
         if: always() && env.NO_REVIEW != 'true'

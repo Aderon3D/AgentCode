@@ -532,7 +532,9 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           NUM: ${{ github.event.number }}
         run: |
-          set -euo pipefail
+          echo "=== COMMIT STEP START ==="
+          echo "REPO=$REPO HEAD_REF=$HEAD_REF NUM=$NUM"
+          set -uo pipefail
           if [ -n "${REVIEW_ID:-}" ] && git log --oneline --grep="Review #$REVIEW_ID" --fixed-strings HEAD | grep -q .; then
             echo "Already applied from review #$REVIEW_ID, skipping"
             echo "pushed=none" >> "$GITHUB_OUTPUT"
@@ -540,7 +542,6 @@ jobs:
           fi
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
           git add -A -- ':!.opencode' ':!.github/workflows'
-          # Drop any symlinks the agent staged (path-traversal guard, issue #65)
           git diff --cached --name-only | while IFS= read -r f; do [ -L "$f" ] && git restore --staged --quiet "$f" && echo "Skipped symlink: $f"; done
           if git diff --cached --quiet; then
             echo "Nothing staged to commit"
@@ -553,25 +554,13 @@ jobs:
           fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
           git commit -m "fix: apply AI review suggestions${EXTRA}"
-          # Push via GitHub API (GITHUB_TOKEN cannot git push to PR branches)
           BRANCH="$HEAD_REF"
-          BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha' 2>/dev/null)
-          if [ -z "$BASE_SHA" ]; then
-            echo "Cannot get branch SHA"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
-          fi
-          TREE_SHA=$(git rev-parse HEAD^{tree})
-          COMMIT_MSG="fix: apply AI review suggestions${EXTRA}"
-          NEW_SHA=$(gh api -X POST "repos/$REPO/git/commits" \
-            -f message="$COMMIT_MSG" -f tree="$TREE_SHA" -f parents[]="$BASE_SHA" \
-            --jq '.sha' 2>/dev/null)
-          if [ -z "$NEW_SHA" ]; then
-            echo "Cannot create commit"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
-          fi
-          gh api -X PATCH "repos/$REPO/git/refs/heads/$BRANCH" -f sha="$NEW_SHA" -f force="false" 2>/dev/null
-          if [ $? -ne 0 ]; then
-            echo "Cannot update ref"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
-          fi
+          git push origin "HEAD:$BRANCH" 2>&1 || {
+            echo "Push failed"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
+          }
           echo "pushed=true" >> "$GITHUB_OUTPUT"
+          echo "=== COMMIT STEP DONE ==="
 
       - name: Comment on PR
         if: always() && env.NO_REVIEW != 'true'
@@ -727,7 +716,7 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           MAX_ROUNDS=5; COUNT=0; LAST_DONE="false"
           # Track per-round findings so we can detect convergence
           PREV_MAJOR=999
@@ -826,13 +815,10 @@ jobs:
           MSG="fix: apply review findings (round $COUNT) - Hash: $HASH"
           git commit -m "$MSG" || { echo "Nothing to commit"; LAST_DONE="true"; break; }
           BRANCH="$HEAD_REF"
-          BASE_SHA=$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha' 2>/dev/null)
-          TREE_SHA=$(git rev-parse HEAD^{tree})
-          NEW_SHA=$(gh api -X POST "repos/$REPO/git/commits" \
-            -f message="$MSG" -f tree="$TREE_SHA" -f parents[]="$BASE_SHA" \
-            --jq '.sha' 2>/dev/null)
-          if [ -z "$NEW_SHA" ]; then echo "Cannot create commit"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1; fi
-          gh api -X PATCH "repos/$REPO/git/refs/heads/$BRANCH" -f sha="$NEW_SHA" -f force="false" 2>/dev/null || { echo "Cannot update ref"; echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1; }
+          git push origin "HEAD:$BRANCH" 2>&1 || {
+            echo "Push failed"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
+          }
           echo "pushed=true" >> "$GITHUB_OUTPUT"
           echo "Dispatching review for round $COUNT..."
           gh workflow run pr-review.yml -f pr_number="$PR_NUMBER" 2>/dev/null || true

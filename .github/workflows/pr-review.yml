@@ -546,7 +546,12 @@ jobs:
           fi
           EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
           git commit -m "fix: apply AI review suggestions${EXTRA}"
-          if ! git push; then
+          set +e
+          git push "origin" "$SAFE" 2> /tmp/push-err.txt
+          PRC=$?
+          set -e
+          if [ "$PRC" -ne 0 ]; then
+            echo "Push failed:"; cat /tmp/push-err.txt
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
@@ -801,7 +806,347 @@ jobs:
           done
           MSG="fix: apply review findings (round $COUNT) - Hash: $HASH"
           git commit -m "$MSG" || { echo "Nothing to commit"; LAST_DONE="true"; break; }
-          if ! git push; then
+          set +e
+          git push "origin" "$SAFE" 2> /tmp/push-err.txt
+          PRC=$?
+          set -e
+          if [ "$PRC" -ne 0 ]; then
+            echo "Push failed:"; cat /tmp/push-err.txt
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+          echo "Dispatching review for round $COUNT..."
+          gh workflow run pr-review.yml -f pr_number="$PR_NUMBER" 2>/dev/null || true
+          sleep 5
+          for i in $(seq 1 30); do
+            LATEST=$(gh run list --workflow=pr-review.yml --limit=5 --json databaseId,event \
+              --jq '[.[] | select(.event=="workflow_dispatch")] | first | .databaseId // 0' 2>/dev/null || echo "0")
+            [ "$LATEST" = "0" ] && sleep 5 && continue
+            gh run watch "$LATEST" --exit-status 2>/dev/null && break || sleep 10
+          done
+          python3 << 'PYEOF'
+          import json, subprocess, os
+          try:
+              r = subprocess.run(['gh','api',f'repos/{os.environ["GITHUB_REPOSITORY"]}/issues/{os.environ["PR_NUMBER"]}/comments',
+                  '--jq','[.[] | select(.body | startswith("# AI Code Review"))] | last | .body'],
+                  capture_output=True, text=True)
+              with open('/tmp/review-context.json','w') as f:
+                  json.dump({'body': r.stdout.strip() if r.returncode == 0 else ''}, f)
+          except Exception:
+              import traceback; traceback.print_exc()
+          PYEOF
+          done
+          echo "COMPLETED_ROUNDS=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "LAST_DONE=$LAST_DONE" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: always() && env.MODEL_LOADED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.number }}
+          ROUNDS: ${{ steps.loop.outputs.COMPLETED_ROUNDS }}
+          DONE: ${{ steps.loop.outputs.LAST_DONE }}
+          PUSHED: ${{ steps.loop.outputs.pushed }}
+        run: |
+          if [ "${DONE:-}" = "true" ]; then
+            STATUS="Model reports nothing new (all Major findings resolved)"
+          elif [ "${ROUNDS:-0}" -ge 5 ]; then
+            STATUS="Safety cap: 5 rounds reached"
+          elif [ "${PUSHED:-}" = "false" ]; then
+            STATUS="Push blocked"
+          else
+            STATUS="Loop ended"
+          fi
+          B="## AI Auto-Fix Results\n\nStatus: $STATUS\nRounds: ${ROUNDS:-0}"
+          printf '%b' "$B" > /tmp/autofix-comment.md
+          gh pr comment "$NUM" --body-file /tmp/autofix-comment.md
+
+      - name: Remove label
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.number }}
+        run: gh pr edit "$NUM" --remove-label "autofix-requested" 2>/dev/null || true
+
+      - name: Trigger final review
+        if: always() && steps.loop.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.number }}
+        run: |
+          sleep 10
+          gh workflow run pr-review.yml -f pr_number="$NUM" 2>/dev/null || true
+
+# ponytail: fixer edits repo files directly via agent tools; commit step stages the real diff.
+\n\n'"Review #$REVIEW_ID"
+          git commit -m "fix: apply AI review suggestions${EXTRA}"
+          set +e
+          git push "origin" "$SAFE" 2> /tmp/push-err.txt
+          PRC=$?
+          set -e
+          if [ "$PRC" -ne 0 ]; then
+            echo "Push failed:"; cat /tmp/push-err.txt
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: always() && env.NO_REVIEW != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.number }}
+          PUSHED: ${{ steps.commit.outputs.pushed }}
+          REASON: ${{ steps.commit.outputs.reason }}
+        run: |
+          PUSHED="${PUSHED:-}"
+          B="## AI Fix Results"
+          if [ "$PUSHED" = "true" ]; then
+            FILES=$(git show --pretty=format: --name-only HEAD | sed '/^$/d')
+            HASH=$(git rev-parse --short HEAD)
+            B="$B\n\nCommitted \`$HASH\` with fixes in:\n"
+            while IFS= read -r f; do [ -n "$f" ] && B="$B\n- \`$f\`"; done <<< "$FILES"
+          elif [ "$PUSHED" = "none" ]; then
+            if [ "${REASON:-}" = "workflows-excluded" ]; then
+              B="$B\n\nNo commit created. The agent's edits touched only \`.github/workflows\`, which is excluded from automated fixes (workflow changes need manual review). Apply manually or enable workflow editing."
+            else
+              B="$B\n\nNo commit created -- the agent made no committable changes."
+            fi
+          else
+            B="$B\n\nPush failed -- commit exists in the runner only."
+          fi
+          printf '%b' "$B" > /tmp/comment-body.md
+          gh pr comment "$NUM" --body-file /tmp/comment-body.md
+
+      - name: Remove label
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.number }}
+        run: gh pr edit "$NUM" --remove-label "fix-requested" 2>/dev/null || true
+
+      - name: Trigger post-fix review
+        if: always() && steps.commit.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUM: ${{ github.event.number }}
+        run: |
+          sleep 10
+          gh workflow run pr-review.yml -f pr_number="$NUM" 2>/dev/null || true
+
+  autofix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'autofix-requested')
+    concurrency:
+      group: fix-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Validate PR number
+        env:
+          PR_NUM: ${{ github.event.number }}
+        run: |
+          echo "$PR_NUM" | grep -qE '^[0-9]+$' || { echo "Invalid PR number"; exit 1; }
+
+      - name: Check permissions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUM: ${{ github.event.number }}
+          WHO: ${{ github.event.pull_request.user.login }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          PERM=$(gh api "repos/$REPO/collaborators/$WHO/permission" --jq '.permission') || { echo "Permission check failed"; exit 1; }
+          [ "$PERM" = "write" ] || [ "$PERM" = "admin" ] || { echo "Need write access"; exit 1; }
+          PR_DATA=$(gh pr view "$NUM" --repo "$REPO" --json headRefName,headRepositoryOwner) || { echo "Cannot fetch PR"; exit 1; }
+          BRANCH=$(echo "$PR_DATA" | python3 -c "import sys,json; print(json.load(sys.stdin)['headRefName'])")
+          AUTH=$(echo "$PR_DATA" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r.get('headRepositoryOwner',{}).get('login',''))")
+          [ "$AUTH" = "$OWNER" ] || { echo "Fork PRs blocked"; exit 1; }
+          SAFE=$(printf '%s' "$BRANCH" | tr -d '\r\n')
+          case "$SAFE" in *..*|refs/*|remotes/*) echo "Bad branch ref (path traversal)"; exit 1;; esac
+          printf '%s' "$SAFE" | grep -qE '^[a-zA-Z0-9._/\-]+$' || { echo "Bad branch ref"; exit 1; }
+          D="GHEOF_${GITHUB_RUN_ID}"
+          { echo "HEAD_REF<<$D"; echo "$SAFE"; echo "$D"; } >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          ref: ${{ env.HEAD_REF }}
+          fetch-depth: 0
+
+      - name: Cache opencode
+        id: cache-opencode
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: ${{ env.HOME }}/.opencode
+          key: opencode-${{ runner.os }}-v1
+
+      - name: Install opencode
+        if: steps.cache-opencode.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh
+          bash /tmp/install-opencode.sh
+          rm -f /tmp/install-opencode.sh
+
+      - name: Add opencode to PATH
+        run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
+      - name: Cache opencode plugins
+        id: cache-plugins
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: .opencode/node_modules
+          key: opencode-plugins-${{ runner.os }}-${{ hashFiles('.opencode/package-lock.json', '.opencode/package.json') }}
+
+      - name: Install plugins
+        if: steps.cache-plugins.outputs.cache-hit != 'true'
+        run: |
+          if [ -d .opencode ]; then
+            (cd .opencode && npm install --ignore-scripts) || true
+          fi
+
+      - name: Resolve model
+        run: |
+          FAIL=""
+          for MODEL in "opencode/mimo-v2.5-free" "opencode/hy3-free" "opencode/nemotron-3-ultra-free"; do
+            echo "Testing $MODEL..."
+            RESPONSE=$(timeout 30 opencode -p -m "$MODEL" -q "Respond with only the word PONG" 2>&1 || true)
+            if echo "$RESPONSE" | grep -qi "PONG"; then
+              echo "MODEL=$MODEL" >> "$GITHUB_ENV"
+              echo "MODEL_LOADED=true" >> "$GITHUB_ENV"
+              echo "Model resolved: $MODEL"
+              exit 0
+            fi
+            FAIL="$FAIL$MODEL "
+            sleep 2
+          done
+          echo "MODEL=" >> "$GITHUB_ENV"
+          echo "MODEL_LOADED=false" >> "$GITHUB_ENV"
+          echo "All models failed: $FAIL"
+
+      - name: Fetch review for context
+        id: context
+        if: env.MODEL_LOADED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          echo '{"body": ""}' > /tmp/review-context.json
+          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '[.[] | select(.body | startswith("# AI Code Review"))] | last | {body: .body}' \
+            > /tmp/review-context.json 2>/dev/null || true
+
+      - name: Autofix loop
+        id: loop
+        if: env.MODEL_LOADED == 'true'
+        env:
+          MOD: ${{ env.MODEL }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          MAX_ROUNDS=5; COUNT=0; LAST_DONE="false"
+          # Track per-round findings so we can detect convergence
+          PREV_MAJOR=999
+          while [ "$COUNT" -lt "$MAX_ROUNDS" ]; do
+            COUNT=$((COUNT + 1))
+            echo "=== Round $COUNT / $MAX_ROUNDS ==="
+            # Create review prompt
+            python3 << 'PYEOF'
+          import json, os, sys, subprocess
+          try:
+              with open('/tmp/review-context.json') as f: prev = json.load(f).get('body','')
+              pr_num = os.environ['PR_NUMBER']
+              repo = os.environ.get('GITHUB_REPOSITORY','')
+              r = subprocess.run(['gh','pr','view',pr_num,'--json','title,body,files'],
+                  capture_output=True, text=True)
+              pr = json.loads(r.stdout) if r.returncode == 0 else {}
+              title = pr.get('title',''); desc = pr.get('body','') or ''
+              files = '\n'.join(f['path'] for f in pr.get('files',[]))
+              system = (
+                  "You are an expert AI reviewer and code fixer. "
+                  "You must reply with EXACTLY one of these two outputs:\n"
+                  "1. DONE: when there are no major findings left. Output ONLY the word DONE, nothing else.\n"
+                  "2. A markdown review with this EXACT format (every review section is required):\n"
+                  "## MAJOR\n- **file.py:123**: Description\n  ```bash\n# Before\nOLD\n# After\nNEW\n```\n\n"
+                  "## MINOR\n- **file.py:456**: Description\n\n"
+              ).replace('{title}', title).replace('{desc}', desc).replace('{prev}', prev[:2000] if prev else 'None').replace('{files}', files)
+              prompt = "Review this code and fix issues. Reply ONLY with DONE or a review.\n\n" + system
+              with open('/tmp/review-prompt.txt','w') as f: f.write(prompt)
+          except Exception:
+              import traceback; traceback.print_exc(); sys.exit(1)
+          PYEOF
+          RESP=$(timeout 300 opencode -p -m "$MOD" -q "$(cat /tmp/review-prompt.txt)" 2>/dev/null || echo "ERROR")
+          echo "$RESP" > /tmp/review-response.txt
+          # Check if DONE
+          TRIMMED=$(echo "$RESP" | head -1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          if [ "$TRIMMED" = "DONE" ]; then
+            LAST_DONE="true"
+            echo "Model reports nothing new."
+            break
+          fi
+          # Count MAJOR findings from the response
+          MAJOR_COUNT=$(grep -c "^## MAJOR" /tmp/review-response.txt || echo "0")
+          if [ "$MAJOR_COUNT" -eq 0 ]; then
+            LAST_DONE="true"
+            echo "No major findings. Stopping."
+            break
+          fi
+          if [ "$MAJOR_COUNT" -ge "$PREV_MAJOR" ]; then
+            echo "No improvement (had $PREV_MAJOR, now $MAJOR_COUNT). Stopping."
+            break
+          fi
+          PREV_MAJOR=$MAJOR_COUNT
+          # Apply fixes
+          python3 << 'PYEOF'
+          import json, re, os, subprocess, sys, tempfile
+          try:
+              with open('/tmp/review-response.txt') as f: content = f.read()
+              if "DONE" in content.split('\n')[0]: sys.exit(0)
+              with open('/tmp/review.md','w') as f: f.write(content)
+              fixes = []
+              for m in re.finditer(r'\*\*([^*]+\.\w+):(\d+)\*\*\s*(.*?)(?=\n\s*-|\n## |\Z)', content, re.DOTALL):
+                  fp = m.group(1).strip(); line = int(m.group(2)); desc = m.group(3).strip()
+                  if '```bash' not in desc and '```yaml' not in desc: continue
+                  bm = re.search(r'```(?:bash|yaml|sh)\s*\n# Before\n(.*?)(?=\n# After|\n```\s*$)', desc, re.DOTALL)
+                  am = re.search(r'```(?:bash|yaml|sh)\s*\n# After\n(.*?)```', desc, re.DOTALL)
+                  if bm and am:
+                      fixes.append({'file':fp, 'before':bm.group(1).strip(), 'after':am.group(1).strip()})
+              applied = 0; failed = 0
+              for fix in fixes:
+                  fp = fix['file']
+                  real = os.path.realpath(fp)
+                  if not real.startswith(os.getcwd()): failed += 1; continue
+                  if os.path.islink(fp): failed += 1; continue
+                  if not os.path.exists(fp): failed += 1; continue
+                  try:
+                      with open(fp) as f: c = f.read()
+                      if fix['before'] not in c: failed += 1; continue
+                      fd, tmp = tempfile.mkstemp(dir=os.path.dirname(fp) or '.')
+                      with os.fdopen(fd,'w') as tmpf: tmpf.write(c.replace(fix['before'], fix['after'], 1))
+                      os.replace(tmp, fp); applied += 1
+                  except Exception: failed += 1
+              print(f'Applied: {applied}, Failed: {failed}')
+          except Exception:
+              import traceback; traceback.print_exc(); sys.exit(1)
+          PYEOF
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            LAST_DONE="true"
+            break
+          fi
+          HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+          git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
+          git diff --name-only | while IFS= read -r f; do
+            [ -n "$f" ] && git add "$f"
+          done
+          MSG="fix: apply review findings (round $COUNT) - Hash: $HASH"
+          git commit -m "$MSG" || { echo "Nothing to commit"; LAST_DONE="true"; break; }
+          set +e
+          git push "origin" "$SAFE" 2> /tmp/push-err.txt
+          PRC=$?
+          set -e
+          if [ "$PRC" -ne 0 ]; then
+            echo "Push failed:"; cat /tmp/push-err.txt
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi

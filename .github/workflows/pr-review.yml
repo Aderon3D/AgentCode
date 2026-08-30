@@ -544,7 +544,18 @@ jobs:
             echo "pushed=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=
+          EXTRA=""; [ -n "${REVIEW_ID:-}" ] && EXTRA=$'\n\n'"Review #$REVIEW_ID"
+          git commit -m "fix: apply AI review suggestions${EXTRA}"
+          set +e
+          git push "origin" "$SAFE" 2> /tmp/push-err.txt
+          PRC=$?
+          set -e
+          if [ "$PRC" -ne 0 ]; then
+            echo "Push failed:"; cat /tmp/push-err.txt
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
 
       - name: Comment on PR
         if: always() && env.NO_REVIEW != 'true'

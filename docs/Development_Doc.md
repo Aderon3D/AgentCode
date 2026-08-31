@@ -60,7 +60,7 @@ interface WalStore {
 
 ---
 
-## 0.1 Milestone Status Tracker (as of 2026-08-26 — updated after merging PRs #41 M3, #42 M4, #43 M5)
+## 0.1 Milestone Status Tracker (as of 2026-08-31 — updated after M0.5–M5.3 implementation)
 
 Live status vs the §14 roadmap. Single source of truth for "what's done".
 
@@ -71,18 +71,18 @@ Live status vs the §14 roadmap. Single source of truth for "what's done".
 | **M2** Multi-Agent Concurrency | Sparse worktrees, auto-squash, lock coordinator, 4-tier semantic funnel, tree-sitter | ✅ COMPLETE | `WorktreeManager`, `TaskLockCoordinator`, `WorkspaceLockManager`, `SemanticConflictFunnel`, `TreeSitterBackend` (JNI) landed; concurrency + tree-sitter tests green. |
 | **M3** UI & Cost Routing | CMP Shell + 50ms conflated telemetry stream + streaming JSON SM + adaptive power governor | ✅ COMPLETE | CMP dashboard + telemetry + streaming-JSON + cost-routing panels landed (DashboardScreen / MissionControlPanel / CostRoutingPanel / StreamingJsonPanel, TelemetryEngine, App.kt wiring). Live Canvas deferred per §1.2. |
 | **M4** Android Live Testing | Resilient FGS, Geometric Layout Oracle, dual-mode Accessibility Engine | ✅ COMPLETE | `ResilientAgentForegroundService` (FGS: wake/Wi-Fi locks + watchdog alarm + START_STICKY) + `GeometricLayoutOracle` + `AccessibilityEngine` (impl + `StubAccessibilityEngine`) + `UiTools` + `FileWatcherJvm`, all w/ tests. |
-| **M5** Security & Hardening | Non-interactive Git auth, visual 3-way merge, SecureVault (KeyStore) | 🟡 PARTIAL | `GitAuthWrapper` + `SecureVault` (KeyStore) + `RuntimeDiagnosticsTool` landed w/ tests. **Visual 3-Way Merge screen + `FetchDocTool` NOT implemented.** |
+| **M5** Security & Hardening | Non-interactive Git auth, SecureVault (KeyStore), RuntimeDiagnosticsTool | ✅ COMPLETE | `GitAuthWrapper` + `SecureVault` (KeyStore) + `RuntimeDiagnosticsTool` landed w/ tests. |
 
 ### M5.x — Scheduled Upgrades (features cut during M0.5–M5 implementation, reintegrated as phased work)
 
 Features originally specified in the TDD that were simplified or deferred during actual implementation. Each upgrade is an additive, backward-compatible enhancement — no breaking changes to existing interfaces.
 
-| Phase | Scope | Depends On | Features |
-|---|---|---|---|
-| **M5.1** Interface Enrichment | Core API surface | M5 complete | `FileSystemProvider` → suspend + `applyPatch`/`walkTree`; `ProcessRunner` → `ProcessConfiguration` + streaming; `AgentEvent.TokenChunkReceived`; Kanban `HUMAN_REVIEW` column doc |
-| **M5.2** Platform Services | Android-native | M5.1 | `AdaptivePowerGovernor` full thermal+battery impl replacing stub; `PrivilegedElevationManager` Shizuku elevation |
-| **M5.3** Tool & Protocol Layer | Agent capabilities | M5.1 | `MissionControlMcpServer` full tool registry; `FetchDocTool`; `CircuitBreaker` budget tracking (`TaskSafetyBudget`) |
-| **M5.4** Doc Hygiene | Documentation | None (parallel) | Fix phantom paths (`platform-android`, `shared/`, `androidApp/src/androidMain/`); README 4-module update; dependency DAG correction |
+| Phase | Scope | Depends On | Status | Features |
+|---|---|---|---|---|
+| **M5.1** Interface Enrichment | Core API surface | M5 complete | ✅ COMPLETE | `FileSystemProvider` → suspend + `applyPatch`/`walkTree`; `ProcessRunner` → `ProcessConfiguration` + streaming; `AgentEvent.TokenChunkReceived`; Kanban `HUMAN_REVIEW` column |
+| **M5.2** Platform Services | Android-native | M5.1 | ✅ COMPLETE | `AndroidPowerGovernor` full thermal+battery impl; `PrivilegedElevationManager` Shizuku elevation |
+| **M5.3** Tool & Protocol Layer | Agent capabilities | M5.1 | ✅ COMPLETE | `MissionControlMcpServer` full tool registry; `FetchDocTool`; `CircuitBreaker` `BudgetTrackingCircuitBreaker` + `TaskSafetyBudget` |
+| **M5.4** Doc Hygiene | Documentation | None (parallel) | ✅ COMPLETE | Phantom paths cleaned; README updated for 5-module layout; dependency DAG accurate in §1.2 |
 
 **Structural gap — RESOLVED (2026-08-24):** The `:shared` package monolith has been promoted to real Gradle modules. Realized: `agent-core`, `provider-subsystem`, `workspace-engine`, `app-ui`, plus the existing `androidApp` (5 `build.gradle.kts`, 0 `:shared`). `:app-ui:testAndroidHostTest` and `:androidApp:assembleDebug` are both green. Deferred (per §14 / not yet needed): `data-layer`, `live-canvas`, `desktopApp` — and `buildSrc` convention plugins were deliberately skipped in favor of standalone per-module build files (see §1.2 note).
 
@@ -1362,12 +1362,12 @@ CREATE TABLE AstNodeIndex (
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                           INCREMENTAL DERISKING ROADMAP                          │
 ├──────────────────┬───────────────────────────────────────────────────────────────┤
- │ M0.5 (BOOTSTRAP)│ Self-Contained Spine: FSM + WAL(in-mem) + MCP loop + SSE JSON │
- │ (Prove it thinks)│ parser + Cost Router + Kanban + 50ms Telemetry. JVM-testable. │
- ├──────────────────┼───────────────────────────────────────────────────────────────┤
- │ MILESTONE 1      │ Headless Core: libgit2 NDK + Shizuku Elevation + WAL Journal │
- │ (The Bedrock)    │ EnergyAwareDispatchers + MCP Server + OmniRoute SSE Client.   │
- ├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M0.5 (BOOTSTRAP) │ Self-Contained Spine: FSM + WAL(in-mem) + MCP loop + SSE JSON │
+│ (Prove it thinks) │ parser + Cost Router + Kanban + 50ms Telemetry. JVM-testable. │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ MILESTONE 1      │ Headless Core: libgit2 NDK + Shizuku Elevation + WAL Journal │
+│ (The Bedrock)    │ EnergyAwareDispatchers + MCP Server + OmniRoute SSE Client.   │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
 │ MILESTONE 2      │ Multi-Agent Concurrency: Git Sparse Worktrees + Auto-Squash   │
 │ (Scale)          │ Lock Coordinator (Waiters) + 4-Tier Semantic Conflict Funnel. │
 ├──────────────────┼───────────────────────────────────────────────────────────────┤
@@ -1377,22 +1377,587 @@ CREATE TABLE AstNodeIndex (
 │ MILESTONE 4      │ Android Live Testing: Resilient FGS + Geometric Layout Oracle │
 │ (Live Testing)   │ Dual-Mode Accessibility Engine (Text XML & Native Gestures).  │
 ├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ MILESTONE 5      │ Security & Hardening: Non-Interactive Git Auth (Injection-Free│
-│ (Production)     │ Visual 3-Way Merge Screen + Hardware SecureVault (KeyStore).  │
+│ MILESTONE 5      │ Security & Hardening: Non-Interactive Git Auth (Injection-Free)│
+│ (Production)     │ SecureVault (KeyStore) + RuntimeDiagnosticsTool.              │
 ├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M5.1 (INTERFACES)│ FileSystemProvider → suspend + applyPatch/walkTree;           │
+│ M5.1 (INTERFACES)│ FileSystemProvider → suspend + applyPatch/walkTree;           │ ✅ DONE
 │                  │ ProcessRunner → ProcessConfiguration + streaming;             │
-│                  │ AgentEvent.TokenChunkReceived; Kanban HUMAN_REVIEW doc.       │
+│                  │ AgentEvent.TokenChunkReceived; Kanban HUMAN_REVIEW column.    │
 ├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M5.2 (PLATFORM)  │ AdaptivePowerGovernor full thermal+battery impl;              │
+│ M5.2 (PLATFORM)  │ AndroidPowerGovernor full thermal+battery impl;               │ ✅ DONE
 │                  │ PrivilegedElevationManager Shizuku phantom-process bypass.    │
 ├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M5.3 (TOOLS)     │ MissionControlMcpServer full JSON-RPC + UI tool registry;    │
-│                  │ FetchDocTool; CircuitBreaker TaskSafetyBudget tracking.       │
+│ M5.3 (TOOLS)     │ MissionControlMcpServer full tool registry;                   │ ✅ DONE
+│                  │ FetchDocTool; BudgetTrackingCircuitBreaker + TaskSafetyBudget.│
 ├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M5.4 (DOC)       │ Fix phantom paths (platform-android, shared/); README update; │
-│                  │ Dependency DAG correction; TelemetryEngine actual impl.       │
+│ M5.4 (DOC)       │ Fix phantom paths; README update; dependency DAG correction.  │ ✅ DONE
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M6 (OPENCODE)    │ Native OpenCode integration: process manager, local server,   │ 🔲 IN PROGRESS
+│ (The Brain)      │ agent brain loop, native UI embedding, tool dispatch,          │
+│                  │ secure sandbox, deep IDE integration.                          │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M7 (PERSISTENCE) │ SQLDelight data-layer (KanbanTask, AgentJournal, ProviderProfile│
+│ (Make it durable)│ ); Persistent task store replacing in-memory KanbanBoard;     │
+│                  │ Agent journal on disk (replace FileBackedWalStore).           │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M8 (DESKTOP)     │ Windows desktop target (desktopApp module);                   │
+│ (Make it cross-  │ JVM actuals for RealFileSystem, GitProcessRunner;             │
+│  platform)       │ JBR + DCEVM live reload; Compose Hot Reload integration.     │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M9 (E2E DEMO)    │ End-to-end demo: agent reads repo → generates code →          │
+│ (Make it real)   │ runs tests → submits PR; ProbeDashboard integration;         │
+│                  │ Visual 3-Way Merge screen; Full Shizuku elevation flow.       │
 └──────────────────┴───────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 15. M6 — OpenCode Native Integration (The Brain)
+
+### 15.1 Design Philosophy
+
+OpenCode is not a plugin. It is not a sidebar. It is not a WebView wrapper around a
+web UI. OpenCode is the **central nervous system** of AgentCode — a locally managed
+process that provides the LLM brain, tool execution, and agent orchestration. The app
+is the body; OpenCode is the mind.
+
+The agent operates with **full native capabilities** — reading files, editing code,
+running terminal commands, managing git, building and testing — all through the same
+interfaces the human developer uses. Security is enforced through **sandboxing**,
+not capability restriction: the agent can do anything a developer can do, but within
+controlled boundaries that prevent damage to the host system.
+
+### 15.2 Architecture
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        AGENTCODE (Android App)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐    ┌──────────────────┐    ┌───────────────────────────┐  │
+│  │  CMP UI      │◄──►│  OpenCodeManager │◄──►│  OpenCode Process         │  │
+│  │  Dashboard   │    │  (Lifecycle)     │    │  (Local HTTP Server)      │  │
+│  │  Kanban      │    │  Install/Start   │    │  Port 4096                │  │
+│  │  Terminal    │    │  Stop/Health     │    │  Binary: /data/.../opencode│  │
+│  │  File Editor │    └──────────────────┘    └─────────┬─────────────────┘  │
+│  └──────────────┘                                      │                    │
+│         ▲                                              ▼                    │
+│         │         ┌──────────────────────────────────────────────────────┐  │
+│         │         │              OpenCode Client (HTTP)                  │  │
+│         │         │  POST /api/chat/stream  → LLM streaming             │  │
+│         │         │  GET  /api/sessions     → session management        │  │
+│         │         │  GET  /api/models       → available models          │  │
+│         │         │  POST /api/tools/call   → tool execution            │  │
+│         │         └──────────────────────────┬───────────────────────────┘  │
+│         │                                    │                              │
+│         ▼                                    ▼                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                      Agent Brain Loop                                 │  │
+│  │                                                                      │  │
+│  │  1. Build system prompt (workspace context, tool definitions)        │  │
+│  │  2. Send to OpenCode → LLM (cloud API via OpenCode's routing)       │  │
+│  │  3. Parse response: content + tool_calls                             │  │
+│  │  4. Execute tools via McpHost (read_file, apply_patch, run_cmd...)  │  │
+│  │  5. Feed results back to LLM                                        │  │
+│  │  6. Repeat until done or max iterations                             │  │
+│  │                                                                      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│         │                                                                  │
+│         ▼                                                                  │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    Native Tool Layer                                  │  │
+│  │                                                                      │  │
+│  │  FileSystemProvider ─── read/write/patch/walk (path-confined)       │  │
+│  │  ProcessRunner ──────── run/execute/stream (sandboxed)              │  │
+│  │  GitBackend ─────────── libgit2 JNI / CLI (worktree, commit, merge) │  │
+│  │  AccessibilityEngine ── inspect/interact UI (Shizuku-escalated)     │  │
+│  │  TreeSitterBackend ──── AST parsing (Kotlin/Java/Python/JS)         │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 15.3 OpenCode Process Manager
+
+The process manager owns the OpenCode binary lifecycle. OpenCode runs as a local
+HTTP server that the app communicates with natively — no WebView, no browser, no
+intermediary.
+
+```kotlin
+// agent-core/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeManager.kt
+class OpenCodeManager(
+    private val fileSystem: FileSystemProvider,
+    private val processRunner: ProcessRunner,
+    private val config: OpenCodeConfig = OpenCodeConfig()
+) {
+    // Lifecycle: NotInstalled → Installing → Starting → Running → Stopped
+    // Binary installed to app-private storage (no root required)
+    // Server starts on configurable port (default 4096)
+    // Health check via HTTP /api/health endpoint
+
+    suspend fun ensureInstalled(): OpenCodeState
+    suspend fun start(projectDir: VirtualPath, port: Int): OpenCodeState
+    suspend fun stop()
+    fun baseUrl(): String  // http://127.0.0.1:{port}
+}
+```
+
+**Key design decisions:**
+- Binary stored in app-private directory (`/data/data/com.agent.code/files/opencode/`)
+- No root required — OpenCode runs as the app's child process
+- PID tracking for clean shutdown
+- Log file for debugging (`opencode.log` in install dir)
+- Automatic restart on crash (via `ResilientAgentForegroundService` watchdog)
+
+### 15.4 OpenCode Client (Native HTTP)
+
+Direct HTTP communication with the local OpenCode server. No WebView, no JavaScript
+bridge, no network overhead.
+
+```kotlin
+// agent-core/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeClient.kt
+class OpenCodeClient(
+    private val httpClient: HttpClient,  // Ktor OkHttp engine
+    private val manager: OpenCodeManager
+) {
+    // Streaming LLM completion (SSE)
+    fun streamChat(request: LlmRequest): Flow<LlmEvent>
+
+    // Non-streaming completion
+    suspend fun sendChat(request: LlmRequest): String
+
+    // Session management
+    suspend fun listSessions(): List<String>
+
+    // Model discovery
+    suspend fun listModels(): List<String>
+
+    // Health check
+    suspend fun healthCheck(): Result<String>
+}
+```
+
+**SSE parsing** follows the OpenAI-compatible format that OpenCode exposes:
+```
+data: {"choices":[{"delta":{"content":"..."}}]}
+data: {"choices":[{"delta":{"tool_calls":[...]}}]}
+data: [DONE]
+```
+
+### 15.5 Agent Brain Loop
+
+The brain loop is the core orchestration cycle. It replaces the hardcoded
+`executeStepsUntilDone` with a dynamic LLM-driven loop.
+
+```kotlin
+// agent-core/src/commonMain/kotlin/com/agent/code/opencode/AgentBrain.kt
+class AgentBrain(
+    private val client: OpenCodeClient,
+    private val mcp: McpHost,
+    private val journal: AgentEventJournal,
+    private val telemetry: TelemetryEngine,
+    private val config: AgentConfig = AgentConfig()
+) {
+    fun executeTask(
+        taskId: String,
+        goal: String,
+        workspaceRoot: VirtualPath
+    ): Flow<BrainEvent>
+}
+```
+
+**The loop:**
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│                    AGENT BRAIN LOOP                               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. SYSTEM PROMPT                                                │
+│     Build prompt with: workspace root, available tools,          │
+│     project structure, coding conventions                        │
+│                                                                  │
+│  2. USER GOAL                                                    │
+│     "Fix the bug in auth middleware where tokens expire"         │
+│                                                                  │
+│  3. LLM CALL (via OpenCode → cloud API)                         │
+│     Send messages + tool definitions                             │
+│     Receive: content (thinking) + tool_calls                     │
+│                                                                  │
+│  4. TOOL EXECUTION                                               │
+│     For each tool_call:                                          │
+│       a. Validate tool exists in McpHost                         │
+│       b. Check budget (cost, calls, time)                        │
+│       c. Acquire lock if file-modifying                          │
+│       d. Execute via McpHost.dispatch()                          │
+│       e. Release lock                                            │
+│       f. Record in WAL journal                                   │
+│                                                                  │
+│  5. FEEDBACK                                                     │
+│     Append tool results to conversation history                  │
+│     Send back to LLM for next iteration                          │
+│                                                                  │
+│  6. LOOP                                                         │
+│     Repeat 3-5 until:                                            │
+│       • LLM responds with {"done": true}                         │
+│       • Max iterations reached (default 20)                      │
+│       • Budget exceeded (cost/tool-count/time)                   │
+│       • Fatal error (tool failure, LLM error)                    │
+│                                                                  │
+│  7. COMPLETION                                                   │
+│     Record success/failure in WAL                                │
+│     Emit telemetry frame                                        │
+│     Transition FSM to Success/Error                              │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 15.6 Native Tool Arsenal
+
+The agent has access to the same tools a human developer uses. These are NOT
+abstractions — they are real implementations backed by the native subsystems
+built in M1-M5.
+
+| Tool | Description | Implementation | Risk |
+|------|-------------|----------------|------|
+| `read_file` | Read file contents | `FileSystemProvider.read()` | READ_ONLY |
+| `write_file` | Write file contents | `FileSystemProvider.write()` | WRITE |
+| `apply_diff_patch` | Search-and-replace patch | `FileSystemProvider.applyPatch()` | WRITE |
+| `list_directory` | List directory tree | `FileSystemProvider.walkTree()` | READ_ONLY |
+| `run_command` | Execute shell command | `ProcessRunner.execute()` | DESTRUCTIVE |
+| `git_init` | Initialize git repo | `GitBackend.initRepo()` | WRITE |
+| `git_commit` | Create git commit | `GitBackend.commit()` | WRITE |
+| `git_diff` | Show file differences | `GitProcessRunner.run(["git","diff"])` | READ_ONLY |
+| `git_branch` | Create/switch branch | `GitBackend.checkout()` | WRITE |
+| `git_merge` | Merge branches | `GitBackend.mergeSquash()` | WRITE |
+| `git_worktree` | Create sparse worktree | `WorktreeManager.createSparseWorktree()` | WRITE |
+| `run_tests` | Execute test suite | `ProcessRunner.execute(["gradle","test"])` | READ_ONLY |
+| `build_project` | Build the project | `ProcessRunner.execute(["gradle","assembleDebug"])` | READ_ONLY |
+| `inspect_ui` | Dump UI layout tree | `AccessibilityEngine.dumpSemanticTreeXml()` | READ_ONLY |
+| `interact_ui` | Click/type/swipe | `AccessibilityEngine.performClick()` | WRITE |
+| `search_code` | Grep codebase | `TreeSitterBackend` + regex | READ_ONLY |
+| `fetch_doc` | Fetch web documentation | `FetchDocTool` (HTTP GET) | READ_ONLY |
+| `read_diagnostics` | Read crash logs | `RuntimeDiagnosticsTool` (logcat) | READ_ONLY |
+
+### 15.7 Security Sandbox
+
+The agent operates within a **path-confined sandbox** with capability-based access
+control. This is NOT capability restriction — it is damage containment.
+
+```text
+┌──────────────────────────────────────────────────────────────────────┐
+│                      SECURITY SANDBOX MODEL                          │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  FILE SYSTEM                                                         │
+│  ├─ Workspace root: /data/data/com.agent.code/projects/{project}/   │
+│  ├─ Agent can READ any file within workspace root                    │
+│  ├─ Agent can WRITE files within workspace root                      │
+│  ├─ Agent CANNOT escape workspace root (path traversal blocked)      │
+│  ├─ Agent CANNOT access /data/data/com.agent.code/files/opencode/   │
+│  │   (OpenCode binary — own process protection)                      │
+│  └─ Agent CANNOT access other apps' private storage                  │
+│                                                                      │
+│  PROCESS EXECUTION                                                   │
+│  ├─ Commands run in workspace root directory                         │
+│  ├─ Commands run with app UID (same permission set)                  │
+│  ├─ Background process limit enforced (phantom process killer)       │
+│  ├─ Time budget per command (default 120s)                           │
+│  ├─ No `su` / root escalation (Shizuku only for phantom uncapping)  │
+│  └─ Output truncated to prevent OOM (max 1MB per command)           │
+│                                                                      │
+│  GIT OPERATIONS                                                      │
+│  ├─ All git ops use GIT_ASKPASS for auth (no plaintext credentials)  │
+│  ├─ Credentials stored in SecureVault (AndroidKeyStore)              │
+│  ├─ Agent cannot push to protected branches without approval         │
+│  └─ Worktree isolation prevents cross-branch contamination           │
+│                                                                      │
+│  LLM / NETWORK                                                       │
+│  ├─ LLM API calls routed through OpenCode (local proxy)              │
+│  ├─ No direct internet access from agent tools                       │
+│  ├─ API keys never exposed to agent conversation history             │
+│  ├─ Cost circuit breaker prevents runaway API spend                  │
+│  └─ Tool call budget prevents infinite loops                         │
+│                                                                      │
+│  HUMAN OVERSIGHT                                                     │
+│  ├─ HIGH_RISK tools require human approval (git push, rm -rf)        │
+│  ├─ All file modifications visible in real-time on dashboard         │
+│  ├─ Kanban board shows agent progress at all times                   │
+│  ├─ Emergency stop: kill OpenCode process immediately                │
+│  └─ History: full WAL journal of every agent action                  │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Risk levels for tool approval:**
+
+| Risk Level | Tools | Approval |
+|-----------|-------|----------|
+| READ_ONLY | read_file, list_directory, git_diff, search_code, run_tests, inspect_ui, fetch_doc, read_diagnostics | Auto-approve |
+| WRITE | write_file, apply_diff_patch, git_commit, git_branch, git_worktree, build_project, interact_ui | Auto-approve (configurable) |
+| DESTRUCTIVE | run_command (unrestricted), git_push, git_merge, rm -rf, chmod | Human approval required |
+
+### 15.8 Deep IDE Integration
+
+The agent is not a separate entity looking at the IDE from outside. It operates
+**within** the IDE, using the same data structures, the same file system, the same
+build system. The integration points are:
+
+**File System Integration:**
+- Agent writes to files → CMP editor reflects changes in real-time
+- File watcher (`FileWatcher`) triggers UI refresh on agent edits
+- Agent can read open editor tabs as context
+
+**Terminal Integration:**
+- Agent commands visible in embedded terminal panel
+- Agent can read terminal output for build/test results
+- Terminal state feeds back into agent's next iteration
+
+**Git Integration:**
+- Agent commits appear in git history with `[agent]` prefix
+- Agent branches visible in branch selector
+- Agent diffs viewable in diff viewer
+- Agent can resolve merge conflicts using 3-way merge
+
+**Build Integration:**
+- Agent-triggered builds show progress in build panel
+- Build errors fed directly to agent's next planning step
+- Test failures highlighted in test runner UI
+
+**UI Integration:**
+- Agent can inspect UI via AccessibilityEngine
+- Agent can interact with UI elements (click, type, swipe)
+- UI tree snapshots fed to LLM for visual understanding
+- Layout bugs detected by GeometricLayoutOracle visible in agent context
+
+**Kanban Integration:**
+- Agent claims tasks from BACKLOG
+- Agent moves tasks through PLANNING → IN_PROGRESS → VERIFICATION
+- Agent marks tasks DONE on success
+- Human can pause/resume agent from kanban board
+
+### 15.9 OpenCodeProvider (LlmProvider Bridge)
+
+The `OpenCodeProvider` implements the existing `LlmProvider` interface, bridging
+the OpenCode local server into the established provider subsystem.
+
+```kotlin
+// agent-core/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeProvider.kt
+class OpenCodeProvider(
+    private val client: OpenCodeClient,
+    override val modelId: String = "mimo-v2.5-free"
+) : LlmProvider {
+    override val providerId: String = "opencode"
+    override val displayName: String = "OpenCode (local)"
+
+    override fun streamCompletion(request: LlmRequest): Flow<LlmEvent> {
+        return client.streamChat(request)
+    }
+
+    override suspend fun healthCheck(): Result<List<String>> {
+        return client.healthCheck().map { listOf(it) }
+    }
+}
+```
+
+This means the existing `HierarchicalModelRouter`, `ResilientSseClient`, and
+`BudgetTrackingCircuitBreaker` all work unchanged — they just route through
+OpenCode instead of directly to cloud APIs.
+
+### 15.10 Migration Path from AndroidIDE
+
+AndroidIDE embeds OpenCode via `OpenCodeWebActivity` (WebView wrapper). AgentCode
+improves on this by:
+
+| Aspect | AndroidIDE | AgentCode |
+|--------|-----------|-----------|
+| UI | WebView (browser rendering) | Native CMP (Compose Multiplatform) |
+| Communication | JavaScript bridge | Direct HTTP (Ktor) |
+| Process management | Basic lifecycle | Full lifecycle + health check + auto-restart |
+| Tool dispatch | Web-based tool execution | Native tool layer (filesystem, git, terminal) |
+| Security | Browser sandbox | Path-confined sandbox + capability-based access |
+| Integration | Separate activity | Embedded in main app flow |
+| Multi-agent | Not supported | Lock coordinator + conflict funnel |
+| Cost control | None | Circuit breaker + budget tracking |
+| Persistence | WebView session | WAL journal + SQLite (M7) |
+
+### 15.11 Implementation Phases
+
+**Phase 1: Process + Client (Current)**
+- `OpenCodeManager` — install, start, stop, health check
+- `OpenCodeClient` — HTTP communication, SSE streaming
+- `OpenCodeProvider` — LlmProvider bridge
+
+**Phase 2: Agent Brain Loop**
+- `AgentBrain` — full read→plan→edit→test→iterate cycle
+- System prompt construction with workspace context
+- Tool call parsing and execution
+- Feedback loop integration
+- Budget enforcement
+
+**Phase 3: Native Tool Expansion**
+- Wire existing tools (ReadFile, ApplyPatch) into McpHost
+- Add terminal tool (ProcessRunner.execute with streaming)
+- Add git tools (commit, branch, diff, merge, worktree)
+- Add build/test tools (gradle wrapper execution)
+- Add code search tool (TreeSitter + regex)
+
+**Phase 4: UI Embedding**
+- CMP screen showing OpenCode agent activity
+- Real-time file edit visualization
+- Terminal panel with agent command output
+- Kanban board integration (agent claims/tasks)
+
+**Phase 5: Security Hardening**
+- Path confinement validation in FileSystemProvider
+- Command allowlisting for ProcessRunner
+- Git branch protection (no force push, no protected branch push)
+- Emergency stop mechanism
+- Audit logging
+
+**Phase 6: Multi-Agent Orchestration**
+- Multiple OpenCode instances (one per agent)
+- Lock coordinator integration (file/symbol conflicts)
+- Worktree isolation (each agent gets own worktree)
+- Semantic conflict funnel (AST-aware merge)
+
+---
+
+## 16. Platform Compatibility Matrix
+
+```text
+┌──────────────────┬───────────────────────────────────────────────────────────────┐
+│ TARGET           │ IMPLEMENTATION STATUS                                         │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ Android AArch64  │ ✅ Full support (NDK build, libgit2, tree-sitter, CMake)     │
+│ Android x86_64   │ ✅ Full support (NDK build, libgit2, tree-sitter, CMake)     │
+│ Android ARM32    │ ⚠️  Partial (native code excluded, JVM-only features only)  │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ Linux JVM        │ ✅ All targets (JVM actuals, AWT desktop)                    │
+│ Linux native     │ ⚠️  Partial (native builds with TMPDIR=/tmp workaround)     │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ macOS JVM        │ 🔲 M8 (Compose for Desktop)                                 │
+│ macOS native     │ 🔲 M8                                                       │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ Windows JVM      │ 🔲 M8 (JBR + DCEVM live reload)                             │
+│ Windows native   │ 🔲 M8                                                       │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ iOS              │ 🔲 Future (KMP iOS target)                                   │
+└──────────────────┴───────────────────────────────────────────────────────────────┘
+```
+
+### 16.1 Build Environment (AgentCode Repo)
+
+```bash
+# AgentCode uses GCC-8 for native builds due to f2fs overlay (parallel I/O kills builds)
+export CC=gcc-8 CXX=g++-8 TMPDIR=/tmp
+./gradlew :androidApp:assembleDebug --no-daemon -j1 -Pandroid.aapt2FromMavenOverride=/usr/lib/android-sdk/build-tools/debian/aapt2
+```
+
+### 16.2 Native Library Stack
+
+| Library | Version | Purpose | Build Method |
+|---------|---------|---------|-------------|
+| libgit2 | v1.8.1 | Git operations (init, commit, merge, diff, worktree) | NDK cross-compile, JNI bridge |
+| tree-sitter | v0.24.7 | AST parsing for code analysis | NDK cross-compile, JNI bridge |
+| Kotlin/Native | 2.1.21 | Kotlin → native compilation | Kotlin Gradle plugin |
+
+### 16.3 AndroidIDE Reference Build
+
+```bash
+# AndroidIDE uses full AOSP NDK r29, but AgentCode uses GCC-8 on aarch64 Linux
+# The reference project's APK structure:
+#   /storage/emulated/0/AndroidIDE/ide/extras/
+#     opencode/              ← OpenCode binary + config
+#     jdk-17/                ← JBang JDK
+#     nodejs/                ← Node.js 24
+#     cmake/                 ← CMake 3.24.4
+#     shell/                 ← proot-distro
+
+# AgentCode's local OpenCode install:
+#   /data/data/com.agent.code/files/opencode/
+#     bin/opencode           ← Extracted binary
+#     opencode.json          ← Generated config
+#     opencode.log           ← Server logs
+```
+
+---
+
+## 17. Token Usage Accounting
+
+AgentCode uses OpenCode's token tracking via the local HTTP API. Token usage is
+tracked per-task and per-session for cost management and budget enforcement.
+
+### 17.1 Tracking Strategy
+
+OpenCode proxies to cloud LLM APIs and reports token usage in the SSE response stream.
+AgentCode extracts this data and feeds it to the `CostTracker` for budget enforcement.
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│                     TOKEN TRACKING FLOW                       │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  LLM API → OpenCode (local proxy) → SSE stream → AgentCode  │
+│                                          │                   │
+│                                          ▼                   │
+│                              ┌───────────────────────┐      │
+│                              │ Token Usage Extractor │      │
+│                              │ (parse SSE response)  │      │
+│                              └──────────┬────────────┘      │
+│                                         │                    │
+│                              ┌──────────▼────────────┐      │
+│                              │     CostTracker       │      │
+│                              │  per-task accumulation │      │
+│                              │  per-session totals    │      │
+│                              │  circuit breaker check │      │
+│                              └──────────┬────────────┘      │
+│                                         │                    │
+│                              ┌──────────▼────────────┐      │
+│                              │   Budget Settings UI  │      │
+│                              │  MAX_COST_PER_SESSION │      │
+│                              │  MAX_TOKENS_PER_TASK  │      │
+│                              │  MAX_CALLS_PER_TASK   │      │
+│                              └───────────────────────┘      │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 17.2 Token Usage Data Model
+
+```kotlin
+// agent-core/src/commonMain/kotlin/com/agent/code/provider/TokenUsage.kt
+data class TokenUsage(
+    val promptTokens: Int,
+    val completionTokens: Int,
+    val totalTokens: Int,
+    val costUsd: Double? = null  // Optional, depends on provider pricing
+)
+```
+
+### 17.3 Budget Enforcement
+
+```kotlin
+// agent-core/src/commonMain/kotlin/com/agent/code/cost/BudgetTrackingCircuitBreaker.kt
+class BudgetTrackingCircuitBreaker(
+    private val maxCostPerSession: Double = 5.00,   // $5/session default
+    private val maxTokensPerTask: Int = 100_000,     // 100K tokens/task
+    private val maxCallsPerTask: Int = 50,            // 50 LLM calls/task
+    private val maxToolCallsPerTask: Int = 100        // 100 tool calls/task
+) {
+    fun recordTokens(taskId: String, usage: TokenUsage)
+    fun recordToolCall(taskId: String)
+    fun canProceed(taskId: String): Boolean  // false if any limit exceeded
+    fun getUsage(taskId: String): TaskUsage
+}
+```
+
+### 17.4 Cost Display
+
+Token usage is displayed in the Mission Control Dashboard:
+- **Per-task**: tokens used, estimated cost, remaining budget
+- **Per-session**: total tokens, total cost, session duration
+- **Circuit breaker**: visual indicator when approaching limits
+- **History**: token usage over time (plotted in dashboard)
 
 ---

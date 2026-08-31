@@ -128,6 +128,7 @@ jobs:
           RETRY_DELAY=15
           ALL_FINDINGS=""
           CONVERGENCE_REASON=""
+          trap 'rm -f /tmp/round-review-*.md' EXIT
 
           review_round() {
             local prompt_file="$1"
@@ -135,8 +136,10 @@ jobs:
             local tmp_files=()
             local result_file="/tmp/round-review-${round}.md"
 
-            cleanup_local() { rm -f "${tmp_files[@]}" "$result_file"; }
-            trap cleanup_local RETURN INT TERM
+            cleanup_local() { rm -f "${tmp_files[@]}"; }
+            cleanup_all() { rm -f "${tmp_files[@]}" "$result_file"; }
+            trap cleanup_local RETURN
+            trap cleanup_all INT TERM
 
             > "$result_file"
 

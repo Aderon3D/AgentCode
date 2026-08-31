@@ -52,7 +52,7 @@ jobs:
           done
           bash /tmp/install-opencode.sh
           rm -f /tmp/install-opencode.sh
-          opencode --version || { echo "::error::opencode install verification failed"; exit 1; }
+          "$HOME/.opencode/bin/opencode" --version || { echo "::error::opencode install verification failed"; exit 1; }
 
       - name: Add opencode to PATH
         run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
@@ -387,7 +387,7 @@ jobs:
           done
           bash /tmp/install-opencode.sh
           rm -f /tmp/install-opencode.sh
-          opencode --version || { echo "::error::opencode install verification failed"; exit 1; }
+          "$HOME/.opencode/bin/opencode" --version || { echo "::error::opencode install verification failed"; exit 1; }
 
       - name: Add opencode to PATH
         run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
@@ -673,7 +673,7 @@ jobs:
           done
           bash /tmp/install-opencode.sh
           rm -f /tmp/install-opencode.sh
-          opencode --version || { echo "::error::opencode install verification failed"; exit 1; }
+          "$HOME/.opencode/bin/opencode" --version || { echo "::error::opencode install verification failed"; exit 1; }
 
       - name: Add opencode to PATH
         run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"

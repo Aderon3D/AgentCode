@@ -135,7 +135,7 @@ jobs:
             local tmp_files=()
             local result_file="/tmp/round-review-${round}.md"
 
-            cleanup_local() { rm -f "${tmp_files[@]}" "$result_file"; }
+            cleanup_local() { rm -f "${tmp_files[@]}"; }
             trap cleanup_local RETURN INT TERM
 
             > "$result_file"

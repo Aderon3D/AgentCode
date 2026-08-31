@@ -6,8 +6,7 @@ import com.agent.code.provider.LlmRequest
 import kotlinx.coroutines.flow.Flow
 
 class OpenCodeProvider(
-    private val client: OpenCodeClient,
-    override val modelId: String = "mimo-v2.5-free"
+    private val client: OpenCodeClient
 ) : LlmProvider {
 
     override val providerId: String = "opencode"

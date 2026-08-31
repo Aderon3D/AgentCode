@@ -40,8 +40,8 @@ jobs:
         id: cache-opencode
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          path: ${{ env.HOME }}/.opencode
-          key: opencode-${{ runner.os }}-v1
+          path: /home/runner/.opencode
+          key: opencode-${{ runner.os }}-v2
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'
@@ -370,8 +370,8 @@ jobs:
         id: cache-opencode
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          path: ${{ env.HOME }}/.opencode
-          key: opencode-${{ runner.os }}-v1
+          path: /home/runner/.opencode
+          key: opencode-${{ runner.os }}-v2
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'
@@ -656,8 +656,8 @@ jobs:
         id: cache-opencode
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          path: ${{ env.HOME }}/.opencode
-          key: opencode-${{ runner.os }}-v1
+          path: /home/runner/.opencode
+          key: opencode-${{ runner.os }}-v2
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'

@@ -553,7 +553,7 @@ jobs:
           fi
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
           git add -A -- ':!.opencode' ':!.github/workflows'
-          git diff --cached --name-only | while IFS= read -r f; do [ -L "$f" ] && git restore --staged --quiet "$f" && echo "Skipped symlink: $f"; done
+          git diff --cached --name-only | while IFS= read -r f; do [ -L "$f" ] && git restore --staged --quiet "$f" && echo "Skipped symlink: $f"; done || true
           if git diff --cached --quiet; then
             echo "Nothing staged to commit"
             ALLMOD=$({ git diff --name-only; git ls-files --others --exclude-standard; } | { grep -v '^\.opencode/' || true; })
@@ -568,7 +568,7 @@ jobs:
           BRANCH="$HEAD_REF"
           git push origin "HEAD:$BRANCH" 2>&1 || {
             echo "Push failed"
-            echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
+            echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
           }
           echo "pushed=true" >> "$GITHUB_OUTPUT"
           echo "=== COMMIT STEP DONE ==="
@@ -828,13 +828,13 @@ jobs:
           git config user.name "ai-review[bot]"; git config user.email "ai-review[bot]@users.noreply.github.com"
           git diff --name-only | while IFS= read -r f; do
             [ -n "$f" ] && git add "$f"
-          done
+          done || true
           MSG="fix: apply review findings (round $COUNT) - Hash: $HASH"
           git commit -m "$MSG" || { echo "Nothing to commit"; LAST_DONE="true"; break; }
           BRANCH="$HEAD_REF"
           git push origin "HEAD:$BRANCH" 2>&1 || {
             echo "Push failed"
-            echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 1
+            echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
           }
           echo "pushed=true" >> "$GITHUB_OUTPUT"
           echo "Dispatching review for round $COUNT..."

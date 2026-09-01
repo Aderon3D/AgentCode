@@ -59,4 +59,12 @@ sealed interface AgentEvent {
         override val timestampMs: Long,
         val summary: String
     ) : AgentEvent
+
+    @Serializable
+    data class TaskFailed(
+        override val eventId: Long,
+        override val taskId: String,
+        override val timestampMs: Long,
+        val reason: String
+    ) : AgentEvent
 }

@@ -37,10 +37,14 @@ class OpenCodeManager(
     fun currentState(): OpenCodeState = _state
 
     suspend fun ensureInstalled(): OpenCodeState = stateMutex.withLock {
+        ensureInstalledInternal()
+    }
+
+    private suspend fun ensureInstalledInternal(): OpenCodeState {
         val binaryPath = config.installDir.resolve(config.binaryName)
         if (fileSystem.exists(binaryPath)) {
             _state = OpenCodeState.Stopped
-            return@withLock _state
+            return _state
         }
 
         _state = OpenCodeState.Installing
@@ -56,7 +60,7 @@ class OpenCodeManager(
         } else {
             OpenCodeState.Error("Install failed: ${result.getOrElse { "" }}")
         }
-        _state
+        return _state
     }
 
     suspend fun start(
@@ -67,7 +71,7 @@ class OpenCodeManager(
 
         val binaryPath = config.installDir.resolve(config.binaryName)
         if (!fileSystem.exists(binaryPath)) {
-            val installed = ensureInstalled()
+            val installed = ensureInstalledInternal()
             if (installed is OpenCodeState.Error) return@withLock installed
         }
 

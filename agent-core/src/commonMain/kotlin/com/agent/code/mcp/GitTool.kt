@@ -3,6 +3,10 @@ package com.agent.code.mcp
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.core.tools.RiskLevel
 import com.agent.code.core.tools.ToolResult
+import com.agent.code.security.AuditLog
+import com.agent.code.security.EmergencyStop
+import com.agent.code.security.GitDecision
+import com.agent.code.security.GitGuard
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessConfiguration
 import com.agent.code.workspace.ProcessRunner
@@ -17,6 +21,8 @@ class GitTool : AgentTool {
     override val riskLevel = RiskLevel.WRITE
 
     override suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult {
+        EmergencyStop.check()
+
         val obj = try {
             Json.parseToJsonElement(argumentsJson).jsonObject
         } catch (_: Exception) {
@@ -27,6 +33,12 @@ class GitTool : AgentTool {
         val args = obj["args"]?.jsonPrimitive?.contentOrNull ?: ""
         val workingDir = obj["working_dir"]?.jsonPrimitive?.contentOrNull
         val message = obj["message"]?.jsonPrimitive?.contentOrNull
+
+        val decision = GitGuard.isAllowed(subcommand, args)
+        if (decision is GitDecision.Blocked) {
+            AuditLog.log(name, argumentsJson, false, decision.reason, blocked = true, blockReason = decision.reason)
+            return ToolResult(name, false, "blocked: ${decision.reason}", 0L)
+        }
 
         val dir = if (workingDir != null) VirtualPath.of(workingDir) else VirtualPath.of(".")
         val cmd = buildList {
@@ -57,13 +69,17 @@ class GitTool : AgentTool {
                         if (output.stdout.isNotBlank()) appendLine(output.stdout)
                         if (output.stderr.isNotBlank()) appendLine("STDERR:\n${output.stderr}")
                     }.trim()
-                    ToolResult(name, output.exitCode == 0, combined.ifBlank { "exit ${output.exitCode}" }, elapsed)
+                    val success = output.exitCode == 0
+                    AuditLog.log(name, argumentsJson, success, combined)
+                    ToolResult(name, success, combined.ifBlank { "exit ${output.exitCode}" }, elapsed)
                 },
                 onFailure = { e ->
+                    AuditLog.log(name, argumentsJson, false, e.message ?: "failed")
                     ToolResult(name, false, "git failed: ${e.message}", System.currentTimeMillis() - start)
                 }
             )
         } catch (e: Exception) {
+            AuditLog.log(name, argumentsJson, false, e.message ?: "error")
             ToolResult(name, false, "error: ${e.message}", System.currentTimeMillis() - start)
         }
     }

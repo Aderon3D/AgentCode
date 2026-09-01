@@ -28,6 +28,8 @@ import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.power.PowerGovernor
 import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.provider.HierarchicalModelRouter
+import com.agent.code.ui.AgentPanel
+import com.agent.code.ui.AgentViewModel
 import com.agent.code.ui.DashboardScreen
 import com.agent.code.ui.demoModelRouter
 import kotlinx.coroutines.launch
@@ -37,23 +39,14 @@ import kotlinx.coroutines.launch
 fun App(
     probeDashboard: @Composable (() -> Unit)? = null,
     governor: PowerGovernor = StubPowerGovernor(),
+    agentViewModel: AgentViewModel? = null,
 ) {
     MaterialTheme {
         var showSpine by remember { mutableStateOf(false) }
         var showDash by remember { mutableStateOf(false) }
+        var showAgent by remember { mutableStateOf(agentViewModel != null) }
         val telemetry = remember { TelemetryEngine() }
         val router: HierarchicalModelRouter = remember { demoModelRouter() }
-
-        // Emit M3 demo telemetry events for DashboardScreen to observe
-        LaunchedEffect(telemetry) {
-            var seq = 0L
-            while (true) {
-                kotlinx.coroutines.delay(2000)
-                val ts = System.currentTimeMillis()
-                telemetry.emit(LogEntry.AgentThought(ts, "Demo thought ${seq++}"))
-                telemetry.emit(LogEntry.ToolCallStarted(ts + 10, "demo_tool", """{"arg":"value"}"""))
-            }
-        }
 
         Column(
             modifier = Modifier
@@ -63,6 +56,14 @@ fun App(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (agentViewModel != null) {
+                Button(onClick = { showAgent = !showAgent }) {
+                    Text("M6 Agent")
+                }
+                AnimatedVisibility(showAgent) {
+                    AgentPanel(viewModel = agentViewModel)
+                }
+            }
             Button(onClick = { showSpine = !showSpine }) {
                 Text("M0.5 Spine Demo")
             }

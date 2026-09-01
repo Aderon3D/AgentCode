@@ -17,10 +17,14 @@ class McpHost(
     private val fileSystem: FileSystemProvider,
     private val processRunner: ProcessRunner
 ) {
-    private val tools: Map<String, AgentTool> = mapOf(
-        ReadFileTool(fileSystem).let { it.name to it },
-        ApplyPatchTool(fileSystem).let { it.name to it }
-    ).toMap()
+    private val tools: Map<String, AgentTool> = listOf(
+        ReadFileTool(fileSystem),
+        ApplyPatchTool(fileSystem),
+        WriteFileTool(),
+        ListDirectoryTool(),
+        TerminalTool(),
+        GitTool()
+    ).associateBy { it.name }
 
     suspend fun dispatch(toolCall: com.agent.code.core.fsm.ToolCall): ToolResult {
         val tool = tools[toolCall.toolName]

@@ -21,7 +21,10 @@ class GitTool : AgentTool {
     override val riskLevel = RiskLevel.WRITE
 
     override suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult {
-        EmergencyStop.check()
+        try { EmergencyStop.check() } catch (e: Exception) {
+            AuditLog.log(name, argumentsJson, false, e.message ?: "stopped", blocked = true, blockReason = "emergency stop")
+            return ToolResult(name, false, "emergency stop activated", 0L)
+        }
 
         val obj = try {
             Json.parseToJsonElement(argumentsJson).jsonObject

@@ -1,19 +1,19 @@
 package com.agent.code.ui
 
-import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.InMemoryWalStore
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.mcp.McpHost
 import com.agent.code.opencode.AgentBrain
-import com.agent.code.opencode.AgentConfig
 import com.agent.code.opencode.BrainEvent
 import com.agent.code.opencode.OpenCodeClient
 import com.agent.code.opencode.OpenCodeManager
 import com.agent.code.opencode.OpenCodeState
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
+import io.ktor.client.HttpClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -46,7 +46,8 @@ class AgentViewModel(
     private val brain: AgentBrain,
     private val journal: AgentEventJournal,
     private val telemetry: TelemetryEngine,
-    private val workspaceRoot: VirtualPath
+    private val workspaceRoot: VirtualPath,
+    private val httpClient: HttpClient
 ) {
     private val _state = MutableStateFlow(AgentUiState())
     val state: StateFlow<AgentUiState> = _state.asStateFlow()
@@ -58,7 +59,10 @@ class AgentViewModel(
         if (statePollJob != null) return
         statePollJob = scope.launch {
             while (true) {
-                _state.value = _state.value.copy(processState = openCodeManager.currentState())
+                val s = openCodeManager.currentState()
+                if (s !is OpenCodeState.Error) {
+                    _state.value = _state.value.copy(processState = s)
+                }
                 delay(500)
             }
         }
@@ -67,6 +71,8 @@ class AgentViewModel(
                 openCodeManager.ensureInstalled()
                 openCodeManager.start(projectDir = workspaceRoot)
             } catch (e: Exception) {
+                statePollJob?.cancel()
+                statePollJob = null
                 _state.value = _state.value.copy(
                     processState = OpenCodeState.Error(e.message ?: "start failed")
                 )
@@ -115,6 +121,8 @@ class AgentViewModel(
                         _state.value = _state.value.copy(isRunning = false)
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _state.value = _state.value.copy(
                     isRunning = false,
@@ -134,6 +142,7 @@ class AgentViewModel(
         cancelTask()
         statePollJob?.cancel()
         scope.launch { openCodeManager.stop() }
+        httpClient.close()
     }
 
     companion object {
@@ -144,12 +153,13 @@ class AgentViewModel(
             workspaceRoot: VirtualPath
         ): AgentViewModel {
             val manager = OpenCodeManager(fileSystem, processRunner)
-            val client = OpenCodeClient(io.ktor.client.HttpClient(), manager)
+            val httpClient = HttpClient()
+            val client = OpenCodeClient(httpClient, manager)
             val journal = AgentEventJournal(InMemoryWalStore())
             val telemetry = TelemetryEngine(scope)
             val mcp = McpHost(fileSystem, processRunner)
             val brain = AgentBrain(client, mcp, journal, telemetry)
-            return AgentViewModel(scope, manager, client, brain, journal, telemetry, workspaceRoot)
+            return AgentViewModel(scope, manager, client, brain, journal, telemetry, workspaceRoot, httpClient)
         }
     }
 }

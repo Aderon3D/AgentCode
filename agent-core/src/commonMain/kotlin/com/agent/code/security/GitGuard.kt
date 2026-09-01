@@ -23,14 +23,14 @@ object GitGuard {
         }
 
         if (subcommand == "push") {
-            val targetBranch = extractTargetBranch(args)
+            val targetBranch = extractPushTarget(args)
             if (targetBranch != null && targetBranch in protectedBranches) {
                 return GitDecision.Blocked("push to protected branch '$targetBranch' denied")
             }
         }
 
         if (subcommand == "checkout" || subcommand == "switch") {
-            val target = extractTargetBranch(args)
+            val target = extractCheckoutTarget(args)
             if (target != null && target in protectedBranches) {
                 return GitDecision.Blocked("checkout of protected branch '$target' denied")
             }
@@ -43,9 +43,20 @@ object GitGuard {
         return GitDecision.Allowed
     }
 
-    private fun extractTargetBranch(args: String): String? {
-        val parts = args.split("\\s+".toRegex()).filter { it.isNotBlank() }
-        return parts.lastOrNull()
+    private fun extractPushTarget(args: String): String? {
+        val parts = args.split("\\s+".toRegex()).filter { it.isNotBlank() && !it.startsWith("-") }
+        if (parts.size < 2) return parts.lastOrNull()
+        val refspec = parts.last()
+        return if (refspec.contains(":")) {
+            refspec.substringAfter(":").removePrefix("refs/heads/")
+        } else {
+            refspec.removePrefix("refs/heads/")
+        }
+    }
+
+    private fun extractCheckoutTarget(args: String): String? {
+        val parts = args.split("\\s+".toRegex()).filter { it.isNotBlank() && !it.startsWith("-") }
+        return parts.firstOrNull()
     }
 }
 

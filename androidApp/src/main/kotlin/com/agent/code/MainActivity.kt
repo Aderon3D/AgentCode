@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.agent.code.core.path.VirtualPath
@@ -32,6 +33,9 @@ class MainActivity : ComponentActivity() {
                     processRunner = GitProcessRunner(),
                     workspaceRoot = workspaceRoot
                 )
+            }
+            DisposableEffect(Unit) {
+                onDispose { viewModel.destroy() }
             }
             App(
                 agentViewModel = viewModel,

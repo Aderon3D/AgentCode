@@ -29,6 +29,8 @@ design (TDD V14.1) and the module layout.
 | **M3** | ✅ | Live dashboard: telemetry engine, power governor, cost router, probe dashboard |
 | **M4** | ✅ | Android foreground service, LibGit2 JNI worktrees, Kanban board, UI demos |
 | **M5.1** | ✅ | Interface enrichment: suspend FileSystemProvider, applyPatch, walkTree, ProcessRunner.execute/executeStreaming, TokenChunkReceived |
+| **M5.2** | ✅ | Platform services: AndroidPowerGovernor (thermal+battery), PrivilegedElevationManager (Shizuku) |
+| **M5.3** | ✅ | Tool layer: MissionControlMcpServer, FetchDocTool, BudgetTrackingCircuitBreaker + TaskSafetyBudget |
 | **Foundation** | ✅ | Spin-lock → Mutex, deadlock prevention, parallel I/O, error resilience, temp sensor fix |
 
 ## Building & testing

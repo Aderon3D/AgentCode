@@ -3,14 +3,9 @@ package com.agent.code.opencode
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class OpenCodeConfig(
     val installDir: VirtualPath = VirtualPath.of("/data/data/com.agent.code/files/opencode"),
@@ -33,82 +28,114 @@ class OpenCodeManager(
     private val processRunner: ProcessRunner,
     private val config: OpenCodeConfig = OpenCodeConfig()
 ) {
-    private var state: OpenCodeState = OpenCodeState.NotInstalled
+    private val stateMutex = Mutex()
+    private var _state: OpenCodeState = OpenCodeState.NotInstalled
     private var serverPort: Int = config.defaultPort
 
-    fun currentState(): OpenCodeState = state
+    val state: OpenCodeState get() = _state
 
-    suspend fun ensureInstalled(): OpenCodeState {
+    fun currentState(): OpenCodeState = _state
+
+    suspend fun ensureInstalled(): OpenCodeState = stateMutex.withLock {
+        ensureInstalledInternal()
+    }
+
+    private suspend fun ensureInstalledInternal(): OpenCodeState {
         val binaryPath = config.installDir.resolve(config.binaryName)
         if (fileSystem.exists(binaryPath)) {
-            state = OpenCodeState.Stopped
-            return state
+            _state = OpenCodeState.Stopped
+            return _state
         }
 
-        state = OpenCodeState.Installing
+        _state = OpenCodeState.Installing
+        val dir = config.installDir.rawPath
         val result = processRunner.run(listOf(
             "sh", "-c",
-            "mkdir -p ${config.installDir.rawPath} && " +
+            "mkdir -p '${dir}' && " +
             "curl -fsSL https://opencode.ai/install.sh | " +
-            "BINDIR=${config.installDir.rawPath} sh"
+            "BINDIR='${dir}' sh"
         ))
-        return if (result.isSuccess) {
-            state = OpenCodeState.Stopped
-            state
+        _state = if (result.isSuccess) {
+            OpenCodeState.Stopped
         } else {
-            state = OpenCodeState.Error("Install failed: ${result.getOrElse { "" }}")
-            state
+            OpenCodeState.Error("Install failed: ${result.getOrElse { "" }}")
         }
+        return _state
     }
 
     suspend fun start(
         projectDir: VirtualPath,
         port: Int = config.defaultPort
-    ): OpenCodeState {
-        if (state is OpenCodeState.Running) return state
+    ): OpenCodeState = stateMutex.withLock {
+        if (_state is OpenCodeState.Running) return@withLock _state
 
         val binaryPath = config.installDir.resolve(config.binaryName)
         if (!fileSystem.exists(binaryPath)) {
-            val installed = ensureInstalled()
-            if (installed is OpenCodeState.Error) return installed
+            val installed = ensureInstalledInternal()
+            if (installed is OpenCodeState.Error) return@withLock installed
         }
 
-        state = OpenCodeState.Starting
+        _state = OpenCodeState.Starting
         serverPort = port
 
         val pidFile = config.installDir.resolve("opencode.pid")
         val logFile = config.installDir.resolve("opencode.log")
 
-        val result = processRunner.run(listOf(
-            "sh", "-c",
-            """
-            |cd ${projectDir.rawPath}
-            |${binaryPath.rawPath} serve
-            |  --port $port
-            |  --pid-file ${pidFile.rawPath}
-            |  > ${logFile.rawPath} 2>&1
-            |echo $!
-            """.trimMargin()
-        ))
+        val cmd = "cd '${projectDir.rawPath}' && " +
+            "'${binaryPath.rawPath}' serve " +
+            "--port $port " +
+            "--pid-file '${pidFile.rawPath}' " +
+            "> '${logFile.rawPath}' 2>&1 & " +
+            "echo \$!"
+
+        val result = processRunner.run(listOf("sh", "-c", cmd))
 
         if (!result.isSuccess) {
-            state = OpenCodeState.Error("Start failed: ${result.getOrElse { "" }}")
-            return state
+            _state = OpenCodeState.Error("Start failed: ${result.getOrElse { "" }}")
+            return@withLock _state
         }
 
-        val pid = result.getOrNull()?.trim()?.toIntOrNull() ?: 0
-        waitForServer(port)
-        state = OpenCodeState.Running(port, pid)
-        return state
+        val pid = try {
+            val pidContent = processRunner.run(listOf("cat", pidFile.rawPath))
+            pidContent.getOrNull()?.trim()?.toIntOrNull() ?: 0
+        } catch (_: Exception) { 0 }
+
+        try {
+            waitForServer(port)
+        } catch (e: Exception) {
+            _state = OpenCodeState.Error("Server failed to start: ${e.message}")
+            return@withLock _state
+        }
+
+        _state = OpenCodeState.Running(port, pid)
+        _state
     }
 
-    suspend fun stop() {
-        if (state !is OpenCodeState.Running) return
-        val pid = (state as OpenCodeState.Running).pid
-        processRunner.run(listOf("kill", "-TERM", pid.toString()))
-        delay(1000)
-        processRunner.run(listOf("kill", "-9", pid.toString()))
-        state = OpenCodeState.Stopped
+    suspend fun stop() = stateMutex.withLock {
+        if (_state !is OpenCodeState.Running) return@withLock
+        val pid = (_state as OpenCodeState.Running).pid
+        if (pid == 0) {
+            _state = OpenCodeState.Stopped
+            return@withLock
+        }
+
+        val alive = try {
+            val r = processRunner.run(listOf("kill", "-0", pid.toString()))
+            r.isSuccess
+        } catch (_: Exception) { false }
+
+        if (alive) {
+            processRunner.run(listOf("kill", "-TERM", pid.toString()))
+            delay(2000)
+            val stillAlive = try {
+                val r = processRunner.run(listOf("kill", "-0", pid.toString()))
+                r.isSuccess
+            } catch (_: Exception) { false }
+            if (stillAlive) {
+                processRunner.run(listOf("kill", "-9", pid.toString()))
+            }
+        }
+        _state = OpenCodeState.Stopped
     }
 
     fun baseUrl(): String = "http://127.0.0.1:$serverPort"
@@ -117,12 +144,18 @@ class OpenCodeManager(
         val deadline = System.currentTimeMillis() + config.startupTimeoutMs
         while (System.currentTimeMillis() < deadline) {
             try {
-                val result = processRunner.run(listOf(
-                    "curl", "-sf", "http://127.0.0.1:$port/api/health"
-                ))
-                if (result.isSuccess) return
+                val url = java.net.URL("http://127.0.0.1:$port/api/health")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 1000
+                conn.readTimeout = 1000
+                try {
+                    if (conn.responseCode == 200) return
+                } finally {
+                    conn.disconnect()
+                }
             } catch (_: Exception) {}
             delay(500)
         }
+        throw IllegalStateException("OpenCode server did not start within ${config.startupTimeoutMs}ms on port $port")
     }
 }

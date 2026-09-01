@@ -7,9 +7,10 @@ import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
+import io.ktor.utils.io.readUTF8Line
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
@@ -28,9 +29,13 @@ class OpenCodeClient(
     suspend fun healthCheck(): Result<String> {
         return try {
             val response = httpClient.get("${manager.baseUrl()}/api/health")
-            Result.success("OpenCode running on port ${manager.currentState().let {
-                if (it is OpenCodeState.Running) it.port else "unknown"
-            }}")
+            if (response.status != io.ktor.http.HttpStatusCode.OK) {
+                Result.failure(IllegalStateException("Health check returned ${response.status}"))
+            } else {
+                Result.success("OpenCode running on port ${manager.currentState().let {
+                    if (it is OpenCodeState.Running) it.port else "unknown"
+                }}")
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -55,7 +60,7 @@ class OpenCodeClient(
             contentType(ContentType.Application.Json)
             setBody(body.toString())
         }
-        return response.bodyAsChannel().readUTF8Line() ?: ""
+        return response.bodyAsText()
     }
 
     fun streamChat(request: LlmRequest): Flow<LlmEvent> = flow {
@@ -80,24 +85,35 @@ class OpenCodeClient(
         }
 
         val channel = response.bodyAsChannel()
+        var dataBuffer = StringBuilder()
 
         while (true) {
             val line = channel.readUTF8Line() ?: break
-            if (line.isBlank()) continue
-            if (!line.startsWith("data: ")) continue
+            if (line.startsWith("data: ")) {
+                val data = line.removePrefix("data: ").trim()
+                if (data == "[DONE]") break
+                dataBuffer.append(data)
+            } else if (line.isBlank() && dataBuffer.isNotEmpty()) {
+                val eventData = dataBuffer.toString()
+                dataBuffer.clear()
+                val events = parseChunk(eventData)
+                for (event in events) emit(event)
+            } else if (!line.isBlank()) {
+                dataBuffer.append(line)
+            }
+        }
 
-            val data = line.removePrefix("data: ").trim()
-            if (data == "[DONE]") break
-
-            val event = parseChunk(data) ?: continue
-            emit(event)
+        if (dataBuffer.isNotEmpty()) {
+            val events = parseChunk(dataBuffer.toString())
+            for (event in events) emit(event)
         }
     }
 
     suspend fun listSessions(): List<String> {
         return try {
             val response = httpClient.get("${manager.baseUrl()}/api/sessions")
-            val json = Json.parseToJsonElement(response.bodyAsChannel().readUTF8Line() ?: "[]")
+            val text = response.bodyAsText()
+            val json = Json.parseToJsonElement(text.ifBlank { "[]" })
             json.jsonArray.map { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: "" }
         } catch (_: Exception) {
             emptyList()
@@ -107,45 +123,48 @@ class OpenCodeClient(
     suspend fun listModels(): List<String> {
         return try {
             val response = httpClient.get("${manager.baseUrl()}/api/models")
-            val json = Json.parseToJsonElement(response.bodyAsChannel().readUTF8Line() ?: "[]")
+            val text = response.bodyAsText()
+            val json = Json.parseToJsonElement(text.ifBlank { "[]" })
             json.jsonArray.map { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: "" }
         } catch (_: Exception) {
             emptyList()
         }
     }
 
-    private fun parseChunk(data: String): LlmEvent? {
+    private fun parseChunk(data: String): List<LlmEvent> {
         return try {
             val json = Json.parseToJsonElement(data).jsonObject
-            val choices = json["choices"]?.jsonArray ?: return null
-            if (choices.isEmpty()) return null
-            val delta = choices[0].jsonObject["delta"]?.jsonObject ?: return null
+            val choices = json["choices"]?.jsonArray ?: return emptyList()
+            if (choices.isEmpty()) return emptyList()
+            val delta = choices[0].jsonObject["delta"]?.jsonObject ?: return emptyList()
 
             val content = delta["content"]?.jsonPrimitive?.contentOrNull
-            if (content != null) return LlmEvent.ContentChunk(content)
+            if (content != null) return listOf(LlmEvent.ContentChunk(content))
 
             val toolCalls = delta["tool_calls"]?.jsonArray
             if (toolCalls != null) {
+                val events = mutableListOf<LlmEvent>()
                 for (tc in toolCalls) {
                     val tcObj = tc.jsonObject
                     val fn = tcObj["function"]?.jsonObject ?: continue
                     val name = fn["name"]?.jsonPrimitive?.contentOrNull ?: continue
                     val args = fn["arguments"]?.jsonPrimitive?.contentOrNull ?: ""
                     val id = tcObj["id"]?.jsonPrimitive?.contentOrNull ?: "tc-${System.nanoTime()}"
-                    return LlmEvent.ToolCallChunk(id, name, args)
+                    events.add(LlmEvent.ToolCallChunk(id, name, args))
                 }
+                if (events.isNotEmpty()) return events
             }
 
             val usage = json["usage"]?.jsonObject
             if (usage != null) {
                 val prompt = usage["prompt_tokens"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
                 val completion = usage["completion_tokens"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-                return LlmEvent.UsageReport(prompt, completion)
+                return listOf(LlmEvent.UsageReport(prompt, completion))
             }
 
-            null
+            emptyList()
         } catch (_: Exception) {
-            null
+            emptyList()
         }
     }
 }

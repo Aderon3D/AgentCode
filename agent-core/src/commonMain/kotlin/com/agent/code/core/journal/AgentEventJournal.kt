@@ -16,6 +16,7 @@ val eventJson = Json {
             subclass(AgentEvent.ToolExecutionFinished::class, AgentEvent.ToolExecutionFinished.serializer())
             subclass(AgentEvent.FilePatchApplied::class, AgentEvent.FilePatchApplied.serializer())
             subclass(AgentEvent.TaskSucceeded::class, AgentEvent.TaskSucceeded.serializer())
+            subclass(AgentEvent.TaskFailed::class, AgentEvent.TaskFailed.serializer())
         }
     }
 }
@@ -43,6 +44,7 @@ object FsmStateReconstructor {
                 }
                 is AgentEvent.FilePatchApplied -> patchedFiles.add(e.path)
                 is AgentEvent.TaskSucceeded -> successSummary = e.summary
+                is AgentEvent.TaskFailed -> errorTrace = e.reason
             }
         }
 

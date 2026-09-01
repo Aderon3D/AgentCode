@@ -12,6 +12,8 @@ import com.agent.code.provider.LlmEvent
 import com.agent.code.provider.LlmRequest
 import com.agent.code.provider.Role
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -44,7 +46,8 @@ class AgentBrain(
     private val config: AgentConfig = AgentConfig()
 ) {
     private var seq = 0L
-    private fun nextId(): Long = ++seq
+    private val seqMutex = Mutex()
+    private suspend fun nextId(): Long = seqMutex.withLock { ++seq }
     private fun now(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
 
     fun executeTask(
@@ -56,7 +59,8 @@ class AgentBrain(
         history.add(ChatMessage(Role.SYSTEM, systemPrompt(workspaceRoot)))
         history.add(ChatMessage(Role.USER, goal))
 
-        journal.append(AgentEvent.TaskStarted(nextId(), taskId, now(), goal))
+        val startId = nextId()
+        journal.append(AgentEvent.TaskStarted(startId, taskId, now(), goal))
         telemetry.emit(LogEntry.AgentThought(now(), "Starting: $goal"))
 
         for (iteration in 1..config.maxIterations) {
@@ -80,10 +84,15 @@ class AgentBrain(
                             toolCalls.add(PendingToolCall(event.id, event.name, event.jsonArgsDelta))
                             telemetry.emit(LogEntry.ToolCallStarted(now(), event.name, event.jsonArgsDelta))
                         }
+                        is LlmEvent.UsageReport -> {
+                            telemetry.emit(LogEntry.AgentThought(now(), "tokens: ${event.promptTokens}+${event.completionTokens}"))
+                        }
                         else -> {}
                     }
                 }
             } catch (e: Exception) {
+                val failId = nextId()
+                journal.append(AgentEvent.TaskSucceeded(failId, taskId, now(), "LLM error: ${e.message}"))
                 send(BrainEvent.TaskFailed("LLM error: ${e.message}"))
                 return@channelFlow
             }
@@ -94,7 +103,8 @@ class AgentBrain(
                 val done = parseDone(assistantText)
                 if (done != null) {
                     send(BrainEvent.TaskComplete(done))
-                    journal.append(AgentEvent.TaskSucceeded(nextId(), taskId, now(), done))
+                    val completeId = nextId()
+                    journal.append(AgentEvent.TaskSucceeded(completeId, taskId, now(), done))
                     return@channelFlow
                 }
                 history.add(ChatMessage(Role.ASSISTANT, assistantText))
@@ -109,12 +119,14 @@ class AgentBrain(
             for ((i, pending) in toolCalls.withIndex()) {
                 if (i >= config.maxToolCallsPerIteration) break
                 send(BrainEvent.ToolCallStarted(pending.name, pending.arguments))
+                val reqId = nextId()
                 journal.append(AgentEvent.ToolExecutionRequested(
-                    nextId(), taskId, now(), ToolCall(pending.id, pending.name, pending.arguments)))
+                    reqId, taskId, now(), ToolCall(pending.id, pending.name, pending.arguments)))
 
                 val result = mcp.dispatch(ToolCall(pending.id, pending.name, pending.arguments))
 
-                journal.append(AgentEvent.ToolExecutionFinished(nextId(), taskId, now(), result))
+                val finId = nextId()
+                journal.append(AgentEvent.ToolExecutionFinished(finId, taskId, now(), result))
                 send(BrainEvent.ToolCallFinished(pending.name, result.isSuccess))
                 telemetry.emit(LogEntry.ToolCallStarted(now(), pending.name,
                     if (result.isSuccess) "OK" else "FAIL: ${result.output.take(200)}"))
@@ -126,6 +138,8 @@ class AgentBrain(
             send(BrainEvent.IterationComplete(iteration))
         }
 
+        val failId = nextId()
+        journal.append(AgentEvent.TaskSucceeded(failId, taskId, now(), "Max iterations reached"))
         send(BrainEvent.TaskFailed("Max iterations reached"))
     }
 
@@ -160,7 +174,7 @@ class AgentBrain(
 
     private fun parseDone(text: String): String? {
         return try {
-            val m = Regex("""\{[^}]*"done"\s*:\s*true[^}]*\}""").find(text) ?: return null
+            val m = Regex("""\{[^{}]*"done"\s*:\s*true[^{}]*\}""").find(text) ?: return null
             val j = Json.parseToJsonElement(m.value).jsonObject
             if (j["done"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() == true)
                 j["summary"]?.jsonPrimitive?.contentOrNull ?: "Done"

@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "@opencode-ai/plugin": "1.18.23",
-    "caveman-opencode-plugin": "^0.1.5",
-    "ponytail-opencode-plugin": "^0.1.0",
-    "opencode-bash-guard": "^0.1.0"
-  }
-}

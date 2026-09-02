@@ -6,6 +6,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -27,6 +29,7 @@ object AuditLog {
     private val maxEntries = 1000
     private val json = Json { ignoreUnknownKeys = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val fileMutex = Mutex()
 
     private var fileSystem: FileSystemProvider? = null
     private var logPath: VirtualPath? = null
@@ -68,10 +71,12 @@ object AuditLog {
         val fs = fileSystem ?: return
         val path = logPath ?: return
         scope.launch {
-            runCatching {
-                val line = json.encodeToString(entry) + "\n"
-                val existing = fs.read(path).getOrNull() ?: ""
-                fs.write(path, existing + line)
+            fileMutex.withLock {
+                runCatching {
+                    val line = json.encodeToString(entry) + "\n"
+                    val existing = fs.read(path).getOrNull() ?: ""
+                    fs.write(path, existing + line)
+                }
             }
         }
     }

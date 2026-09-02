@@ -275,7 +275,7 @@ jobs:
             fi
 
             if [ "$MAJOR_COUNT" -eq 0 ] && [ "$ROUND" -gt 1 ]; then
-              CONVERGENCE_REASON="no Major findings in round $ROUND"
+              CONVERGENCE_REASON="no NEW Major findings in round $ROUND"
               break
             fi
 

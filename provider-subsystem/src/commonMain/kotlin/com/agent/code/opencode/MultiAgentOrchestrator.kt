@@ -7,6 +7,7 @@ import com.agent.code.core.path.VirtualPath
 import com.agent.code.mcp.McpHost
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -70,6 +71,10 @@ class MultiAgentOrchestrator(
         }
 
         val job = scope.launch {
+            // Check slot still exists before expensive work (handles cancelTask during launch window)
+            val slotExists = mutex.withLock { _slots.value.containsKey(taskId) }
+            if (!slotExists) return@launch
+
             try {
                 manager.ensureInstalled()
                 manager.start(projectDir = workspaceRoot)
@@ -106,6 +111,8 @@ class MultiAgentOrchestrator(
                 } finally {
                     try { httpClient.close() } catch (_: Exception) {}
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 mutex.withLock {
                     val current = _slots.value[taskId] ?: return@withLock
@@ -113,6 +120,8 @@ class MultiAgentOrchestrator(
                         state = AgentSlotState.Failed(e.message ?: "unknown error")
                     ))
                 }
+            } finally {
+                mutex.withLock { jobs.remove(taskId) }
             }
         }
         mutex.withLock { jobs[taskId] = job }

@@ -17,7 +17,7 @@ object GitGuard {
         val normalized = "$subcommand $args".trim().lowercase()
 
         for (blocked in blockedSubcommands) {
-            if (normalized.startsWith(blocked)) {
+            if (normalized == blocked || normalized.startsWith("$blocked ") || normalized.startsWith("$blocked=")) {
                 return GitDecision.Blocked("subcommand blocked: $blocked")
             }
         }

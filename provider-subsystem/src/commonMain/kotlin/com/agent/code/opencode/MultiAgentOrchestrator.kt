@@ -62,8 +62,10 @@ class MultiAgentOrchestrator(
     }
 
     suspend fun startTask(taskId: String) {
-        val manager = mutex.withLock { managers[taskId] }
-            ?: throw IllegalStateException("No slot for task $taskId")
+        val manager = mutex.withLock {
+            if (jobs.containsKey(taskId)) throw IllegalStateException("Task $taskId is already running")
+            managers[taskId]
+        } ?: throw IllegalStateException("No slot for task $taskId")
 
         mutex.withLock {
             val slot = _slots.value[taskId] ?: return@withLock
@@ -128,10 +130,14 @@ class MultiAgentOrchestrator(
                     ))
                 }
             } finally {
-                // Only remove if this is still the current job (guards against taskId reuse)
+                // Only clean up if this is still the current job (guards against taskId reuse)
                 val myJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
                 mutex.withLock {
-                    if (jobs[taskId] === myJob) jobs.remove(taskId)
+                    if (jobs[taskId] === myJob) {
+                        jobs.remove(taskId)
+                        managers.remove(taskId)
+                        _slots.value = _slots.value - taskId
+                    }
                 }
             }
         }

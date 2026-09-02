@@ -77,7 +77,14 @@ class MultiAgentOrchestrator(
 
             try {
                 manager.ensureInstalled()
+                // Re-check after suspending call: cancelTask may have removed the slot
+                val stillRunning = mutex.withLock { _slots.value.containsKey(taskId) }
+                if (!stillRunning) return@launch
+
                 manager.start(projectDir = workspaceRoot)
+                // Re-check after suspending call
+                val stillRunning2 = mutex.withLock { _slots.value.containsKey(taskId) }
+                if (!stillRunning2) return@launch
 
                 val httpClient = io.ktor.client.HttpClient()
                 try {

@@ -2,6 +2,7 @@ package com.agent.code.security
 
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.workspace.FileSystemProvider
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,14 +32,24 @@ object AuditLog {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val fileMutex = Mutex()
 
+    @Volatile
     private var fileSystem: FileSystemProvider? = null
+    @Volatile
     private var logPath: VirtualPath? = null
 
+    private var loaded = CompletableDeferred<Unit>()
+
     fun init(fileSystem: FileSystemProvider?, logDir: VirtualPath?) {
+        loaded = CompletableDeferred()
         this.fileSystem = fileSystem
         this.logPath = logDir?.resolve("audit-log.jsonl")
         if (fileSystem != null && logPath != null) {
-            scope.launch { load() }
+            scope.launch {
+                load()
+                loaded.complete(Unit)
+            }
+        } else {
+            loaded.complete(Unit)
         }
     }
 
@@ -57,7 +68,8 @@ object AuditLog {
         }
     }
 
-    fun record(entry: AuditEntry) {
+    suspend fun record(entry: AuditEntry) {
+        loaded.await()
         synchronized(entries) {
             entries.add(entry)
             if (entries.size > maxEntries) {
@@ -67,16 +79,14 @@ object AuditLog {
         persistEntry(entry)
     }
 
-    private fun persistEntry(entry: AuditEntry) {
+    private suspend fun persistEntry(entry: AuditEntry) {
         val fs = fileSystem ?: return
         val path = logPath ?: return
-        scope.launch {
-            fileMutex.withLock {
-                runCatching {
-                    val line = json.encodeToString(entry) + "\n"
-                    val existing = fs.read(path).getOrNull() ?: ""
-                    fs.write(path, existing + line)
-                }
+        fileMutex.withLock {
+            runCatching {
+                val line = json.encodeToString(entry) + "\n"
+                val existing = fs.read(path).getOrNull() ?: return
+                fs.write(path, existing + line)
             }
         }
     }
@@ -89,15 +99,17 @@ object AuditLog {
         blocked: Boolean = false,
         blockReason: String? = null
     ) {
-        record(AuditEntry(
-            timestampMs = Clock.System.now().toEpochMilliseconds(),
-            toolName = toolName,
-            argumentsSummary = argumentsJson.take(200),
-            success = success,
-            outputSummary = output.take(500),
-            blocked = blocked,
-            blockReason = blockReason
-        ))
+        scope.launch {
+            record(AuditEntry(
+                timestampMs = Clock.System.now().toEpochMilliseconds(),
+                toolName = toolName,
+                argumentsSummary = argumentsJson.take(200),
+                success = success,
+                outputSummary = output.take(500),
+                blocked = blocked,
+                blockReason = blockReason
+            ))
+        }
     }
 
     fun recent(count: Int = 50): List<AuditEntry> {

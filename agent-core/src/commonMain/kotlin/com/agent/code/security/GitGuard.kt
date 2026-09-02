@@ -6,6 +6,7 @@ object GitGuard {
     private val blockedSubcommands = setOf(
         "push --force",
         "push -f",
+        "push --forceall",
         "push --force-with-lease",
         "reset --hard",
         "rebase --onto",
@@ -17,7 +18,7 @@ object GitGuard {
         val normalized = "$subcommand $args".trim().lowercase()
 
         for (blocked in blockedSubcommands) {
-            if (normalized.startsWith(blocked)) {
+            if (normalized == blocked || normalized.startsWith("$blocked ") || normalized.startsWith("$blocked=")) {
                 return GitDecision.Blocked("subcommand blocked: $blocked")
             }
         }

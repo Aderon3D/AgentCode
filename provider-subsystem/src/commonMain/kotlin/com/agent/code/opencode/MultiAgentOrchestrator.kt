@@ -7,6 +7,7 @@ import com.agent.code.core.path.VirtualPath
 import com.agent.code.mcp.McpHost
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -61,8 +62,10 @@ class MultiAgentOrchestrator(
     }
 
     suspend fun startTask(taskId: String) {
-        val manager = mutex.withLock { managers[taskId] }
-            ?: throw IllegalStateException("No slot for task $taskId")
+        val manager = mutex.withLock {
+            if (jobs.containsKey(taskId)) throw IllegalStateException("Task $taskId is already running")
+            managers[taskId]
+        } ?: throw IllegalStateException("No slot for task $taskId")
 
         mutex.withLock {
             val slot = _slots.value[taskId] ?: return@withLock
@@ -70,9 +73,20 @@ class MultiAgentOrchestrator(
         }
 
         val job = scope.launch {
+            // Check slot still exists before expensive work (handles cancelTask during launch window)
+            val slotExists = mutex.withLock { _slots.value.containsKey(taskId) }
+            if (!slotExists) return@launch
+
             try {
                 manager.ensureInstalled()
+                // Re-check after suspending call: cancelTask may have removed the slot
+                val stillRunning = mutex.withLock { _slots.value.containsKey(taskId) }
+                if (!stillRunning) return@launch
+
                 manager.start(projectDir = workspaceRoot)
+                // Re-check after suspending call
+                val stillRunning2 = mutex.withLock { _slots.value.containsKey(taskId) }
+                if (!stillRunning2) return@launch
 
                 val httpClient = io.ktor.client.HttpClient()
                 try {
@@ -106,12 +120,24 @@ class MultiAgentOrchestrator(
                 } finally {
                     try { httpClient.close() } catch (_: Exception) {}
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 mutex.withLock {
                     val current = _slots.value[taskId] ?: return@withLock
                     _slots.value = _slots.value + (taskId to current.copy(
                         state = AgentSlotState.Failed(e.message ?: "unknown error")
                     ))
+                }
+            } finally {
+                // Only clean up if this is still the current job (guards against taskId reuse)
+                val myJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+                mutex.withLock {
+                    if (jobs[taskId] === myJob) {
+                        jobs.remove(taskId)
+                        managers.remove(taskId)
+                        _slots.value = _slots.value - taskId
+                    }
                 }
             }
         }

@@ -37,19 +37,24 @@ object AuditLog {
     @Volatile
     private var logPath: VirtualPath? = null
 
+    @Volatile
     private var loaded = CompletableDeferred<Unit>()
 
     fun init(fileSystem: FileSystemProvider?, logDir: VirtualPath?) {
+        val oldDeferred = loaded
         loaded = CompletableDeferred()
         this.fileSystem = fileSystem
         this.logPath = logDir?.resolve("audit-log.jsonl")
         if (fileSystem != null && logPath != null) {
+            val deferred = loaded
             scope.launch {
                 load()
-                loaded.complete(Unit)
+                deferred.complete(Unit)
+                oldDeferred.complete(Unit)
             }
         } else {
             loaded.complete(Unit)
+            oldDeferred.complete(Unit)
         }
     }
 
@@ -83,10 +88,12 @@ object AuditLog {
         val fs = fileSystem ?: return
         val path = logPath ?: return
         fileMutex.withLock {
-            runCatching {
-                val line = json.encodeToString(entry) + "\n"
-                val existing = fs.read(path).getOrNull() ?: return
+            val line = json.encodeToString(entry) + "\n"
+            val existing = fs.read(path).getOrNull()
+            if (existing != null) {
                 fs.write(path, existing + line)
+            } else {
+                fs.write(path, line)
             }
         }
     }

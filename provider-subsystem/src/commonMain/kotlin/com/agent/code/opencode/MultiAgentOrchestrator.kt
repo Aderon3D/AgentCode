@@ -9,6 +9,7 @@ import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,20 +39,18 @@ class MultiAgentOrchestrator(
     private val maxConcurrent: Int = 3
 ) {
     private val scope = CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
-    private val slotsMutex = Mutex()
+    private val mutex = Mutex()
     private val _slots = MutableStateFlow<Map<String, AgentSlot>>(emptyMap())
     val slots: StateFlow<Map<String, AgentSlot>> = _slots.asStateFlow()
 
     private val managers = mutableMapOf<String, OpenCodeManager>()
     private val jobs = mutableMapOf<String, Job>()
 
-    private fun nextPort(base: Int, index: Int): Int = base + index
-
-    suspend fun submitTask(taskId: String, goal: String): AgentSlot = slotsMutex.withLock {
+    suspend fun submitTask(taskId: String, goal: String): AgentSlot = mutex.withLock {
         if (managers.size >= maxConcurrent) {
             throw IllegalStateException("Max concurrent agents ($maxConcurrent) reached")
         }
-        val port = nextPort(4096, managers.size)
+        val port = (4096..65535).first { p -> managers.values.none { it.currentState().let { s -> s is OpenCodeState.Running && s.port == p } } }
         val config = OpenCodeConfig(defaultPort = port)
         val manager = OpenCodeManager(fileSystem, processRunner, config)
         managers[taskId] = manager
@@ -62,11 +61,12 @@ class MultiAgentOrchestrator(
     }
 
     suspend fun startTask(taskId: String) {
-        val manager = managers[taskId]
+        val manager = mutex.withLock { managers[taskId] }
             ?: throw IllegalStateException("No slot for task $taskId")
 
-        slotsMutex.withLock {
-            _slots.value = _slots.value + (taskId to _slots.value[taskId]!!.copy(state = AgentSlotState.Starting))
+        mutex.withLock {
+            val slot = _slots.value[taskId] ?: return@withLock
+            _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Starting))
         }
 
         val job = scope.launch {
@@ -81,70 +81,64 @@ class MultiAgentOrchestrator(
                     val telemetry = TelemetryEngine(scope)
                     val mcp = McpHost(fileSystem, processRunner)
                     val brain = AgentBrain(client, mcp, journal, telemetry)
-                    val slot = _slots.value[taskId]!!
 
-                    slotsMutex.withLock {
+                    mutex.withLock {
+                        val slot = _slots.value[taskId] ?: return@withLock
                         val port = manager.currentState().let { if (it is OpenCodeState.Running) it.port else null }
                         _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0), port = port))
                     }
 
-                    brain.executeTask(taskId, slot.goal, workspaceRoot).collect { event ->
-                        when (event) {
-                            is BrainEvent.IterationComplete -> {
-                                slotsMutex.withLock {
-                                    _slots.value = _slots.value + (taskId to _slots.value[taskId]!!.copy(
-                                        state = AgentSlotState.Running(event.iteration)
-                                    ))
-                                }
+                    val goal = mutex.withLock { _slots.value[taskId]?.goal } ?: return@launch
+                    brain.executeTask(taskId, goal, workspaceRoot).collect { event ->
+                        mutex.withLock {
+                            val current = _slots.value[taskId] ?: return@withLock
+                            val updated = when (event) {
+                                is BrainEvent.IterationComplete -> current.copy(state = AgentSlotState.Running(event.iteration))
+                                is BrainEvent.TaskComplete -> current.copy(state = AgentSlotState.Done(event.summary))
+                                is BrainEvent.TaskFailed -> current.copy(state = AgentSlotState.Failed(event.reason))
+                                else -> null
                             }
-                            is BrainEvent.TaskComplete -> {
-                                slotsMutex.withLock {
-                                    _slots.value = _slots.value + (taskId to _slots.value[taskId]!!.copy(
-                                        state = AgentSlotState.Done(event.summary)
-                                    ))
-                                }
+                            if (updated != null) {
+                                _slots.value = _slots.value + (taskId to updated)
                             }
-                            is BrainEvent.TaskFailed -> {
-                                slotsMutex.withLock {
-                                    _slots.value = _slots.value + (taskId to _slots.value[taskId]!!.copy(
-                                        state = AgentSlotState.Failed(event.reason)
-                                    ))
-                                }
-                            }
-                            else -> {}
                         }
                     }
                 } finally {
-                    httpClient.close()
+                    try { httpClient.close() } catch (_: Exception) {}
                 }
             } catch (e: Exception) {
-                slotsMutex.withLock {
-                    _slots.value = _slots.value + (taskId to _slots.value[taskId]!!.copy(
+                mutex.withLock {
+                    val current = _slots.value[taskId] ?: return@withLock
+                    _slots.value = _slots.value + (taskId to current.copy(
                         state = AgentSlotState.Failed(e.message ?: "unknown error")
                     ))
                 }
             }
         }
-        jobs[taskId] = job
+        mutex.withLock { jobs[taskId] = job }
     }
 
     suspend fun cancelTask(taskId: String) {
-        jobs[taskId]?.cancel()
-        jobs.remove(taskId)
-        managers[taskId]?.stop()
-        managers.remove(taskId)
-        slotsMutex.withLock {
+        val job: Job?
+        val manager: OpenCodeManager?
+        mutex.withLock {
+            job = jobs.remove(taskId)
+            manager = managers.remove(taskId)
             _slots.value = _slots.value - taskId
         }
+        job?.cancelAndJoin()
+        manager?.stop()
     }
 
     suspend fun stopAll() {
-        jobs.values.forEach { it.cancel() }
-        jobs.clear()
-        managers.values.forEach { it.stop() }
-        managers.clear()
-        slotsMutex.withLock {
+        val snapshot: Pair<List<Job>, List<OpenCodeManager>>
+        mutex.withLock {
+            snapshot = jobs.values.toList() to managers.values.toList()
+            jobs.clear()
+            managers.clear()
             _slots.value = emptyMap()
         }
+        snapshot.first.forEach { it.cancelAndJoin() }
+        snapshot.second.forEach { it.stop() }
     }
 }

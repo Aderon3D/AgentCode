@@ -128,7 +128,11 @@ class MultiAgentOrchestrator(
                     ))
                 }
             } finally {
-                mutex.withLock { jobs.remove(taskId) }
+                // Only remove if this is still the current job (guards against taskId reuse)
+                val myJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+                mutex.withLock {
+                    if (jobs[taskId] === myJob) jobs.remove(taskId)
+                }
             }
         }
         mutex.withLock { jobs[taskId] = job }

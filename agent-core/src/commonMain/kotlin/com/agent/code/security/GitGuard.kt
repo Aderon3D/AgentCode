@@ -6,6 +6,7 @@ object GitGuard {
     private val blockedSubcommands = setOf(
         "push --force",
         "push -f",
+        "push --forceall",
         "push --force-with-lease",
         "reset --hard",
         "rebase --onto",

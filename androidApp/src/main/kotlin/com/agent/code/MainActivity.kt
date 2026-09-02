@@ -11,6 +11,7 @@ import com.agent.code.core.path.VirtualPath
 import com.agent.code.core.power.AndroidPowerGovernor
 import com.agent.code.service.ResilientAgentForegroundService
 import com.agent.code.ui.AgentViewModel
+import com.agent.code.security.AuditLog
 import com.agent.code.workspace.RealFileSystem
 import com.agent.code.workspace.GitProcessRunner
 
@@ -23,13 +24,15 @@ class MainActivity : ComponentActivity() {
         ResilientAgentForegroundService.start(this)
 
         val workspaceRoot = VirtualPath.of(filesDir.absolutePath)
+        val fileSystem = RealFileSystem(workspaceRoot)
+        AuditLog.init(fileSystem, workspaceRoot)
 
         setContent {
             val scope = rememberCoroutineScope()
             val viewModel = remember {
                 AgentViewModel.create(
                     scope = scope,
-                    fileSystem = RealFileSystem(workspaceRoot),
+                    fileSystem = fileSystem,
                     processRunner = GitProcessRunner(),
                     workspaceRoot = workspaceRoot
                 )

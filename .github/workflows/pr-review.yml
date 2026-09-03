@@ -335,41 +335,31 @@ jobs:
 
           BODY=$(cat /tmp/review.md)
 
-          # Count findings to decide review event
-          HAS_MAJOR=$(echo "$BODY" | grep -ciE 'severity:\s*major' || true)
+          # Count findings
           HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:' || true)
 
           # Fetch the current SHA for the review
           HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha')
 
-          # Determine review event
-          if [ "${HAS_MAJOR:-0}" -gt 0 ]; then
-            EVENT="REQUEST_CHANGES"
-            echo "Found $HAS_MAJOR Major findings → REQUEST_CHANGES"
-          elif [ "${HAS_ANY:-0}" -gt 0 ]; then
-            # Minor-only → still request changes so they get resolved
-            EVENT="REQUEST_CHANGES"
-            echo "Found Minor findings → REQUEST_CHANGES"
+          if [ "${HAS_ANY:-0}" -gt 0 ]; then
+            # Has findings → REQUEST_CHANGES (blocks merge until resolved)
+            echo "Found findings → REQUEST_CHANGES"
+            PAYLOAD=$(mktemp)
+            python3 -c "
+            import json, sys
+            body = sys.stdin.read()
+            print(json.dumps({'body': body, 'event': 'REQUEST_CHANGES', 'commit_id': '$HEAD_SHA'}))
+            " <<< "$BODY" > "$PAYLOAD"
+            gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+              --method POST \
+              --input "$PAYLOAD" \
+              --jq '.id'
+            rm -f "$PAYLOAD"
           else
-            EVENT="APPROVE"
-            echo "No findings → APPROVE"
+            # No findings → regular comment (APPROVE from bot doesn't count for self-approval)
+            echo "No findings → comment"
+            gh pr comment "$PR_NUMBER" --body "$BODY"
           fi
-
-          # Create PR review via API (posts as a review comment that must be resolved)
-          PAYLOAD=$(mktemp)
-          python3 -c "
-          import json, sys
-          body = sys.stdin.read()
-          print(json.dumps({'body': body, 'event': '$EVENT', 'commit_id': '$HEAD_SHA'}))
-          " <<< "$BODY" > "$PAYLOAD"
-
-          gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-            --method POST \
-            --input "$PAYLOAD" \
-            --jq '.id'
-
-          rm -f "$PAYLOAD"
-          echo "Review submitted with event=$EVENT"
 
   fix:
     runs-on: ubuntu-latest

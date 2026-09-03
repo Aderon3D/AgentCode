@@ -7,9 +7,11 @@ import com.agent.code.core.path.VirtualPath
 import com.agent.code.mcp.McpHost
 import com.agent.code.opencode.AgentBrain
 import com.agent.code.opencode.BrainEvent
+import com.agent.code.opencode.OpenCodeApi
 import com.agent.code.opencode.OpenCodeClient
 import com.agent.code.opencode.OpenCodeManager
 import com.agent.code.opencode.OpenCodeState
+import com.agent.code.opencode.MockOpenCodeClient
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
 import io.ktor.client.HttpClient
@@ -42,7 +44,7 @@ sealed interface UiEvent {
 class AgentViewModel(
     private val scope: CoroutineScope,
     private val openCodeManager: OpenCodeManager,
-    private val openCodeClient: OpenCodeClient,
+    private val openCodeClient: OpenCodeApi,
     private val brain: AgentBrain,
     private val journal: AgentEventJournal,
     private val telemetry: TelemetryEngine,

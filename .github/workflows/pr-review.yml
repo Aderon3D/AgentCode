@@ -95,15 +95,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
         run: |
-          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq '[.[] | select(.body | startswith("# AI Code Review"))] | last | .id' 2>/dev/null || true)
-          if [ -n "$COMMENT_ID" ] && [ "$COMMENT_ID" != "null" ]; then
-            gh api "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" \
+          REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | .id' 2>/dev/null || true)
+          if [ -n "$REVIEW_ID" ] && [ "$REVIEW_ID" != "null" ]; then
+            gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$REVIEW_ID" \
               --jq '.body' > /tmp/existing-review.md
-            echo "Found existing review comment $COMMENT_ID"
+            echo "Found existing review $REVIEW_ID"
           else
-            echo "No existing review comment"
+            echo "No existing review"
           fi
 
       - name: Run review with regression check
@@ -325,10 +326,50 @@ jobs:
 
       - name: Comment on PR
         if: always() && (github.event_name == 'pull_request' || inputs.pr_number)
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88  # v3.0.5
-        with:
-          path: /tmp/review.md
-          header: ai-review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(cat /tmp/review.md)
+
+          # Count findings to decide review event
+          HAS_MAJOR=$(echo "$BODY" | grep -ciE 'severity:\s*major' || true)
+          HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:' || true)
+
+          # Fetch the current SHA for the review
+          HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha')
+
+          # Determine review event
+          if [ "${HAS_MAJOR:-0}" -gt 0 ]; then
+            EVENT="REQUEST_CHANGES"
+            echo "Found $HAS_MAJOR Major findings → REQUEST_CHANGES"
+          elif [ "${HAS_ANY:-0}" -gt 0 ]; then
+            # Minor-only → still request changes so they get resolved
+            EVENT="REQUEST_CHANGES"
+            echo "Found Minor findings → REQUEST_CHANGES"
+          else
+            EVENT="APPROVE"
+            echo "No findings → APPROVE"
+          fi
+
+          # Create PR review via API (posts as a review comment that must be resolved)
+          PAYLOAD=$(mktemp)
+          python3 -c "
+          import json, sys
+          body = sys.stdin.read()
+          print(json.dumps({'body': body, 'event': '$EVENT', 'commit_id': '$HEAD_SHA'}))
+          " <<< "$BODY" > "$PAYLOAD"
+
+          gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            --method POST \
+            --input "$PAYLOAD" \
+            --jq '.id'
+
+          rm -f "$PAYLOAD"
+          echo "Review submitted with event=$EVENT"
 
   fix:
     runs-on: ubuntu-latest
@@ -432,16 +473,16 @@ jobs:
           try:
               pr = os.environ['NUM']
               state_path = '/tmp/review-state.env'
-              r = subprocess.run(['gh','pr','view',pr,'--repo',os.environ['REPO'],'--json','comments'], capture_output=True, text=True)
+              r = subprocess.run(['gh','api',f'repos/{os.environ["REPO"]}/pulls/{pr}/reviews'], capture_output=True, text=True)
               if r.returncode:
-                  print(f'Failed to fetch PR comments: {r.stderr}', file=sys.stderr)
+                  print(f'Failed to fetch PR reviews: {r.stderr}', file=sys.stderr)
                   open(state_path,'w').write('NO_REVIEW=true\n')
                   sys.exit(0)
-              cs = json.loads(r.stdout).get('comments',[])
-              ai = [c for c in cs if c.get('body','').startswith('# AI Code Review') and ('github-actions' in (c.get('author',{}).get('login','') or '') or 'ai-review' in (c.get('author',{}).get('login','') or ''))]
+              reviews = json.loads(r.stdout)
+              ai = [c for c in reviews if c.get('body','').startswith('# AI Code Review') and ('github-actions' in (c.get('user',{}).get('login','') or '') or 'ai-review' in (c.get('user',{}).get('login','') or ''))]
               if not ai:
                   open(state_path,'w').write('NO_REVIEW=true\n'); print('NO_REVIEW'); sys.exit(0)
-              ai.sort(key=lambda c: c.get('createdAt','')); latest = ai[-1]
+              ai.sort(key=lambda c: c.get('submitted_at','')); latest = ai[-1]
               body = latest.get('body','')
               if not body.strip():
                   print('Review body empty', file=sys.stderr)
@@ -739,10 +780,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number }}
+          REPO: ${{ github.repository }}
         run: |
           echo '{"body": ""}' > /tmp/review-context.json
-          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq '[.[] | select(.body | startswith("# AI Code Review"))] | last | {body: .body}' \
+          gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | {body: .body}' \
             > /tmp/review-context.json 2>/dev/null || true
 
       - name: Autofix loop
@@ -891,8 +933,8 @@ jobs:
           python3 << 'PYEOF'
           import json, subprocess, os
           try:
-              r = subprocess.run(['gh','api',f'repos/{os.environ["GITHUB_REPOSITORY"]}/issues/{os.environ["PR_NUMBER"]}/comments',
-                  '--jq','[.[] | select(.body | startswith("# AI Code Review"))] | last | .body'],
+              r = subprocess.run(['gh','api',f'repos/{os.environ["GITHUB_REPOSITORY"]}/pulls/{os.environ["PR_NUMBER"]}/reviews',
+                  '--jq','[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | .body'],
                   capture_output=True, text=True)
               with open('/tmp/review-context.json','w') as f:
                   json.dump({'body': r.stdout.strip() if r.returncode == 0 else ''}, f)

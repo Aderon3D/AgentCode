@@ -14,6 +14,7 @@ import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.IOException
 
 @Serializable
 data class AuditEntry(
@@ -69,11 +70,11 @@ object AuditLog {
     private suspend fun load(fs: FileSystemProvider, path: VirtualPath) {
         runCatching {
             val content = fs.read(path).getOrNull() ?: ""
-            fileContent = content
             val parsed = content.lines().filter { it.isNotBlank() }.mapNotNull { line ->
                 runCatching { json.decodeFromString<AuditEntry>(line) }.getOrNull()
             }
-            synchronized(entries) {
+            fileMutex.withLock {
+                fileContent = content
                 entries.clear()
                 entries.addAll(parsed)
             }
@@ -101,7 +102,7 @@ object AuditLog {
                 fs.write(path, fileContent)
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
+            } catch (_: IOException) {
                 // I/O failure — entry exists in memory only
             }
         }
@@ -135,7 +136,16 @@ object AuditLog {
     }
 
     fun clear() {
-        synchronized(entries) { entries.clear() }
-        fileContent = ""
+        val fs = fileSystem ?: return
+        val path = logPath ?: return
+        scope.launch {
+            fileMutex.withLock {
+                entries.clear()
+                fileContent = ""
+                try {
+                    fs.write(path, "")
+                } catch (_: IOException) {}
+            }
+        }
     }
 }

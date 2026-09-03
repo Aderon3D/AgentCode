@@ -39,7 +39,7 @@ sealed interface BrainEvent {
 }
 
 class AgentBrain(
-    private val client: OpenCodeClient,
+    private val client: OpenCodeApi,
     private val mcp: McpHost,
     private val journal: AgentEventJournal,
     private val telemetry: TelemetryEngine,

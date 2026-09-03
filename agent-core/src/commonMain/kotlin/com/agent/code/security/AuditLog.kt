@@ -2,6 +2,7 @@ package com.agent.code.security
 
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.workspace.FileSystemProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,12 +46,17 @@ object AuditLog {
         loaded = CompletableDeferred()
         this.fileSystem = fileSystem
         this.logPath = logDir?.resolve("audit-log.jsonl")
-        if (fileSystem != null && logPath != null) {
+        if (fileSystem != null && logDir != null) {
             val deferred = loaded
+            val fs = fileSystem
+            val path = this.logPath!!
             scope.launch {
-                load()
-                deferred.complete(Unit)
-                oldDeferred.complete(Unit)
+                try {
+                    load(fs, path)
+                } finally {
+                    deferred.complete(Unit)
+                    oldDeferred.complete(Unit)
+                }
             }
         } else {
             loaded.complete(Unit)
@@ -58,12 +64,11 @@ object AuditLog {
         }
     }
 
-    private suspend fun load() {
-        val fs = fileSystem ?: return
-        val path = logPath ?: return
+    private suspend fun load(fs: FileSystemProvider, path: VirtualPath) {
         runCatching {
             val content = fs.read(path).getOrNull() ?: return
             synchronized(entries) {
+                entries.clear()
                 content.lines().filter { it.isNotBlank() }.forEach { line ->
                     runCatching {
                         entries.add(json.decodeFromString<AuditEntry>(line))
@@ -88,12 +93,18 @@ object AuditLog {
         val fs = fileSystem ?: return
         val path = logPath ?: return
         fileMutex.withLock {
-            val line = json.encodeToString(entry) + "\n"
-            val existing = fs.read(path).getOrNull()
-            if (existing != null) {
-                fs.write(path, existing + line)
-            } else {
-                fs.write(path, line)
+            try {
+                val line = json.encodeToString(entry) + "\n"
+                val existing = fs.read(path).getOrNull()
+                if (existing != null) {
+                    fs.write(path, existing + line)
+                } else {
+                    fs.write(path, line)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // I/O failure — entry exists in memory only
             }
         }
     }

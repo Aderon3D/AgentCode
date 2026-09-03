@@ -345,11 +345,8 @@ jobs:
             # Has findings → REQUEST_CHANGES (blocks merge until resolved)
             echo "Found findings → REQUEST_CHANGES"
             PAYLOAD=$(mktemp)
-            python3 -c "
-            import json, sys
-            body = sys.stdin.read()
-            print(json.dumps({'body': body, 'event': 'REQUEST_CHANGES', 'commit_id': '$HEAD_SHA'}))
-            " <<< "$BODY" > "$PAYLOAD"
+            printf '%s' "$BODY" | jq -Rs --arg sha "$HEAD_SHA" \
+              '{body: ., event: "REQUEST_CHANGES", commit_id: $sha}' > "$PAYLOAD"
             gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
               --method POST \
               --input "$PAYLOAD" \

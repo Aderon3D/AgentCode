@@ -333,25 +333,28 @@ jobs:
         run: |
           set -euo pipefail
 
-          BODY=$(cat /tmp/review.md)
+          BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
 
           # Count findings
           HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:' || true)
 
           # Fetch the current SHA for the review
-          HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha')
+          HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha') || {
+            echo "Failed to fetch PR head SHA" >&2
+            exit 1
+          }
 
           if [ "${HAS_ANY:-0}" -gt 0 ]; then
             # Has findings → REQUEST_CHANGES (blocks merge until resolved)
             echo "Found findings → REQUEST_CHANGES"
             PAYLOAD=$(mktemp)
+            trap 'rm -f "$PAYLOAD"' EXIT
             printf '%s' "$BODY" | jq -Rs --arg sha "$HEAD_SHA" \
               '{body: ., event: "REQUEST_CHANGES", commit_id: $sha}' > "$PAYLOAD"
             gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
               --method POST \
               --input "$PAYLOAD" \
               --jq '.id'
-            rm -f "$PAYLOAD"
           else
             # No findings → regular comment (APPROVE from bot doesn't count for self-approval)
             echo "No findings → comment"

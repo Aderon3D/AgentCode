@@ -41,6 +41,8 @@ object AuditLog {
     @Volatile
     private var loaded = CompletableDeferred<Unit>()
 
+    private var fileContent = ""
+
     fun init(fileSystem: FileSystemProvider?, logDir: VirtualPath?) {
         val oldDeferred = loaded
         loaded = CompletableDeferred()
@@ -66,14 +68,14 @@ object AuditLog {
 
     private suspend fun load(fs: FileSystemProvider, path: VirtualPath) {
         runCatching {
-            val content = fs.read(path).getOrNull() ?: return
+            val content = fs.read(path).getOrNull() ?: ""
+            fileContent = content
+            val parsed = content.lines().filter { it.isNotBlank() }.mapNotNull { line ->
+                runCatching { json.decodeFromString<AuditEntry>(line) }.getOrNull()
+            }
             synchronized(entries) {
                 entries.clear()
-                content.lines().filter { it.isNotBlank() }.forEach { line ->
-                    runCatching {
-                        entries.add(json.decodeFromString<AuditEntry>(line))
-                    }
-                }
+                entries.addAll(parsed)
             }
         }
     }
@@ -95,12 +97,8 @@ object AuditLog {
         fileMutex.withLock {
             try {
                 val line = json.encodeToString(entry) + "\n"
-                val existing = fs.read(path).getOrNull()
-                if (existing != null) {
-                    fs.write(path, existing + line)
-                } else {
-                    fs.write(path, line)
-                }
+                fileContent += line
+                fs.write(path, fileContent)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -138,5 +136,6 @@ object AuditLog {
 
     fun clear() {
         synchronized(entries) { entries.clear() }
+        fileContent = ""
     }
 }

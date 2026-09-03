@@ -25,8 +25,8 @@ import kotlinx.serialization.json.jsonPrimitive
 class OpenCodeClient(
     private val httpClient: HttpClient,
     private val manager: OpenCodeManager
-) {
-    suspend fun healthCheck(): Result<String> {
+) : OpenCodeApi {
+    override suspend fun healthCheck(): Result<String> {
         return try {
             val response = httpClient.get("${manager.baseUrl()}/api/health")
             if (response.status != io.ktor.http.HttpStatusCode.OK) {
@@ -41,7 +41,7 @@ class OpenCodeClient(
         }
     }
 
-    suspend fun sendChat(request: LlmRequest): String {
+    override suspend fun sendChat(request: LlmRequest): String {
         val body = buildJsonObject {
             put("model", JsonPrimitive(request.modelId))
             put("messages", buildJsonArray {
@@ -63,7 +63,7 @@ class OpenCodeClient(
         return response.bodyAsText()
     }
 
-    fun streamChat(request: LlmRequest): Flow<LlmEvent> = flow {
+    override fun streamChat(request: LlmRequest): Flow<LlmEvent> = flow {
         val body = buildJsonObject {
             put("model", JsonPrimitive(request.modelId))
             put("stream", JsonPrimitive(true))
@@ -109,7 +109,7 @@ class OpenCodeClient(
         }
     }
 
-    suspend fun listSessions(): List<String> {
+    override suspend fun listSessions(): List<String> {
         return try {
             val response = httpClient.get("${manager.baseUrl()}/api/sessions")
             val text = response.bodyAsText()
@@ -120,7 +120,7 @@ class OpenCodeClient(
         }
     }
 
-    suspend fun listModels(): List<String> {
+    override suspend fun listModels(): List<String> {
         return try {
             val response = httpClient.get("${manager.baseUrl()}/api/models")
             val text = response.bodyAsText()

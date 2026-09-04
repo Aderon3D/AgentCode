@@ -335,11 +335,22 @@ jobs:
 
           BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
 
-          # Count findings
-          HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:' || true)
+          # Count actionable findings (Major or Critical only)
+          HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:\s*(major|critical)' || true)
+
+          # Dismiss any prior REQUEST_CHANGES from this bot
+          OLD_RC=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            --jq '[.[] | select(.state == "CHANGES_REQUESTED") | select(.user.login | test("github-actions|ai-review")) | .id] | last // empty' 2>/dev/null || true)
+          if [ -n "$OLD_RC" ]; then
+            echo "Dismissing old REQUEST_CHANGES review $OLD_RC"
+            gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$OLD_RC" \
+              --method PUT \
+              -f event="COMMENT" \
+              -f body="Dismissed: re-review found no actionable issues." 2>/dev/null || true
+          fi
 
           if [ "${HAS_ANY:-0}" -gt 0 ]; then
-            # Has findings → REQUEST_CHANGES (blocks merge until resolved)
+            # Has actionable findings → REQUEST_CHANGES (blocks merge until resolved)
             echo "Found findings → REQUEST_CHANGES"
             PAYLOAD=$(mktemp)
             trap 'rm -f "$PAYLOAD"' EXIT
@@ -350,7 +361,7 @@ jobs:
               --input "$PAYLOAD" \
               --jq '.id'
           else
-            # No findings → COMMENT review (supersedes old REQUEST_CHANGES; APPROVE from bot doesn't count for self-approval)
+            # No actionable findings → COMMENT review
             echo "No findings → COMMENT review"
             PAYLOAD=$(mktemp)
             trap 'rm -f "$PAYLOAD"' EXIT

@@ -484,7 +484,7 @@ jobs:
                   print(f'Invalid JSON from gh api: {r.stdout[:200]}', file=sys.stderr)
                   open(state_path,'w').write('NO_REVIEW=true\n')
                   sys.exit(0)
-              ai = [c for c in reviews if c.get('body','').startswith('# AI Code Review') and ('github-actions' in (c.get('user',{}).get('login','') or '') or 'ai-review' in (c.get('user',{}).get('login','') or ''))]
+              ai = [c for c in reviews if c.get('body','').startswith('# AI Code Review') and (c.get('user',{}).get('login','') in ('github-actions[bot]', 'ai-review[bot]'))]
               if not ai:
                   open(state_path,'w').write('NO_REVIEW=true\n'); print('NO_REVIEW'); sys.exit(0)
               ai.sort(key=lambda c: c.get('submitted_at','')); latest = ai[-1]

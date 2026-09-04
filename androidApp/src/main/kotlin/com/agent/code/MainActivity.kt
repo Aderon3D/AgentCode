@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
             }
             App(
                 agentViewModel = viewModel,
+                governor = governor,
             )
         }
     }

@@ -91,20 +91,31 @@ jobs:
           echo "Lines: $(wc -l < /tmp/review.diff)"
 
       - name: Fetch existing review
+        id: fetch
         if: github.event_name == 'pull_request' || inputs.pr_number
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
         run: |
-          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq '[.[] | select(.body | startswith("# AI Code Review"))] | last | .id' 2>/dev/null || true)
-          if [ -n "$COMMENT_ID" ] && [ "$COMMENT_ID" != "null" ]; then
-            gh api "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" \
-              --jq '.body' > /tmp/existing-review.md
-            echo "Found existing review comment $COMMENT_ID"
+          REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | .id' 2>/dev/null || true)
+          if [ -n "$REVIEW_ID" ] && [ "$REVIEW_ID" != "null" ]; then
+            echo "Found existing review $REVIEW_ID"
           else
-            echo "No existing review comment"
+            echo "No existing review"
           fi
+          echo "review_id=${REVIEW_ID:-}" >> "$GITHUB_OUTPUT"
+
+          # Get PR head SHA for review comments
+          HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha')
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+          # Find existing comment from this bot on the PR issue
+          COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("## AI Review Findings")) | .id] | last // empty' 2>/dev/null || true)
+          echo "comment_id=${COMMENT_ID:-}" >> "$GITHUB_OUTPUT"
 
       - name: Run review with regression check
         run: |
@@ -286,27 +297,8 @@ jobs:
 
           REVIEW_TMP=$(mktemp)
 
-          # Fetch existing review to fold it
-          EXISTING=""
-          if [ -f /tmp/existing-review.md ]; then
-            EXISTING=$(cat /tmp/existing-review.md)
-          fi
-
           echo "# AI Code Review" > "$REVIEW_TMP"
           echo "" >> "$REVIEW_TMP"
-
-          # Fold previous review if it exists
-          if [ -n "$EXISTING" ]; then
-            echo "<details>" >> "$REVIEW_TMP"
-            echo "<summary>Previous review (before this commit)</summary>" >> "$REVIEW_TMP"
-            echo "" >> "$REVIEW_TMP"
-            cat /tmp/existing-review.md >> "$REVIEW_TMP"
-            echo "" >> "$REVIEW_TMP"
-            echo "</details>" >> "$REVIEW_TMP"
-            echo "" >> "$REVIEW_TMP"
-            echo "---" >> "$REVIEW_TMP"
-            echo "" >> "$REVIEW_TMP"
-          fi
 
           if [ -n "$CONVERGENCE_REASON" ]; then
             echo "*Review completed: $CONVERGENCE_REASON*" >> "$REVIEW_TMP"
@@ -325,10 +317,129 @@ jobs:
 
       - name: Comment on PR
         if: always() && (github.event_name == 'pull_request' || inputs.pr_number)
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88  # v3.0.5
-        with:
-          path: /tmp/review.md
-          header: ai-review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+          EXISTING_REVIEW_ID: ${{ steps.fetch.outputs.review_id }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
+          if [ -z "$BODY" ]; then
+            echo "No review body to post"
+            exit 0
+          fi
+
+          # Count actionable findings (Major or Critical only)
+          # Strip nested <details> blocks (old review context) before counting
+          HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity:\s*\*{0,2}\s*(major|critical)' || true)
+
+          PAYLOAD=$(mktemp)
+          trap 'rm -f "$PAYLOAD"' EXIT
+
+          if [ -n "$EXISTING_REVIEW_ID" ] && [ "$EXISTING_REVIEW_ID" != "null" ]; then
+            # Existing review found — check its state
+            CURRENT_STATE=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID" \
+              --jq '.state' 2>/dev/null || echo "")
+
+            if [ "${HAS_ANY:-0}" -gt 0 ]; then
+              # Findings exist — need REQUEST_CHANGES
+              if [ "$CURRENT_STATE" = "CHANGES_REQUESTED" ]; then
+                # Already RC — just update body
+                echo "Updating existing RC review $EXISTING_REVIEW_ID"
+                printf '%s' "$BODY" | jq -Rs '{body: .}' > "$PAYLOAD"
+                gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID" \
+                  --method PUT \
+                  --input "$PAYLOAD" \
+                  --jq '.id'
+              else
+                # Not RC — need to dismiss old and create new RC
+                echo "Dismissing $CURRENT_STATE review $EXISTING_REVIEW_ID"
+                if ! gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID/dismissals" \
+                  --method PUT \
+                  -f message="Superseded by review with findings." 2>/dev/null; then
+                  echo "::warning::Failed to dismiss old review — may still block PR"
+                fi
+                echo "Creating REQUEST_CHANGES review"
+                printf '%s' "$BODY" | jq -Rs '{body: ., event: "REQUEST_CHANGES"}' > "$PAYLOAD"
+                gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+                  --method POST \
+                  --input "$PAYLOAD" \
+                  --jq '.id'
+              fi
+            else
+              # No findings — need to clear any blocking state
+              if [ "$CURRENT_STATE" = "CHANGES_REQUESTED" ]; then
+                echo "Dismissing RC review $EXISTING_REVIEW_ID"
+                if ! gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID/dismissals" \
+                  --method PUT \
+                  -f message="Re-review found no actionable issues." 2>/dev/null; then
+                  echo "::warning::Failed to dismiss RC — PR may still be blocked"
+                fi
+                # Post clean review after successful dismissal
+                printf '%s' "$BODY" | jq -Rs '{body: ., event: "COMMENT"}' > "$PAYLOAD"
+                gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+                  --method POST \
+                  --input "$PAYLOAD" \
+                  --jq '.id'
+              else
+                # Already clean — just update body
+                echo "Updating existing review $EXISTING_REVIEW_ID"
+                printf '%s' "$BODY" | jq -Rs '{body: .}' > "$PAYLOAD"
+                gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID" \
+                  --method PUT \
+                  --input "$PAYLOAD" \
+                  --jq '.id'
+              fi
+            fi
+          else
+            # No existing review — create new
+            if [ "${HAS_ANY:-0}" -gt 0 ]; then
+              echo "Creating REQUEST_CHANGES review"
+              printf '%s' "$BODY" | jq -Rs '{body: ., event: "REQUEST_CHANGES"}' > "$PAYLOAD"
+            else
+              echo "Creating COMMENT review"
+              printf '%s' "$BODY" | jq -Rs '{body: ., event: "COMMENT"}' > "$PAYLOAD"
+            fi
+            gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+              --method POST \
+              --input "$PAYLOAD" \
+              --jq '.id'
+          fi
+
+      - name: Post review comment
+        if: always() && (github.event_name == 'pull_request' || inputs.pr_number)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+          EXISTING_COMMENT_ID: ${{ steps.fetch.outputs.comment_id }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
+          if [ -z "$BODY" ]; then
+            exit 0
+          fi
+
+          # Post as standard PR comment (no "Resolve conversation" but simpler and always works)
+          COMMENT_BODY="## AI Review Findings"$'\n\n'"All findings below must be resolved before merging."$'\n\n'"-----"$'\n\n'"${BODY}"
+
+          # Delete old comment if it exists
+          if [ -n "$EXISTING_COMMENT_ID" ] && [ "$EXISTING_COMMENT_ID" != "null" ]; then
+            echo "Deleting old comment $EXISTING_COMMENT_ID"
+            gh api "repos/$REPO/issues/comments/$EXISTING_COMMENT_ID" \
+              --method DELETE 2>/dev/null || true
+          fi
+
+          PAYLOAD=$(mktemp)
+          trap 'rm -f "$PAYLOAD"' EXIT
+          printf '%s' "$COMMENT_BODY" | jq -Rs '{body: .}' > "$PAYLOAD"
+          gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --method POST \
+            --input "$PAYLOAD" \
+            --jq '.id'
 
   fix:
     runs-on: ubuntu-latest
@@ -432,16 +543,21 @@ jobs:
           try:
               pr = os.environ['NUM']
               state_path = '/tmp/review-state.env'
-              r = subprocess.run(['gh','pr','view',pr,'--repo',os.environ['REPO'],'--json','comments'], capture_output=True, text=True)
+              r = subprocess.run(['gh','api',f'repos/{os.environ["REPO"]}/pulls/{pr}/reviews'], capture_output=True, text=True)
               if r.returncode:
-                  print(f'Failed to fetch PR comments: {r.stderr}', file=sys.stderr)
+                  print(f'Failed to fetch PR reviews: {r.stderr}', file=sys.stderr)
                   open(state_path,'w').write('NO_REVIEW=true\n')
                   sys.exit(0)
-              cs = json.loads(r.stdout).get('comments',[])
-              ai = [c for c in cs if c.get('body','').startswith('# AI Code Review') and ('github-actions' in (c.get('author',{}).get('login','') or '') or 'ai-review' in (c.get('author',{}).get('login','') or ''))]
+              try:
+                  reviews = json.loads(r.stdout)
+              except json.JSONDecodeError:
+                  print(f'Invalid JSON from gh api: {r.stdout[:200]}', file=sys.stderr)
+                  open(state_path,'w').write('NO_REVIEW=true\n')
+                  sys.exit(0)
+              ai = [c for c in reviews if c.get('body','').startswith('# AI Code Review') and (c.get('user',{}).get('login','') in ('github-actions[bot]', 'ai-review[bot]'))]
               if not ai:
                   open(state_path,'w').write('NO_REVIEW=true\n'); print('NO_REVIEW'); sys.exit(0)
-              ai.sort(key=lambda c: c.get('createdAt','')); latest = ai[-1]
+              ai.sort(key=lambda c: c.get('submitted_at','')); latest = ai[-1]
               body = latest.get('body','')
               if not body.strip():
                   print('Review body empty', file=sys.stderr)
@@ -739,11 +855,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number }}
+          REPO: ${{ github.repository }}
         run: |
           echo '{"body": ""}' > /tmp/review-context.json
-          gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq '[.[] | select(.body | startswith("# AI Code Review"))] | last | {body: .body}' \
-            > /tmp/review-context.json 2>/dev/null || true
+          gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | {body: .body}' \
+            > /tmp/review-context-tmp.json 2>/dev/null && mv /tmp/review-context-tmp.json /tmp/review-context.json || rm -f /tmp/review-context-tmp.json
 
       - name: Autofix loop
         id: loop
@@ -891,8 +1008,8 @@ jobs:
           python3 << 'PYEOF'
           import json, subprocess, os
           try:
-              r = subprocess.run(['gh','api',f'repos/{os.environ["GITHUB_REPOSITORY"]}/issues/{os.environ["PR_NUMBER"]}/comments',
-                  '--jq','[.[] | select(.body | startswith("# AI Code Review"))] | last | .body'],
+              r = subprocess.run(['gh','api',f'repos/{os.environ["GITHUB_REPOSITORY"]}/pulls/{os.environ["PR_NUMBER"]}/reviews',
+                  '--jq','[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | .body'],
                   capture_output=True, text=True)
               with open('/tmp/review-context.json','w') as f:
                   json.dump({'body': r.stdout.strip() if r.returncode == 0 else ''}, f)
@@ -942,3 +1059,4 @@ jobs:
           gh workflow run pr-review.yml -f pr_number="$NUM" 2>/dev/null || true
 
 # ponytail: fixer edits repo files directly via agent tools; commit step stages the real diff.
+

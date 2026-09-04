@@ -338,27 +338,28 @@ jobs:
           # Count findings
           HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:' || true)
 
-          # Fetch the current SHA for the review
-          HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha') || {
-            echo "Failed to fetch PR head SHA" >&2
-            exit 1
-          }
-
           if [ "${HAS_ANY:-0}" -gt 0 ]; then
             # Has findings → REQUEST_CHANGES (blocks merge until resolved)
             echo "Found findings → REQUEST_CHANGES"
             PAYLOAD=$(mktemp)
             trap 'rm -f "$PAYLOAD"' EXIT
-            printf '%s' "$BODY" | jq -Rs --arg sha "$HEAD_SHA" \
-              '{body: ., event: "REQUEST_CHANGES", commit_id: $sha}' > "$PAYLOAD"
+            printf '%s' "$BODY" | jq -Rs \
+              '{body: ., event: "REQUEST_CHANGES"}' > "$PAYLOAD"
             gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
               --method POST \
               --input "$PAYLOAD" \
               --jq '.id'
           else
-            # No findings → regular comment (APPROVE from bot doesn't count for self-approval)
-            echo "No findings → comment"
-            gh pr comment "$PR_NUMBER" --body "$BODY"
+            # No findings → COMMENT review (supersedes old REQUEST_CHANGES; APPROVE from bot doesn't count for self-approval)
+            echo "No findings → COMMENT review"
+            PAYLOAD=$(mktemp)
+            trap 'rm -f "$PAYLOAD"' EXIT
+            printf '%s' "$BODY" | jq -Rs \
+              '{body: ., event: "COMMENT"}' > "$PAYLOAD"
+            gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+              --method POST \
+              --input "$PAYLOAD" \
+              --jq '.id'
           fi
 
   fix:

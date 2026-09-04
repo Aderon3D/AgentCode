@@ -109,6 +109,16 @@ jobs:
           fi
           echo "review_id=${REVIEW_ID:-}" >> "$GITHUB_OUTPUT"
 
+          # Get PR head SHA for review comments
+          HEAD_SHA=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha')
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+          # Find existing review comment from this bot
+          COMMENT_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/comments" \
+            --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("## AI Review Findings")) | .id] | last // empty' 2>/dev/null || true)
+          echo "comment_id=${COMMENT_ID:-}" >> "$GITHUB_OUTPUT"
+
       - name: Run review with regression check
         run: |
           set -euo pipefail
@@ -398,6 +408,49 @@ jobs:
               --input "$PAYLOAD" \
               --jq '.id'
           fi
+
+      - name: Post review comment
+        if: always() && (github.event_name == 'pull_request' || inputs.pr_number)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ steps.fetch.outputs.head_sha }}
+          EXISTING_COMMENT_ID: ${{ steps.fetch.outputs.comment_id }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
+          if [ -z "$BODY" ]; then
+            exit 0
+          fi
+
+          # Build the review comment body (all findings, with resolve button)
+          COMMENT_BODY="## AI Review Findings
+
+All findings below must be resolved before merging. Click **Resolve conversation** on each thread once reviewed.
+
+---
+
+$BODY"
+
+          # Delete old review comment if it exists
+          if [ -n "$EXISTING_COMMENT_ID" ] && [ "$EXISTING_COMMENT_ID" != "null" ]; then
+            echo "Deleting old review comment $EXISTING_COMMENT_ID"
+            gh api "repos/$REPO/pulls/$PR_NUMBER/comments/$EXISTING_COMMENT_ID" \
+              --method DELETE 2>/dev/null || true
+          fi
+
+          # Post new review comment (requires file + line)
+          PAYLOAD=$(mktemp)
+          trap 'rm -f "$PAYLOAD"' EXIT
+          printf '%s' "$COMMENT_BODY" | jq -Rs \
+            --arg sha "$HEAD_SHA" \
+            '{body: ., commit_id: $sha, path: ".github/workflows/pr-review.yml", line: 1, side: "RIGHT"}' > "$PAYLOAD"
+          gh api "repos/$REPO/pulls/$PR_NUMBER/comments" \
+            --method POST \
+            --input "$PAYLOAD" \
+            --jq '.id'
 
   fix:
     runs-on: ubuntu-latest

@@ -336,7 +336,7 @@ jobs:
           BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
 
           # Count actionable findings (Major or Critical only)
-          HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:\s*(major|critical)' || true)
+          HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:\s*\*{0,2}\s*(major|critical)' || true)
 
           if [ "${HAS_ANY:-0}" -gt 0 ]; then
             # Has actionable findings → REQUEST_CHANGES (supersedes old RC automatically)
@@ -785,7 +785,7 @@ jobs:
           echo '{"body": ""}' > /tmp/review-context.json
           gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
             --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | {body: .body}' \
-            > /tmp/review-context.json 2>/dev/null || true
+            > /tmp/review-context-tmp.json 2>/dev/null && mv /tmp/review-context-tmp.json /tmp/review-context.json || rm -f /tmp/review-context-tmp.json
 
       - name: Autofix loop
         id: loop

@@ -98,7 +98,7 @@ jobs:
           PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
           REPO: ${{ github.repository }}
         run: |
-          REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+          REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" --paginate \
             --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | .id' 2>/dev/null || true)
           if [ -n "$REVIEW_ID" ] && [ "$REVIEW_ID" != "null" ]; then
             gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$REVIEW_ID" \
@@ -360,33 +360,53 @@ jobs:
           trap 'rm -f "$PAYLOAD"' EXIT
 
           if [ -n "$EXISTING_REVIEW_ID" ] && [ "$EXISTING_REVIEW_ID" != "null" ]; then
-            # Existing review found — update its body
-            echo "Updating existing review $EXISTING_REVIEW_ID"
+            # Existing review found — check its state
+            CURRENT_STATE=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID" \
+              --jq '.state' 2>/dev/null || echo "")
 
             if [ "${HAS_ANY:-0}" -gt 0 ]; then
-              # Findings → update body, keep REQUEST_CHANGES state
-              printf '%s' "$BODY" | jq -Rs '{body: .}' > "$PAYLOAD"
-              gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID" \
-                --method PUT \
-                --input "$PAYLOAD" \
-                --jq '.id'
-            else
-              # No findings → check current state
-              CURRENT_STATE=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID" \
-                --jq '.state' 2>/dev/null || echo "")
+              # Findings exist — need REQUEST_CHANGES
               if [ "$CURRENT_STATE" = "CHANGES_REQUESTED" ]; then
-                # State needs to change RC → COMMENT — dismiss old, post new
-                echo "Dismissing RC review $EXISTING_REVIEW_ID"
-                gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID/dismissals" \
+                # Already RC — just update body
+                echo "Updating existing RC review $EXISTING_REVIEW_ID"
+                printf '%s' "$BODY" | jq -Rs '{body: .}' > "$PAYLOAD"
+                gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID" \
                   --method PUT \
-                  -f message="Re-review found no actionable issues." 2>/dev/null || true
+                  --input "$PAYLOAD" \
+                  --jq '.id'
+              else
+                # Not RC — need to dismiss old and create new RC
+                echo "Dismissing $CURRENT_STATE review $EXISTING_REVIEW_ID"
+                if ! gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID/dismissals" \
+                  --method PUT \
+                  -f message="Superseded by review with findings." 2>/dev/null; then
+                  echo "::warning::Failed to dismiss old review — may still block PR"
+                fi
+                echo "Creating REQUEST_CHANGES review"
+                printf '%s' "$BODY" | jq -Rs '{body: ., event: "REQUEST_CHANGES"}' > "$PAYLOAD"
+                gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+                  --method POST \
+                  --input "$PAYLOAD" \
+                  --jq '.id'
+              fi
+            else
+              # No findings — need to clear any blocking state
+              if [ "$CURRENT_STATE" = "CHANGES_REQUESTED" ]; then
+                echo "Dismissing RC review $EXISTING_REVIEW_ID"
+                if ! gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID/dismissals" \
+                  --method PUT \
+                  -f message="Re-review found no actionable issues." 2>/dev/null; then
+                  echo "::warning::Failed to dismiss RC — PR may still be blocked"
+                fi
+                # Post clean review after successful dismissal
                 printf '%s' "$BODY" | jq -Rs '{body: ., event: "COMMENT"}' > "$PAYLOAD"
                 gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
                   --method POST \
                   --input "$PAYLOAD" \
                   --jq '.id'
               else
-                # Already COMMENT — just update body
+                # Already clean — just update body
+                echo "Updating existing review $EXISTING_REVIEW_ID"
                 printf '%s' "$BODY" | jq -Rs '{body: .}' > "$PAYLOAD"
                 gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$EXISTING_REVIEW_ID" \
                   --method PUT \
@@ -426,13 +446,7 @@ jobs:
           fi
 
           # Build the review comment body (all findings, with resolve button)
-          COMMENT_BODY="## AI Review Findings
-
-All findings below must be resolved before merging. Click **Resolve conversation** on each thread once reviewed.
-
----
-
-$BODY"
+          COMMENT_BODY="## AI Review Findings"$'\n\n'"All findings below must be resolved before merging. Click **Resolve conversation** on each thread once reviewed."$'\n\n'"-----"$'\n\n'"${BODY}"
 
           # Delete old review comment if it exists
           if [ -n "$EXISTING_COMMENT_ID" ] && [ "$EXISTING_COMMENT_ID" != "null" ]; then

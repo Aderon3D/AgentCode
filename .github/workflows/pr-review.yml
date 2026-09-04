@@ -334,6 +334,10 @@ jobs:
           set -euo pipefail
 
           BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
+          if [ -z "$BODY" ]; then
+            echo "No review body to post"
+            exit 0
+          fi
 
           # Count actionable findings (Major or Critical only)
           HAS_ANY=$(echo "$BODY" | grep -ciE 'severity:\s*\*{0,2}\s*(major|critical)' || true)

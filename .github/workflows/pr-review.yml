@@ -101,8 +101,6 @@ jobs:
           REVIEW_ID=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" --paginate \
             --jq '[.[] | select(.user.login == "github-actions[bot]" or .user.login == "ai-review[bot]") | select(.body | startswith("# AI Code Review"))] | last | .id' 2>/dev/null || true)
           if [ -n "$REVIEW_ID" ] && [ "$REVIEW_ID" != "null" ]; then
-            gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$REVIEW_ID" \
-              --jq '.body' > /tmp/existing-review.md
             echo "Found existing review $REVIEW_ID"
           else
             echo "No existing review"
@@ -299,27 +297,8 @@ jobs:
 
           REVIEW_TMP=$(mktemp)
 
-          # Fetch existing review to fold it
-          EXISTING=""
-          if [ -f /tmp/existing-review.md ]; then
-            EXISTING=$(cat /tmp/existing-review.md)
-          fi
-
           echo "# AI Code Review" > "$REVIEW_TMP"
           echo "" >> "$REVIEW_TMP"
-
-          # Fold previous review if it exists
-          if [ -n "$EXISTING" ]; then
-            echo "<details>" >> "$REVIEW_TMP"
-            echo "<summary>Previous review (before this commit)</summary>" >> "$REVIEW_TMP"
-            echo "" >> "$REVIEW_TMP"
-            cat /tmp/existing-review.md >> "$REVIEW_TMP"
-            echo "" >> "$REVIEW_TMP"
-            echo "</details>" >> "$REVIEW_TMP"
-            echo "" >> "$REVIEW_TMP"
-            echo "---" >> "$REVIEW_TMP"
-            echo "" >> "$REVIEW_TMP"
-          fi
 
           if [ -n "$CONVERGENCE_REASON" ]; then
             echo "*Review completed: $CONVERGENCE_REASON*" >> "$REVIEW_TMP"

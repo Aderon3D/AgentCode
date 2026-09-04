@@ -112,7 +112,7 @@ class OpenCodeManager(
             "\n" +
             "# Sanitize LD_LIBRARY_PATH (remove Android bionic libs that break glibc)\n" +
             "if [ -n \"\$LD_LIBRARY_PATH\" ]; then\n" +
-            "    LD_LIBRARY_PATH=\$(printf '%s' \"\$LD_LIBRARY_PATH\" | tr ':' '\\n' | grep -v \"^/data/user/.*com.m4coding.ide/files/support\\\$\" | paste -sd:)\n" +
+            "    LD_LIBRARY_PATH=\$(printf '%s' \"\$LD_LIBRARY_PATH\" | tr ':' '\\n' | grep -v \"^/data/user/.*com.agent.code/files/support\\\$\" | paste -sd:)\n" +
             "    export LD_LIBRARY_PATH\n" +
             "fi\n" +
             "\n" +

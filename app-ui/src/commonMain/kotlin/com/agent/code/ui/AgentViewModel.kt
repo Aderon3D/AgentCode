@@ -9,6 +9,7 @@ import com.agent.code.opencode.AgentBrain
 import com.agent.code.opencode.BrainEvent
 import com.agent.code.opencode.OpenCodeApi
 import com.agent.code.opencode.OpenCodeClient
+import com.agent.code.opencode.OpenCodeConfig
 import com.agent.code.opencode.OpenCodeManager
 import com.agent.code.opencode.OpenCodeState
 import com.agent.code.opencode.MockOpenCodeClient
@@ -154,7 +155,8 @@ class AgentViewModel(
             processRunner: ProcessRunner,
             workspaceRoot: VirtualPath
         ): AgentViewModel {
-            val manager = OpenCodeManager(fileSystem, processRunner)
+            val config = OpenCodeConfig(installDir = workspaceRoot.resolve("opencode"))
+            val manager = OpenCodeManager(fileSystem, processRunner, config)
             val httpClient = HttpClient()
             val client = OpenCodeClient(httpClient, manager)
             val journal = AgentEventJournal(InMemoryWalStore())

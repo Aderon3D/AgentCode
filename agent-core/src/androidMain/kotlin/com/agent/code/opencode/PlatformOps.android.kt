@@ -65,6 +65,7 @@ actual object PlatformOps {
         return try {
             conn.responseCode
         } finally {
+            try { conn.inputStream?.close() } catch (_: Exception) {}
             conn.disconnect()
         }
     }

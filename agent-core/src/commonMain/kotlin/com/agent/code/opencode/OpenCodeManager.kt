@@ -33,6 +33,7 @@ class OpenCodeManager(
     private val config: OpenCodeConfig = OpenCodeConfig()
 ) {
     private val stateMutex = Mutex()
+    @Volatile
     private var _state: OpenCodeState = OpenCodeState.NotInstalled
     private var serverPort: Int = config.defaultPort
 
@@ -106,7 +107,7 @@ class OpenCodeManager(
             "chmod +x '$dstDir/${config.binaryName}' '$dstDir/glibc/'* &&\n" +
             "echo 'Setup complete. Binary ready at $dstDir'\n"
         val scriptPath = "$srcDir/setup.sh"
-        processRunner.run(listOf("sh", "-c", "cat > '$scriptPath' << 'SETUP_EOF'\n$script\nSETUP_EOF"))
+        fileSystem.write(VirtualPath.of(scriptPath), script)
         PlatformOps.setExecutable(scriptPath)
     }
 
@@ -206,7 +207,7 @@ class OpenCodeManager(
             "exec \"\$_GLIBC_DIR/ld-linux-aarch64.so.1\" \\\n" +
             "     --library-path \"\$_GLIBC_DIR:/system/lib64:/apex/com.android.runtime/lib64\" \\\n" +
             "     \"\$_BIN\" \"\$@\"\n"
-        processRunner.run(listOf("sh", "-c", "cat > '$wrapperPath' << 'WRAPPER_EOF'\n$script\nWRAPPER_EOF"))
+        fileSystem.write(VirtualPath.of(wrapperPath), script)
         PlatformOps.setExecutable(wrapperPath)
     }
 

@@ -158,7 +158,10 @@ class OpenCodeManager(
         val pid = try {
             val pidContent = processRunner.run(listOf("cat", pidFile.rawPath))
             pidContent.getOrNull()?.trim()?.toIntOrNull() ?: 0
-        } catch (_: Exception) { 0 }
+        } catch (e: Exception) {
+            _state = OpenCodeState.Error("Failed to read PID file: ${e.message}")
+            return@withLock _state
+        }
 
         try {
             waitForServer(port)

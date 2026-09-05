@@ -15,10 +15,18 @@ actual object PlatformOps {
         conn.connectTimeout = 30_000
         conn.readTimeout = 60_000
         conn.connect()
-        conn.inputStream.use { input ->
-            File(destPath).outputStream().use { output ->
-                input.copyTo(output)
+        try {
+            if (conn.responseCode !in 200..299) {
+                val body = conn.errorStream?.bufferedReader()?.readText() ?: ""
+                throw RuntimeException("HTTP ${conn.responseCode}: $body")
             }
+            conn.inputStream.use { input ->
+                File(destPath).outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } finally {
+            conn.disconnect()
         }
     }
 
@@ -33,11 +41,15 @@ actual object PlatformOps {
     }
 
     actual fun deleteFile(path: String) {
-        File(path).delete()
+        if (!File(path).delete() && File(path).exists()) {
+            throw RuntimeException("Failed to delete $path")
+        }
     }
 
     actual fun setExecutable(path: String) {
-        File(path).setExecutable(true)
+        if (!File(path).setExecutable(true)) {
+            throw RuntimeException("Failed to set executable: $path")
+        }
     }
 
     actual fun currentTimeMs(): Long = System.currentTimeMillis()

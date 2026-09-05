@@ -63,8 +63,11 @@ class AgentViewModel(
         statePollJob = scope.launch {
             while (true) {
                 val s = openCodeManager.currentState()
-                if (s !is OpenCodeState.Error) {
-                    _state.value = _state.value.copy(processState = s)
+                _state.value = _state.value.copy(processState = s)
+                if (s is OpenCodeState.Error || s is OpenCodeState.Running) {
+                    statePollJob?.cancel()
+                    statePollJob = null
+                    break
                 }
                 delay(500)
             }

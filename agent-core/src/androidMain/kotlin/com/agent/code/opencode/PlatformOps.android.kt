@@ -7,7 +7,11 @@ import java.util.zip.GZIPInputStream
 
 actual object PlatformOps {
     actual fun createDirectories(path: String) {
-        File(path).mkdirs()
+        val dir = File(path)
+        if (dir.exists()) return
+        if (!dir.mkdirs() && !dir.exists()) {
+            throw RuntimeException("Failed to create directory: $path")
+        }
     }
 
     actual fun downloadFile(url: String, destPath: String) {

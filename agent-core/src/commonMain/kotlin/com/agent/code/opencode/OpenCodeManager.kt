@@ -155,6 +155,8 @@ class OpenCodeManager(
             return@withLock _state
         }
 
+        delay(1000)
+
         val pid = try {
             val pidContent = processRunner.run(listOf("cat", pidFile.rawPath))
             pidContent.getOrNull()?.trim()?.toIntOrNull() ?: 0
@@ -163,10 +165,25 @@ class OpenCodeManager(
             return@withLock _state
         }
 
+        if (pid == 0) {
+            val logSnippet = try {
+                val logContent = fileSystem.read(logFile)
+                val lines = logContent.split("\n").takeLast(20)
+                if (lines.isNotEmpty()) "\n\nLog:\n${lines.joinToString("\n")}" else ""
+            } catch (_: Exception) { "" }
+            _state = OpenCodeState.Error("Process did not start (pid=0)$logSnippet")
+            return@withLock _state
+        }
+
         try {
             waitForServer(port)
         } catch (e: Exception) {
-            _state = OpenCodeState.Error("Server failed to start: ${e.message}")
+            val logSnippet = try {
+                val logContent = fileSystem.read(logFile)
+                val lines = logContent.split("\n").takeLast(20)
+                if (lines.isNotEmpty()) "\n\nLog:\n${lines.joinToString("\n")}" else ""
+            } catch (_: Exception) { "" }
+            _state = OpenCodeState.Error("Server failed to start: ${e.message}$logSnippet")
             return@withLock _state
         }
 

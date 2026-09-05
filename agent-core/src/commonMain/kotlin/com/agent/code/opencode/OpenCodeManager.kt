@@ -10,7 +10,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class OpenCodeConfig(
-    val installDir: VirtualPath = VirtualPath.of("/data/local/tmp/opencode"),
+    val appDataDir: VirtualPath = VirtualPath.of("/data/user/0/com.agent.code/files/opencode"),
+    val execDir: VirtualPath = VirtualPath.of("/data/local/tmp/opencode"),
     val binaryName: String = "opencode",
     val defaultPort: Int = 4096,
     val startupTimeoutMs: Long = 15_000L,
@@ -44,7 +45,7 @@ class OpenCodeManager(
     }
 
     private suspend fun ensureInstalledInternal(): OpenCodeState {
-        val binaryPath = config.installDir.resolve(config.binaryName)
+        val binaryPath = config.execDir.resolve(config.binaryName)
         if (fileSystem.exists(binaryPath)) {
             _state = OpenCodeState.Stopped
             return _state
@@ -53,6 +54,7 @@ class OpenCodeManager(
         _state = OpenCodeState.Installing(0f, "Downloading OpenCode...")
         return try {
             downloadAndExtract()
+            writeSetupScript()
             _state = OpenCodeState.Stopped
             _state
         } catch (e: Exception) {
@@ -62,12 +64,11 @@ class OpenCodeManager(
     }
 
     private suspend fun downloadAndExtract() = withContext(Dispatchers.IO) {
-        val installDir = config.installDir.rawPath
+        val installDir = config.appDataDir.rawPath
         val glibcDir = "$installDir/glibc"
         PlatformOps.createDirectories(installDir)
         PlatformOps.createDirectories(glibcDir)
 
-        // Download and extract glibc libs
         val glibcFiles = listOf(
             "ld-linux-aarch64.so.1",
             "libc.so.6",
@@ -84,7 +85,6 @@ class OpenCodeManager(
             PlatformOps.downloadFile("${config.releaseUrl}/$name", dest)
         }
 
-        // Download and extract opencode binary (gzipped)
         _state = OpenCodeState.Installing(0.8f, "Downloading opencode binary...")
         val gzFile = "$installDir/${config.binaryName}.gz"
         PlatformOps.downloadFile("${config.releaseUrl}/opencode.gz", gzFile)
@@ -94,33 +94,20 @@ class OpenCodeManager(
         PlatformOps.extractGzip(gzFile, binaryDest)
         PlatformOps.deleteFile(gzFile)
         PlatformOps.setExecutable(binaryDest)
-
-        _state = OpenCodeState.Installing(0.95f, "Setting up wrapper...")
-        createWrapper(installDir)
-
-        _state = OpenCodeState.Installing(1.0f, "Ready")
     }
 
-    private suspend fun createWrapper(installDir: String) {
-        val wrapperPath = "$installDir/run-opencode.sh"
-        val binaryName = config.binaryName
-        // Write wrapper script content via processRunner
+    private suspend fun writeSetupScript() = withContext(Dispatchers.IO) {
+        val srcDir = config.appDataDir.rawPath
+        val dstDir = config.execDir.rawPath
         val script = "#!/bin/sh\n" +
-            "_INSTALL_DIR=\"$installDir\"\n" +
-            "_GLIBC_DIR=\"\$_INSTALL_DIR/glibc\"\n" +
-            "_BIN=\"\$_INSTALL_DIR/$binaryName\"\n" +
-            "\n" +
-            "# Sanitize LD_LIBRARY_PATH (remove Android bionic libs that break glibc)\n" +
-            "if [ -n \"\$LD_LIBRARY_PATH\" ]; then\n" +
-            "    LD_LIBRARY_PATH=\$(printf '%s' \"\$LD_LIBRARY_PATH\" | tr ':' '\\n' | grep -v \"^/data/user/.*com.agent.code/files/support\\\$\" | paste -sd:)\n" +
-            "    export LD_LIBRARY_PATH\n" +
-            "fi\n" +
-            "\n" +
-            "exec \"\$_GLIBC_DIR/ld-linux-aarch64.so.1\" \\\n" +
-            "     --library-path \"\$_GLIBC_DIR:/system/lib64:/apex/com.android.runtime/lib64\" \\\n" +
-            "     \"\$_BIN\" \"\$@\"\n"
-        processRunner.run(listOf("sh", "-c", "cat > '$wrapperPath' << 'WRAPPER_EOF'\n$script\nWRAPPER_EOF"))
-        PlatformOps.setExecutable(wrapperPath)
+            "mkdir -p '$dstDir/glibc' &&\n" +
+            "cp '$srcDir/${config.binaryName}' '$dstDir/' &&\n" +
+            "cp '$srcDir/glibc/'* '$dstDir/glibc/' &&\n" +
+            "chmod +x '$dstDir/${config.binaryName}' '$dstDir/glibc/'* &&\n" +
+            "echo 'Setup complete. Binary ready at $dstDir'\n"
+        val scriptPath = "$srcDir/setup.sh"
+        processRunner.run(listOf("sh", "-c", "cat > '$scriptPath' << 'SETUP_EOF'\n$script\nSETUP_EOF"))
+        PlatformOps.setExecutable(scriptPath)
     }
 
     suspend fun start(
@@ -129,17 +116,25 @@ class OpenCodeManager(
     ): OpenCodeState = stateMutex.withLock {
         if (_state is OpenCodeState.Running) return@withLock _state
 
-        val wrapperPath = config.installDir.resolve("run-opencode.sh")
-        if (!fileSystem.exists(wrapperPath)) {
-            val installed = ensureInstalledInternal()
-            if (installed is OpenCodeState.Error) return@withLock installed
+        val execBinary = config.execDir.resolve(config.binaryName)
+        if (!fileSystem.exists(execBinary)) {
+            _state = OpenCodeState.Error(
+                "Setup required. Run in terminal:\n" +
+                "sh /data/user/0/com.agent.code/files/opencode/setup.sh"
+            )
+            return@withLock _state
         }
 
         _state = OpenCodeState.Starting
         serverPort = port
 
-        val pidFile = config.installDir.resolve("opencode.pid")
-        val logFile = config.installDir.resolve("opencode.log")
+        val wrapperPath = config.execDir.resolve("run-opencode.sh")
+        if (!fileSystem.exists(wrapperPath)) {
+            createWrapper(config.execDir.rawPath)
+        }
+
+        val pidFile = config.execDir.resolve("opencode.pid")
+        val logFile = config.execDir.resolve("opencode.log")
 
         val cmd = "cd '${projectDir.rawPath}' && " +
             "sh '${wrapperPath.rawPath}' serve " +
@@ -193,6 +188,26 @@ class OpenCodeManager(
 
         _state = OpenCodeState.Running(port, pid)
         _state
+    }
+
+    private suspend fun createWrapper(installDir: String) {
+        val wrapperPath = "$installDir/run-opencode.sh"
+        val binaryName = config.binaryName
+        val script = "#!/bin/sh\n" +
+            "_INSTALL_DIR=\"$installDir\"\n" +
+            "_GLIBC_DIR=\"\$_INSTALL_DIR/glibc\"\n" +
+            "_BIN=\"\$_INSTALL_DIR/$binaryName\"\n" +
+            "\n" +
+            "if [ -n \"\$LD_LIBRARY_PATH\" ]; then\n" +
+            "    LD_LIBRARY_PATH=\$(printf '%s' \"\$LD_LIBRARY_PATH\" | tr ':' '\\n' | grep -v \"^/data/user/.*com.agent.code/files/support\\\$\" | paste -sd:)\n" +
+            "    export LD_LIBRARY_PATH\n" +
+            "fi\n" +
+            "\n" +
+            "exec \"\$_GLIBC_DIR/ld-linux-aarch64.so.1\" \\\n" +
+            "     --library-path \"\$_GLIBC_DIR:/system/lib64:/apex/com.android.runtime/lib64\" \\\n" +
+            "     \"\$_BIN\" \"\$@\"\n"
+        processRunner.run(listOf("sh", "-c", "cat > '$wrapperPath' << 'WRAPPER_EOF'\n$script\nWRAPPER_EOF"))
+        PlatformOps.setExecutable(wrapperPath)
     }
 
     suspend fun stop() = stateMutex.withLock {

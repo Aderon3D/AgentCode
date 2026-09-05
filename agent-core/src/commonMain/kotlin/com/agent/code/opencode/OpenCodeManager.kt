@@ -10,7 +10,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class OpenCodeConfig(
-    val installDir: VirtualPath = VirtualPath.of("/data/data/com.agent.code/files/opencode"),
+    val installDir: VirtualPath = VirtualPath.of("/data/local/tmp/opencode"),
     val binaryName: String = "opencode",
     val defaultPort: Int = 4096,
     val startupTimeoutMs: Long = 15_000L,

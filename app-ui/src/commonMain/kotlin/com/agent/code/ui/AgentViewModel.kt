@@ -158,7 +158,7 @@ class AgentViewModel(
             processRunner: ProcessRunner,
             workspaceRoot: VirtualPath
         ): AgentViewModel {
-            val config = OpenCodeConfig(installDir = workspaceRoot.resolve("opencode"))
+            val config = OpenCodeConfig()
             val manager = OpenCodeManager(fileSystem, processRunner, config)
             val httpClient = HttpClient()
             val client = OpenCodeClient(httpClient, manager)

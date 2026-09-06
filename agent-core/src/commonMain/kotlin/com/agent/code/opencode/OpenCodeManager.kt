@@ -82,6 +82,7 @@ class OpenCodeManager(
             )
             val dest = "$glibcDir/$name"
             PlatformOps.downloadFile("${config.releaseUrl}/$name", dest)
+            PlatformOps.setExecutable(dest)
         }
 
         _state = OpenCodeState.Installing(0.8f, "Downloading opencode binary...")

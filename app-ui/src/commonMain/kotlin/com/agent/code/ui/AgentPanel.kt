@@ -100,13 +100,19 @@ private fun ProcessStatusHeader(
     ) {
         val (label, color) = when (processState) {
             is OpenCodeState.NotInstalled -> "Not installed" to MaterialTheme.colorScheme.error
-            is OpenCodeState.Installing -> "Installing" to MaterialTheme.colorScheme.primary
+            is OpenCodeState.Installing -> "Installing ${(processState.progress * 100).toInt()}% — ${processState.message}" to MaterialTheme.colorScheme.primary
             is OpenCodeState.Starting -> "Starting..." to MaterialTheme.colorScheme.primary
             is OpenCodeState.Running -> "Running on :${processState.port}" to MaterialTheme.colorScheme.tertiary
             is OpenCodeState.Error -> "Error: ${processState.message}" to MaterialTheme.colorScheme.error
             is OpenCodeState.Stopped -> "Stopped" to MaterialTheme.colorScheme.onSurfaceVariant
         }
         Text("OpenCode: $label", color = color, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        if (processState is OpenCodeState.Installing) {
+            LinearProgressIndicator(
+                progress = { processState.progress },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            )
+        }
         Row {
             if (processState is OpenCodeState.NotInstalled
                 || processState is OpenCodeState.Error

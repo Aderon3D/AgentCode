@@ -9,6 +9,7 @@ import com.agent.code.opencode.AgentBrain
 import com.agent.code.opencode.BrainEvent
 import com.agent.code.opencode.OpenCodeApi
 import com.agent.code.opencode.OpenCodeClient
+import com.agent.code.opencode.OpenCodeConfig
 import com.agent.code.opencode.OpenCodeManager
 import com.agent.code.opencode.OpenCodeState
 import com.agent.code.opencode.MockOpenCodeClient
@@ -62,8 +63,11 @@ class AgentViewModel(
         statePollJob = scope.launch {
             while (true) {
                 val s = openCodeManager.currentState()
-                if (s !is OpenCodeState.Error) {
-                    _state.value = _state.value.copy(processState = s)
+                _state.value = _state.value.copy(processState = s)
+                if (s is OpenCodeState.Error || s is OpenCodeState.Running) {
+                    statePollJob?.cancel()
+                    statePollJob = null
+                    break
                 }
                 delay(500)
             }
@@ -154,7 +158,8 @@ class AgentViewModel(
             processRunner: ProcessRunner,
             workspaceRoot: VirtualPath
         ): AgentViewModel {
-            val manager = OpenCodeManager(fileSystem, processRunner)
+            val config = OpenCodeConfig()
+            val manager = OpenCodeManager(fileSystem, processRunner, config)
             val httpClient = HttpClient()
             val client = OpenCodeClient(httpClient, manager)
             val journal = AgentEventJournal(InMemoryWalStore())

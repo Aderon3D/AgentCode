@@ -8,13 +8,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.zip.GZIPInputStream
 
 data class OpenCodeConfig(
-    val installDir: VirtualPath = VirtualPath.of("/data/data/com.agent.code/files/opencode"),
+    val installDir: VirtualPath = VirtualPath.of("/data/user/0/com.agent.code/files/opencode"),
     val binaryName: String = "opencode",
     val defaultPort: Int = 4096,
     val startupTimeoutMs: Long = 15_000L,
@@ -36,6 +32,7 @@ class OpenCodeManager(
     private val config: OpenCodeConfig = OpenCodeConfig()
 ) {
     private val stateMutex = Mutex()
+    @Volatile
     private var _state: OpenCodeState = OpenCodeState.NotInstalled
     private var serverPort: Int = config.defaultPort
 
@@ -66,12 +63,11 @@ class OpenCodeManager(
     }
 
     private suspend fun downloadAndExtract() = withContext(Dispatchers.IO) {
-        val installDir = File(config.installDir.rawPath)
-        val glibcDir = File(installDir, "glibc")
-        installDir.mkdirs()
-        glibcDir.mkdirs()
+        val installDir = config.installDir.rawPath
+        val glibcDir = "$installDir/glibc"
+        PlatformOps.createDirectories(installDir)
+        PlatformOps.createDirectories(glibcDir)
 
-        // Download and extract glibc libs
         val glibcFiles = listOf(
             "ld-linux-aarch64.so.1",
             "libc.so.6",
@@ -84,26 +80,20 @@ class OpenCodeManager(
                 (index + 1).toFloat() / (glibcFiles.size + 1),
                 "Downloading $name..."
             )
-            val dest = File(glibcDir, name)
-            downloadFile("${config.releaseUrl}/$name", dest)
+            val dest = "$glibcDir/$name"
+            PlatformOps.downloadFile("${config.releaseUrl}/$name", dest)
+            PlatformOps.setExecutable(dest)
         }
 
-        // Download and extract opencode binary (gzipped)
         _state = OpenCodeState.Installing(0.8f, "Downloading opencode binary...")
-        val gzFile = File(installDir, "${config.binaryName}.gz")
-        downloadFile("${config.releaseUrl}/opencode.gz", gzFile)
+        val gzFile = "$installDir/${config.binaryName}.gz"
+        PlatformOps.downloadFile("${config.releaseUrl}/opencode.gz", gzFile)
 
         _state = OpenCodeState.Installing(0.9f, "Extracting binary...")
-        val binaryDest = File(installDir, config.binaryName)
-        gzFile.inputStream().use { gzInput ->
-            GZIPInputStream(gzInput).use { input ->
-                binaryDest.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-        gzFile.delete()
-        binaryDest.setExecutable(true)
+        val binaryDest = "$installDir/${config.binaryName}"
+        PlatformOps.extractGzip(gzFile, binaryDest)
+        PlatformOps.deleteFile(gzFile)
+        PlatformOps.setExecutable(binaryDest)
 
         _state = OpenCodeState.Installing(0.95f, "Setting up wrapper...")
         createWrapper(installDir)
@@ -111,38 +101,24 @@ class OpenCodeManager(
         _state = OpenCodeState.Installing(1.0f, "Ready")
     }
 
-    private fun downloadFile(url: String, dest: File) {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 30_000
-        conn.readTimeout = 60_000
-        conn.connect()
-
-        conn.inputStream.use { input ->
-            dest.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-    }
-
-    private fun createWrapper(installDir: File) {
-        val wrapper = File(installDir, "run-opencode.sh")
-        val installPath = installDir.absolutePath
+    private suspend fun createWrapper(installDir: String) {
+        val wrapperPath = "$installDir/run-opencode.sh"
         val binaryName = config.binaryName
-        wrapper.writeText("#!/bin/sh\n" +
-            "_INSTALL_DIR=\"$installPath\"\n" +
+        val script = "#!/bin/sh\n" +
+            "_INSTALL_DIR=\"$installDir\"\n" +
             "_GLIBC_DIR=\"\$_INSTALL_DIR/glibc\"\n" +
             "_BIN=\"\$_INSTALL_DIR/$binaryName\"\n" +
             "\n" +
-            "# Sanitize LD_LIBRARY_PATH (remove Android bionic libs that break glibc)\n" +
             "if [ -n \"\$LD_LIBRARY_PATH\" ]; then\n" +
-            "    LD_LIBRARY_PATH=\$(printf '%s' \"\$LD_LIBRARY_PATH\" | tr ':' '\\n' | grep -v \"^/data/user/.*com.m4coding.ide/files/support\\\$\" | paste -sd:)\n" +
+            "    LD_LIBRARY_PATH=\$(printf '%s' \"\$LD_LIBRARY_PATH\" | tr ':' '\\n' | grep -v \"^/data/user/.*com.agent.code/files/support\\\$\" | paste -sd:)\n" +
             "    export LD_LIBRARY_PATH\n" +
             "fi\n" +
             "\n" +
             "exec \"\$_GLIBC_DIR/ld-linux-aarch64.so.1\" \\\n" +
             "     --library-path \"\$_GLIBC_DIR:/system/lib64:/apex/com.android.runtime/lib64\" \\\n" +
-            "     \"\$_BIN\" \"\$@\"\n")
-        wrapper.setExecutable(true)
+            "     \"\$_BIN\" \"\$@\"\n"
+        fileSystem.write(VirtualPath.of(wrapperPath), script)
+        PlatformOps.setExecutable(wrapperPath)
     }
 
     suspend fun start(
@@ -151,15 +127,13 @@ class OpenCodeManager(
     ): OpenCodeState = stateMutex.withLock {
         if (_state is OpenCodeState.Running) return@withLock _state
 
-        val wrapperPath = config.installDir.resolve("run-opencode.sh")
-        if (!fileSystem.exists(wrapperPath)) {
-            val installed = ensureInstalledInternal()
-            if (installed is OpenCodeState.Error) return@withLock installed
-        }
+        val installed = ensureInstalledInternal()
+        if (installed is OpenCodeState.Error) return@withLock installed
 
         _state = OpenCodeState.Starting
         serverPort = port
 
+        val wrapperPath = config.installDir.resolve("run-opencode.sh")
         val pidFile = config.installDir.resolve("opencode.pid")
         val logFile = config.installDir.resolve("opencode.log")
 
@@ -177,20 +151,42 @@ class OpenCodeManager(
             return@withLock _state
         }
 
+        delay(1000)
+
         val pid = try {
             val pidContent = processRunner.run(listOf("cat", pidFile.rawPath))
             pidContent.getOrNull()?.trim()?.toIntOrNull() ?: 0
-        } catch (_: Exception) { 0 }
+        } catch (e: Exception) {
+            _state = OpenCodeState.Error("Failed to read PID file: ${e.message}")
+            return@withLock _state
+        }
+
+        if (pid == 0) {
+            val logSnippet = readLogSnippet(logFile)
+            _state = OpenCodeState.Error("Process did not start (pid=0)$logSnippet")
+            return@withLock _state
+        }
 
         try {
             waitForServer(port)
         } catch (e: Exception) {
-            _state = OpenCodeState.Error("Server failed to start: ${e.message}")
+            val logSnippet = readLogSnippet(logFile)
+            _state = OpenCodeState.Error("Server failed to start: ${e.message}$logSnippet")
             return@withLock _state
         }
 
         _state = OpenCodeState.Running(port, pid)
         _state
+    }
+
+    private suspend fun readLogSnippet(logFile: VirtualPath): String {
+        return try {
+            val logResult = fileSystem.read(logFile).getOrNull()
+            if (logResult != null) {
+                val lines = logResult.lines().takeLast(20)
+                if (lines.isNotEmpty()) "\n\nLog:\n${lines.joinToString("\n")}" else ""
+            } else ""
+        } catch (_: Exception) { "" }
     }
 
     suspend fun stop() = stateMutex.withLock {
@@ -223,18 +219,11 @@ class OpenCodeManager(
     fun baseUrl(): String = "http://127.0.0.1:$serverPort"
 
     private suspend fun waitForServer(port: Int) {
-        val deadline = System.currentTimeMillis() + config.startupTimeoutMs
-        while (System.currentTimeMillis() < deadline) {
+        val deadline = PlatformOps.currentTimeMs() + config.startupTimeoutMs
+        while (PlatformOps.currentTimeMs() < deadline) {
             try {
-                val url = java.net.URL("http://127.0.0.1:$port/api/health")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 1000
-                conn.readTimeout = 1000
-                try {
-                    if (conn.responseCode == 200) return
-                } finally {
-                    conn.disconnect()
-                }
+                val code = PlatformOps.httpGet("http://127.0.0.1:$port/api/health", 1000, 1000)
+                if (code == 200) return
             } catch (_: Exception) {}
             delay(500)
         }

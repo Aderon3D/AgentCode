@@ -6,6 +6,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.plugins.HttpTimeoutConfig
+import io.ktor.client.plugins.timeout
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.utils.io.readUTF8Line
@@ -167,4 +169,110 @@ class OpenCodeClient(
             emptyList()
         }
     }
+
+    // ---- Native session API (the real opencode agent) ----
+    // The OpenAI-shaped /api/chat* paths above don't exist on this server
+    // (unknown routes return the SPA HTML fallback with 200). The v2 session
+    // endpoints below are the actual agent pipeline:
+    //   POST /api/session                 -> create a session
+    //   POST /api/session/{id}/prompt     -> queue the goal text
+    //   GET  /api/session/{id}/event      -> SSE stream of run events
+
+    suspend fun createSession(providerID: String, modelID: String): String {
+        val body = buildJsonObject {
+            put("model", buildJsonObject {
+                put("providerID", JsonPrimitive(providerID))
+                put("id", JsonPrimitive(modelID))
+            })
+        }
+        val text = httpClient.post("${manager.baseUrl()}/api/session") {
+            contentType(ContentType.Application.Json)
+            setBody(body.toString())
+        }.bodyAsText()
+        // Guard against the SPA HTML fallback (200 but not JSON).
+        if (text.trimStart().startsWith("<")) error("createSession: server returned HTML, not JSON")
+        val id = runCatching {
+            Json.parseToJsonElement(text).jsonObject["data"]?.jsonObject?.get("id")
+                ?.jsonPrimitive?.contentOrNull
+        }.getOrNull()
+        return id ?: error("createSession: no session id in response: ${text.take(200)}")
+    }
+
+    suspend fun sendPrompt(sessionID: String, text: String) {
+        val body = buildJsonObject {
+            put("prompt", buildJsonObject { put("text", JsonPrimitive(text)) })
+        }
+        val resp = httpClient.post("${manager.baseUrl()}/api/session/$sessionID/prompt") {
+            contentType(ContentType.Application.Json)
+            setBody(body.toString())
+        }
+        if (resp.status.value >= 400) {
+            error("sendPrompt: ${resp.status} ${resp.bodyAsText().take(300)}")
+        }
+    }
+
+    fun sessionEvents(sessionID: String): Flow<SessionEvent> = flow {
+        // The event channel idles between agent steps (LLM latency can exceed
+        // the default 10s read timeout and would kill a healthy run).
+        val channel = httpClient.get("${manager.baseUrl()}/api/session/$sessionID/event") {
+            timeout {
+                requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
+                socketTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
+            }
+        }.bodyAsChannel()
+        while (true) {
+            val line = channel.readUTF8Line() ?: break
+            if (!line.startsWith("data:")) continue
+            val payload = line.removePrefix("data:").trim()
+            val event = parseSessionEvent(payload)
+            if (event != null) emit(event)
+        }
+    }
+
+    private fun parseSessionEvent(payload: String): SessionEvent? {
+        return try {
+            val root = Json.parseToJsonElement(payload).jsonObject
+            val type = root["type"]?.jsonPrimitive?.contentOrNull
+            val data = root["data"]?.jsonObject ?: return null
+            fun str(k: String) = data[k]?.jsonPrimitive?.contentOrNull
+            when (type) {
+                "session.next.prompt.admitted" -> SessionEvent.PromptAdmitted(
+                    str("messageID") ?: "?", str("delivery") ?: "?"
+                )
+                "session.next.step.started" -> SessionEvent.StepStarted(
+                    data["model"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull ?: "?",
+                    str("agent") ?: "?"
+                )
+                "session.next.text.delta" -> SessionEvent.TextDelta(str("text") ?: "")
+                "session.next.text.ended" -> SessionEvent.TextEnded(str("text") ?: "")
+                "session.next.tool.called" -> SessionEvent.ToolCalled(str("tool") ?: "?")
+                "session.next.tool.input.ended" -> SessionEvent.ToolInput(str("command") ?: str("filePath") ?: "")
+                "session.next.tool.success" -> SessionEvent.ToolFinished(str("callID") ?: "?", true)
+                "session.next.tool.error" -> SessionEvent.ToolFinished(str("callID") ?: "?", false)
+                "session.next.step.ended" -> SessionEvent.StepEnded(str("finish") ?: "stop")
+                "session.next.step.failed" -> {
+                    val err = data["error"]?.jsonObject
+                    SessionEvent.Failed(
+                        "${err?.get("type")?.jsonPrimitive?.contentOrNull ?: "error"}: " +
+                            "${err?.get("message")?.jsonPrimitive?.contentOrNull ?: "step failed"}"
+                    )
+                }
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
+
+sealed interface SessionEvent {
+    data class PromptAdmitted(val messageID: String, val delivery: String) : SessionEvent
+    data class StepStarted(val model: String, val agent: String) : SessionEvent
+    data class TextDelta(val text: String) : SessionEvent
+    data class TextEnded(val text: String) : SessionEvent
+    data class ToolInput(val detail: String) : SessionEvent
+    data class ToolCalled(val tool: String) : SessionEvent
+    data class ToolFinished(val callID: String, val ok: Boolean) : SessionEvent
+    data class StepEnded(val finish: String) : SessionEvent
+    data class Failed(val message: String) : SessionEvent
 }

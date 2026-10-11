@@ -93,8 +93,7 @@ class MultiAgentOrchestrator(
                     val client = OpenCodeClient(httpClient, manager)
                     val journal = AgentEventJournal(InMemoryWalStore())
                     val telemetry = TelemetryEngine(scope)
-                    val mcp = McpHost(fileSystem, processRunner)
-                    val brain = AgentBrain(client, mcp, journal, telemetry)
+                    val brain = AgentBrain(client, journal, telemetry)
 
                     mutex.withLock {
                         val slot = _slots.value[taskId] ?: return@withLock

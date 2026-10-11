@@ -4,7 +4,6 @@ import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.InMemoryWalStore
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.path.VirtualPath
-import com.agent.code.mcp.McpHost
 import com.agent.code.opencode.AgentBrain
 import com.agent.code.opencode.BrainEvent
 import com.agent.code.opencode.OpenCodeApi
@@ -16,13 +15,17 @@ import com.agent.code.opencode.MockOpenCodeClient
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class AgentUiState(
@@ -30,7 +33,8 @@ data class AgentUiState(
     val isRunning: Boolean = false,
     val currentGoal: String = "",
     val events: List<UiEvent> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val logDump: String? = null
 )
 
 sealed interface UiEvent {
@@ -59,12 +63,22 @@ class AgentViewModel(
     private var statePollJob: Job? = null
 
     fun startOpenCode() {
-        if (statePollJob != null) return
+        // Cancel-and-relaunch (was: early-return if alive). A live poll can be
+        // a stale watcher for a previous child, and after the poll survives
+        // past Stopped we must be able to replace it on the next Start.
+        statePollJob?.cancel()
         statePollJob = scope.launch {
             while (true) {
                 val s = openCodeManager.currentState()
-                _state.value = _state.value.copy(processState = s)
-                if (s is OpenCodeState.Error || s is OpenCodeState.Running) {
+                // update{} not copy: the 500ms poll races the brain's per-event
+                // writes (read-modify-write lost events from the feed).
+                _state.update { it.copy(processState = s) }
+                // Error is the only terminal state for this poll. Running must
+                // KEEP polling (currentState() checks child liveness there —
+                // cancelling on Running froze the UI at "Running" after the
+                // loader killed the child, r14), and Stopped is transient
+                // during startup (ensureInstalled sets it before start()).
+                if (s is OpenCodeState.Error) {
                     statePollJob?.cancel()
                     statePollJob = null
                     break
@@ -79,11 +93,29 @@ class AgentViewModel(
             } catch (e: Exception) {
                 statePollJob?.cancel()
                 statePollJob = null
-                _state.value = _state.value.copy(
-                    processState = OpenCodeState.Error(e.message ?: "start failed")
+                _state.update {
+                    it.copy(processState = OpenCodeState.Error(e.message ?: "start failed"))
+                }
+            }
+        }
+    }
+
+    // Pull the loader/server log on demand, healthy or not. File IO off the
+    // UI thread; the UI copies the result to the clipboard.
+    fun fetchLog() {
+        scope.launch {
+            val dump = withContext(Dispatchers.IO) { openCodeManager.logDump() }
+            val s = _state.value
+            _state.update {
+                it.copy(
+                    logDump = "goal=${s.currentGoal} taskRunning=${s.isRunning} uiError=${s.error}\n$dump"
                 )
             }
         }
+    }
+
+    fun clearLogDump() {
+        _state.update { it.copy(logDump = null) }
     }
 
     fun stopOpenCode() {
@@ -91,7 +123,7 @@ class AgentViewModel(
         statePollJob = null
         scope.launch {
             openCodeManager.stop()
-            _state.value = _state.value.copy(processState = OpenCodeState.Stopped)
+            _state.update { it.copy(processState = OpenCodeState.Stopped) }
         }
     }
 
@@ -99,12 +131,16 @@ class AgentViewModel(
         if (_state.value.isRunning) return
         brainJob?.cancel()
 
-        _state.value = _state.value.copy(
-            isRunning = true,
-            currentGoal = goal,
-            events = emptyList(),
-            error = null
-        )
+        _state.update {
+            it.copy(
+                isRunning = true,
+                currentGoal = goal,
+                // First visible mark: if the feed stays empty AFTER this line the
+                // break is downstream (session/prompt/SSE), before it = submit never ran.
+                events = listOf(UiEvent.Thinking("→ goal: $goal")),
+                error = null
+            )
+        }
 
         brainJob = scope.launch {
             try {
@@ -121,19 +157,22 @@ class AgentViewModel(
                         is BrainEvent.TaskFailed -> UiEvent.Failed(event.reason)
                     }
                     events.add(uiEvent)
-                    _state.value = _state.value.copy(events = events.toList())
+                    val snapshot = events.toList()
+                    _state.update { it.copy(events = snapshot) }
 
                     if (event is BrainEvent.TaskComplete || event is BrainEvent.TaskFailed) {
-                        _state.value = _state.value.copy(isRunning = false)
+                        _state.update { it.copy(isRunning = false) }
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.value = _state.value.copy(
-                    isRunning = false,
-                    error = "${e::class.simpleName}: ${e.message}"
-                )
+                _state.update {
+                    it.copy(
+                        isRunning = false,
+                        error = "${e::class.simpleName}: ${e.message}"
+                    )
+                }
             }
         }
     }
@@ -141,7 +180,7 @@ class AgentViewModel(
     fun cancelTask() {
         brainJob?.cancel()
         brainJob = null
-        _state.value = _state.value.copy(isRunning = false)
+        _state.update { it.copy(isRunning = false) }
     }
 
     fun destroy() {
@@ -156,16 +195,25 @@ class AgentViewModel(
             scope: CoroutineScope,
             fileSystem: FileSystemProvider,
             processRunner: ProcessRunner,
-            workspaceRoot: VirtualPath
+            workspaceRoot: VirtualPath,
+            nativeLibraryDir: String = "/data/app/~~placeholder~~/com.agent.code/lib/arm64"
         ): AgentViewModel {
-            val config = OpenCodeConfig()
+            val config = OpenCodeConfig(nativeLibraryDir = nativeLibraryDir)
             val manager = OpenCodeManager(fileSystem, processRunner, config)
-            val httpClient = HttpClient()
+            // No timeout = silent zombie: createSession can hang forever with
+            // an empty feed (Stop highlighted, nothing else, r15). SSE
+            // overrides to infinite per-request in OpenCodeClient.
+            val httpClient = HttpClient {
+                install(HttpTimeout) {
+                    requestTimeoutMillis = 30_000
+                    connectTimeoutMillis = 5_000
+                    socketTimeoutMillis = 30_000
+                }
+            }
             val client = OpenCodeClient(httpClient, manager)
             val journal = AgentEventJournal(InMemoryWalStore())
             val telemetry = TelemetryEngine(scope)
-            val mcp = McpHost(fileSystem, processRunner)
-            val brain = AgentBrain(client, mcp, journal, telemetry)
+            val brain = AgentBrain(client, journal, telemetry)
             return AgentViewModel(scope, manager, client, brain, journal, telemetry, workspaceRoot, httpClient)
         }
     }

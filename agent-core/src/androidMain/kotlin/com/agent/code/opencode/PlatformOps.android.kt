@@ -15,14 +15,27 @@ actual object PlatformOps {
     }
 
     actual fun downloadFile(url: String, destPath: String) {
-        val conn = URL(url).openConnection() as HttpURLConnection
+        var conn = URL(url).openConnection() as HttpURLConnection
+        conn.instanceFollowRedirects = true
         conn.connectTimeout = 30_000
         conn.readTimeout = 60_000
         conn.connect()
         try {
+            // Follow redirects manually (HttpURLConnection doesn't cross-domain)
+            var redirects = 0
+            while (conn.responseCode in 300..399 && redirects < 5) {
+                val location = conn.getHeaderField("Location") ?: break
+                conn.disconnect()
+                conn = URL(location).openConnection() as HttpURLConnection
+                conn.instanceFollowRedirects = true
+                conn.connectTimeout = 30_000
+                conn.readTimeout = 60_000
+                conn.connect()
+                redirects++
+            }
             if (conn.responseCode !in 200..299) {
                 val body = conn.errorStream?.bufferedReader()?.readText() ?: ""
-                throw RuntimeException("HTTP ${conn.responseCode}: $body")
+                throw RuntimeException("HTTP ${conn.responseCode}: ${body.take(200)}")
             }
             conn.inputStream.use { input ->
                 File(destPath).outputStream().use { output ->
@@ -69,4 +82,15 @@ actual object PlatformOps {
             conn.disconnect()
         }
     }
+
+    actual fun spawnLdLinux(
+        loaderPath: String,
+        glibcDir: String,
+        binaryPath: String,
+        workDir: String,
+        logPath: String,
+        args: Array<String>
+    ): Int = ElfLoader.nativeSpawn(loaderPath, glibcDir, binaryPath, workDir, logPath, args)
+
+    actual fun checkChild(pid: Int): Int = ElfLoader.nativeCheck(pid)
 }

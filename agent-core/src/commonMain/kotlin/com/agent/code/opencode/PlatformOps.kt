@@ -8,4 +8,13 @@ expect object PlatformOps {
     fun setExecutable(path: String)
     fun currentTimeMs(): Long
     fun httpGet(url: String, connectTimeoutMs: Int, readTimeoutMs: Int): Int
+    fun spawnLdLinux(
+        loaderPath: String,
+        glibcDir: String,
+        binaryPath: String,
+        workDir: String,
+        logPath: String,
+        args: Array<String>
+    ): Int
+    fun checkChild(pid: Int): Int
 }

@@ -1,0 +1,93 @@
+Enough or do you need logs from adb? OpenCode: Server failed to start: OpenCode exited during startup (signal 31)
+
+Log:
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006e3f264c40
+elfloader: mapped ld
+elfloader: window 0x0000000000200000-0x000000000b420000
+elfloader: evicted 02000000-12000000 rw-p 00000000 00:00 0                                  [anon:dalvik-main space]
+elfloader: mapped prog
+elfloader: altstack 0x0000007005c49000
+elfloader: altstack ok (kernel)
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006e3f264c40
+elfloader: sbrk ok
+elfloader: tp ok
+elfloader: altstack probe ok
+elfloader: brk 0x0000005846268000
+elfloader: spawning: /data/user/0/com.agent.code/files/opencode/opencode serve --port 4096
+elfloader: jumping
+elfloader: maps begin
+00200000-020e9000 r--p 00000000 fe:4f 3625487                            /data/data/com.agent.code/files/opencode/opencode
+02370000-05ba7000 r-xp 01ef0000 fe:4f 3625487                            /data/data/com.agent.code/files/opencode/opencode
+05bb6000-0b420000 rw-p 05726000 fe:4f 3625487                            /data/data/com.agent.code/files/opencode/opencode
+5846264000-5846268000 rw-p 00000000 00:00 0                              [heap]
+6e241f4000-6e241f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:566]
+6e241f5000-6e245fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:566]
+6e2560e000-6e2560f000 ---p 00000000 00:00 0                              [anon:stack_and_tls:557]
+6e2560f000-6e25a16000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:557]
+6e28bf4000-6e28bf5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:549]
+6e28bf5000-6e28ffc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:549]
+6e2bef0000-6e2bfec000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:539]
+6e2bff4000-6e2bff5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:536]
+6e2bff5000-6e2c3fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:536]
+6e2d500000-6e2d5fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:535]
+6e30900000-6e309fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:522]
+…
+       849:	symbol=getcwd;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getcwd' [GLIBC_2.17]
+       849:	symbol=fopen;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=fopen;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fopen' [GLIBC_2.17]
+       849:	symbol=dlopen;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=dlopen;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `dlopen' [GLIBC_2.17]
+       849:	opening file= [0]; direct_opencount=2
+       849:	
+       849:	symbol=dlsym;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=dlsym;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `dlsym' [GLIBC_2.17]
+       849:	symbol=__asan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=__asan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	symbol=__asan_init;  lookup in file=/lib/ld-linux-aarch64.so.1 [0]
+       849:	symbol=__asan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0]
+       849:	symbol=__asan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0]
+       849:	symbol=__asan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+       849:	/data/user/0/com.agent.code/files/opencode/opencode: error: symbol lookup error: undefined symbol: __asan_init (fatal)
+       849:	symbol=__tsan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=__tsan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	symbol=__tsan_init;  lookup in file=/lib/ld-linux-aarch64.so.1 [0]
+       849:	symbol=__tsan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0]
+       849:	symbol=__tsan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0]
+       849:	symbol=__tsan_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+       849:	/data/user/0/com.agent.code/files/opencode/opencode: error: symbol lookup error: undefined symbol: __tsan_init (fatal)
+       849:	symbol=dlclose;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=dlclose;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `dlclose' [GLIBC_2.17]
+       849:	
+       849:	closing file=; direct_opencount=1
+       849:	symbol=madvise;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=madvise;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `madvise' [GLIBC_2.17]
+       849:	symbol=mprotect;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=mprotect;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `mprotect' [GLIBC_2.17]
+       849:	symbol=sem_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=sem_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `sem_init' [GLIBC_2.17]
+       849:	symbol=sigaddset;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=sigaddset;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `sigaddset' [GLIBC_2.17]
+       849:	symbol=pthread_getspecific;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=pthread_getspecific;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_getspecific' [GLIBC_2.17]
+       849:	symbol=pthread_mutex_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=pthread_mutex_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutex_init' [GLIBC_2.17]
+       849:	symbol=pthread_cond_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=pthread_cond_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_cond_init' [GLIBC_2.17]
+       849:	symbol=pthread_create;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=pthread_create;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_create' [GLIBC_2.17]
+       849:	symbol=pthread_detach;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+       849:	symbol=pthread_detach;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+       849:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_detach' [GLIBC_2.17]

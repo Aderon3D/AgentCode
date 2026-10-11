@@ -1,0 +1,93 @@
+I'm using the debug build it's ok right? Do you need the adb logs? OpenCode: Server failed to start: OpenCode exited during startup (signal 11)
+
+Log:
+elfloader: handlers armed
+elfloader: mapped ld
+elfloader: window 0x0000000000200000-0x000000000b420000
+elfloader: evicted 02000000-12000000 rw-p 00000000 00:00 0                                  [anon:dalvik-main space]
+elfloader: mapped prog
+elfloader: altstack 0x0000007008c0b000
+elfloader: altstack ok
+elfloader: handlers armed
+elfloader: sbrk ok
+elfloader: tp ok
+elfloader: altstack probe ok
+elfloader: brk 0x0000005846268000
+elfloader: spawning: /data/user/0/com.agent.code/files/opencode/opencode serve --port 4096
+elfloader: jumping
+elfloader: maps begin
+00200000-020e9000 r--p 00000000 fe:4f 2963619                            /data/data/com.agent.code/files/opencode/opencode
+02370000-05ba7000 r-xp 01ef0000 fe:4f 2963619                            /data/data/com.agent.code/files/opencode/opencode
+05bb6000-0b420000 rw-p 05726000 fe:4f 2963619                            /data/data/com.agent.code/files/opencode/opencode
+5846264000-5846268000 rw-p 00000000 00:00 0                              [heap]
+6e245f4000-6e245f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:16668]
+6e245f5000-6e249fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16668]
+6e25a0e000-6e25a0f000 ---p 00000000 00:00 0                              [anon:stack_and_tls:16665]
+6e25a0f000-6e25e16000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16665]
+6e28ff4000-6e28ff5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:16636]
+6e28ff5000-6e293fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16636]
+6e2c2f0000-6e2c3ec000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16635]
+6e2c3f4000-6e2c3f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:16632]
+6e2c3f5000-6e2c7fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16632]
+6e2d900000-6e2d9fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16631]
+6e30f00000-6e30ffc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16623]
+…
+7009144000-700914c000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70091b3000-70091bb000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700ae39000-700ae41000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700affe000-700b006000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700b0aa000-700b0ea000 rw-p 00000000 00:00 0                              [anon:dalvik-mark stack]
+700be4a000-700be7a000 r--p 00000000 fe:18 23138496                       /system/lib64/libunwindstack.so
+700be7a000-700bef1000 r-xp 00030000 fe:18 23138496                       /system/lib64/libunwindstack.so
+700bef2000-700befa000 r--p 000a8000 fe:18 23138496                       /system/lib64/libunwindstack.so
+700befa000-700befb000 rw-p 000b0000 fe:18 23138496                       /system/lib64/libunwindstack.so
+700bf04000-700bf0c000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700bf72000-700bf7a000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700d785000-700d786000 r--p 00000000 07:b8 49256                          /apex/com.android.runtime/lib64/bionic/libdl_android.so
+700d789000-700d78a000 r-xp 00004000 07:b8 49256                          /apex/com.android.runtime/lib64/bionic/libdl_android.so
+700d78d000-700d78e000 r--p 00008000 07:b8 49256                          /apex/com.android.runtime/lib64/bionic/libdl_android.so
+7011ec8000-7011f23000 r--p 00000000 07:b8 49207                          /apex/com.android.runtime/lib64/bionic/libc.so
+7011f24000-7011fce000 r-xp 0005c000 07:b8 49207                          /apex/com.android.runtime/lib64/bionic/libc.so
+7011fd0000-7011fd5000 r--p 00108000 07:b8 49207                          /apex/com.android.runtime/lib64/bionic/libc.so
+7011fd8000-7011fd9000 rw-p 00110000 07:b8 49207                          /apex/com.android.runtime/lib64/bionic/libc.so
+7014ebd000-7014ec5000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7014fcb000-7014fd3000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70150a6000-70150ae000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70150f8000-7015100000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70153f0000-70153f8000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70153fc000-7015404000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7015408000-7015410000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7015414000-701541c000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7015420000-7015428000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70158ad000-70158b1000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:main]
+7016a49000-7016a51000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7016a51000-7016a53000 r--p 00000000 00:00 0                              [vvar]
+7016a53000-7016a55000 r-xp 00000000 00:00 0                              [vdso]
+7fea23d000-7feaa3c000 rw-p 00000000 00:00 0                              [stack]
+elfloader: maps end
+elfloader: handlers armed
+elfloader: handler live
+     16862:	
+     16862:	file=libc.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     16862:	file=libc.so.6 [0];  generating link map
+     16862:	  dynamic: 0x0000006f2d5efaf0  base: 0x0000006f2d440000   size: 0x00000000001bdf90
+     16862:	    entry: 0x0000006f2d4686f0  phdr: 0x0000006f2d440040  phnum:                 10
+     16862:	
+     16862:	
+     16862:	file=libpthread.so.0 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     16862:	file=libpthread.so.0 [0];  generating link map
+     16862:	  dynamic: 0x0000006fed5cfda0  base: 0x0000006fed5b0000   size: 0x0000000000020010
+     16862:	    entry: 0x0000006fed5b0000  phdr: 0x0000006fed5b0040  phnum:                  7
+     16862:	
+     16862:	
+     16862:	file=libdl.so.2 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     16862:	file=libdl.so.2 [0];  generating link map
+     16862:	  dynamic: 0x0000006fed4cfda0  base: 0x0000006fed4b0000   size: 0x0000000000020010
+     16862:	    entry: 0x0000006fed4b0000  phdr: 0x0000006fed4b0040  phnum:                  7
+     16862:	
+     16862:	
+     16862:	file=libm.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     16862:	file=libm.so.6 [0];  generating link map
+     16862:	  dynamic: 0x0000006f2df0fd10  base: 0x0000006f2de70000   size: 0x00000000000a0018
+     16862:	    entry: 0x0000006f2de70000  phdr: 0x0000006f2de70040  phnum:                  7
+     16862:

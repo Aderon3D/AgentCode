@@ -1,0 +1,165 @@
+OpenCode: Server failed to start: OpenCode exited during startup (signal 11)
+
+Log:
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006e2d75d06c
+elfloader: mapped ld
+elfloader: window 0x0000000000200000-0x000000000b420000
+elfloader: evicted 02000000-12000000 rw-p 00000000 00:00 0                                  [anon:dalvik-main space]
+elfloader: mapped prog
+elfloader: altstack 0x0000007005c49000
+elfloader: altstack ok (kernel)
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006e2d75d06c
+elfloader: sbrk ok
+elfloader: tp ok
+elfloader: altstack probe ok
+elfloader: brk 0x0000005846268000
+elfloader: spawning: /data/user/0/com.agent.code/files/opencode/opencode serve --port 4096
+elfloader: jumping
+elfloader: maps begin
+00200000-020e9000 r--p 00000000 fe:4f 3615774                            /data/data/com.agent.code/files/opencode/opencode
+02370000-05ba7000 r-xp 01ef0000 fe:4f 3615774                            /data/data/com.agent.code/files/opencode/opencode
+05bb6000-0b420000 rw-p 05726000 fe:4f 3615774                            /data/data/com.agent.code/files/opencode/opencode
+5846264000-5846268000 rw-p 00000000 00:00 0                              [heap]
+6e223f4000-6e223f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:17009]
+6e223f5000-6e227fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:17009]
+6e2380e000-6e2380f000 ---p 00000000 00:00 0                              [anon:stack_and_tls:17008]
+6e2380f000-6e23c16000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:17008]
+6e257f4000-6e257f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:16997]
+6e257f5000-6e25bfc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16997]
+6e28300000-6e28301000 ---p 00000000 00:00 0                              [anon:stack_and_tls:16992]
+6e28301000-6e283fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16992]
+6e2b2f0000-6e2b3ec000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16991]
+6e2b3f4000-6e2b3f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:16989]
+6e2b3f5000-6e2b7fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:16989]
+…
+7016a49000-7016a51000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7016a51000-7016a53000 r--p 00000000 00:00 0                              [vvar]
+7016a53000-7016a55000 r-xp 00000000 00:00 0                              [vdso]
+7fea23d000-7feaa3c000 rw-p 00000000 00:00 0                              [stack]
+elfloader: maps end
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006e2d75d06c
+elfloader: readback ret=0x0000000000000000 handler=0x0000006e2d75d06c expect=0x0000006e2d75d06c live
+     17314:	
+     17314:	file=libc.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	find library=libc.so.6 [0]; searching
+     17314:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     17314:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6
+     17314:	
+     17314:	file=libc.so.6 [0];  generating link map
+     17314:	  dynamic: 0x0000006f2d5efaf0  base: 0x0000006f2d440000   size: 0x00000000001bdf90
+     17314:	    entry: 0x0000006f2d4686f0  phdr: 0x0000006f2d440040  phnum:                 10
+     17314:	
+     17314:	
+     17314:	file=libpthread.so.0 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	find library=libpthread.so.0 [0]; searching
+     17314:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     17314:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0
+     17314:	
+     17314:	file=libpthread.so.0 [0];  generating link map
+     17314:	  dynamic: 0x0000006fffa1fda0  base: 0x0000006fffa00000   size: 0x0000000000020010
+     17314:	    entry: 0x0000006fffa00000  phdr: 0x0000006fffa00040  phnum:                  7
+     17314:	
+     17314:	
+     17314:	file=libdl.so.2 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	find library=libdl.so.2 [0]; searching
+     17314:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     17314:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2
+     17314:	
+     17314:	file=libdl.so.2 [0];  generating link map
+     17314:	  dynamic: 0x0000006fed4cfda0  base: 0x0000006fed4b0000   size: 0x0000000000020010
+     17314:	    entry: 0x0000006fed4b0000  phdr: 0x0000006fed4b0040  phnum:                  7
+     17314:	
+     17314:	
+     17314:	file=libm.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	find library=libm.so.6 [0]; searching
+     17314:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     17314:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+     17314:	
+     17314:	file=libm.so.6 [0];  generating link map
+     17314:	  dynamic: 0x0000006f2df0fd10  base: 0x0000006f2de70000   size: 0x00000000000a0018
+     17314:	    entry: 0x0000006f2de70000  phdr: 0x0000006f2de70040  phnum:                  7
+     17314:	
+     17314:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     17314:	checking for version `GLIBC_PRIVATE' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     17314:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     17314:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0]
+     17314:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0]
+     17314:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+     17314:	checking for version `GLIBC_PRIVATE' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+     17314:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0] --------- beginning of crash
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: FATAL EXCEPTION: main
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: Process: com.waze, PID: 1047
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: java.lang.NullPointerException: Attempt to invoke virtual method 'android.view.View android.view.View.findViewById(int)' on a null object reference
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at com.waze.kf.x(WazeSource:8)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at com.waze.main_screen.ab.a.a.invoke(WazeSource:45)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.fragment.compose.AndroidFragmentKt.AndroidFragment$lambda$7$0(WazeSource:131)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.fragment.compose.AndroidFragmentKt.$r8$lambda$-Py8vlC4ohCgqdX-_B1Xcf7WuEg(WazeSource:1)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.fragment.compose.AndroidFragmentKt$$ExternalSyntheticLambda3.invoke(WazeSource:22)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.DisposableEffectImpl.onRemembered(WazeSource:46)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.internal.RememberEventDispatcher.dispatchRememberList(WazeSource:26)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.internal.RememberEventDispatcher.dispatchRememberObservers(WazeSource:125)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.CompositionImpl.applyChangesInLocked(WazeSource:106)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.CompositionImpl.applyChanges(WazeSource:6)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.Recomposer.composeInitial$runtime(WazeSource:125)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.GapComposer$CompositionContextImpl.composeInitial$runtime(WazeSource:7)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.CompositionImpl.composeInitial(WazeSource:7)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.CompositionImpl.setContent(WazeSource:14)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.layout.LayoutNodeSubcompositionsState.subcompose(WazeSource:216)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.layout.LayoutNodeSubcompositionsState.subcompose(WazeSource:191)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.layout.LayoutNodeSubcompositionsState.subcompose(WazeSource:160)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.layout.LayoutNodeSubcompositionsState$Scope.subcompose(WazeSource:3)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.foundation.layout.BoxWithConstraintsKt.BoxWithConstraints$lambda$0$0(WazeSource:31)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.foundation.layout.BoxWithConstraintsKt.$r8$lambda$p9yh-8kbO_kwrsRP1ZyRK8puGy8(WazeSource:1)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.foundation.layout.BoxWithConstraintsKt$$ExternalSyntheticLambda0.invoke(WazeSource:9)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.layout.LayoutNodeSubcompositionsState$createMeasurePolicy$1.measure-3p2s80s(WazeSource:113)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.InnerNodeCoordinator.measure-BRTryo0(WazeSource:78)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.foundation.layout.FillNode.measure-3p2s80s(WazeSource:106)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.LayoutModifierNodeCoordinator.measure-BRTryo0(WazeSource:206)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate.performMeasureBlock$lambda$0(WazeSource:7)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate$$ExternalSyntheticLambda0.invoke(WazeSource:3)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.snapshots.SnapshotStateObserver.observeReads(WazeSource:221)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate.remeasure-BRTryo0(WazeSource:187)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate.measure-BRTryo0(WazeSource:75)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.animation.AnimatedEnterExitMeasurePolicy.measure-3p2s80s(WazeSource:31)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.InnerNodeCoordinator.measure-BRTryo0(WazeSource:78)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.animation.EnterExitTransitionModifierNode.measure-3p2s80s(WazeSource:117)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.LayoutModifierNodeCoordinator.measure-BRTryo0(WazeSource:206)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.graphics.BlockGraphicsLayerModifier.measure-3p2s80s(WazeSource:1)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.LayoutModifierNodeCoordinator.measure-BRTryo0(WazeSource:206)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.animation.ZIndexModifierNode.measure-3p2s80s(WazeSource:1)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.LayoutModifierNodeCoordinator.measure-BRTryo0(WazeSource:206)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate.performMeasureBlock$lambda$0(WazeSource:7)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate$$ExternalSyntheticLambda0.invoke(WazeSource:3)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.snapshots.SnapshotStateObserver.observeReads(WazeSource:221)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate.remeasure-BRTryo0(WazeSource:187)
+10-05 18:57:19.382  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate.measure-BRTryo0(WazeSource:75)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.animation.AnimatedContentMeasurePolicy.measure-3p2s80s(WazeSource:71)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.InnerNodeCoordinator.measure-BRTryo0(WazeSource:78)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.animation.AnimatedContentTransitionScopeImpl$SizeModifierNode.measure-3p2s80s(WazeSource:3)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.LayoutModifierNodeCoordinator.measure-BRTryo0(WazeSource:206)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate.performMeasureBlock$lambda$0(WazeSource:7)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate$$ExternalSyntheticLambda0.invoke(WazeSource:3)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.runtime.snapshots.SnapshotStateObserver.observeReads(WazeSource:304)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasurePassDelegate.remeasure-BRTryo0(WazeSource:187)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.LayoutNode.remeasure-_Sx5XlM$ui(WazeSource:20)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.LayoutNode.remeasure-_Sx5XlM$ui$default(WazeSource:11)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasureAndLayoutDelegate.doRemeasure-sdFAvZA(WazeSource:10)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasureAndLayoutDelegate.remeasureIfNeeded(WazeSource:95)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasureAndLayoutDelegate.access$remeasureIfNeeded(WazeSource:1)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.MeasureAndLayoutDelegate.measureAndLayout(WazeSource:142)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.platform.AndroidComposeView.measureAndLayout(WazeSource:33)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.node.Owner$-CC.measureAndLayout$default(WazeSource:9)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat.semanticsChangeChecker$lambda$0(WazeSource:24)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at androidx.compose.ui.platform.AndroidComposeViewAccessibilityDelegateCompat$$ExternalSyntheticLambda4.run(WazeSource:3)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at android.os.Handler.handleCallback(Handler.java:1001)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:109)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:306)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:416)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:9999)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:613)
+10-05 18:57:19.383  1047  1047 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:1074)

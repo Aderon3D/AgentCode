@@ -82,14 +82,25 @@ jobs:
         run: |
           [ -n "$PR_NUMBER" ] && echo "$PR_NUMBER" | grep -qE '^[0-9]+$' || { echo "Invalid PR number"; exit 1; }
           if [ -n "$PR_NUMBER" ]; then
-            gh pr diff "$PR_NUMBER" --allow-escape-sequences > /tmp/review.diff
+            gh pr diff "$PR_NUMBER" --allow-escape-sequences > /tmp/review.diff.raw
           elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "::error::workflow_dispatch requires pr_number input"
             exit 1
           else
-            git diff HEAD~1 HEAD > /tmp/review.diff 2>/dev/null || git show HEAD > /tmp/review.diff 2>/dev/null || touch /tmp/review.diff
+            git diff HEAD~1 HEAD > /tmp/review.diff.raw 2>/dev/null || git show HEAD > /tmp/review.diff.raw 2>/dev/null || touch /tmp/review.diff.raw
           fi
-          echo "Lines: $(wc -l < /tmp/review.diff)"
+          # Strip bulk non-code artifacts (debug logs, scratch notes) and cap the total
+          # bytes: a PR that commits thousands of lines of transcripts otherwise blows
+          # model context (instant 400s) and makes every round minutes long.
+          awk '/^diff --git / { skip = ($0 ~ / a\/(logs|thoughts)\// || $0 ~ /\.log( |$)/) } !skip' /tmp/review.diff.raw > /tmp/review.diff
+          MAX_DIFF_BYTES=400000
+          if [ "$(wc -c < /tmp/review.diff)" -gt "$MAX_DIFF_BYTES" ]; then
+            echo "::warning::Diff exceeds ${MAX_DIFF_BYTES} bytes ($(wc -c < /tmp/review.diff)); truncating for review."
+            head -c "$MAX_DIFF_BYTES" /tmp/review.diff > /tmp/review.diff.cap
+            printf '\n[... diff truncated at %s bytes ...]\n' "$MAX_DIFF_BYTES" >> /tmp/review.diff.cap
+            mv /tmp/review.diff.cap /tmp/review.diff
+          fi
+          echo "Lines: $(wc -l < /tmp/review.diff)  Bytes: $(wc -c < /tmp/review.diff)"
 
       - name: Fetch existing review
         id: fetch
@@ -141,6 +152,9 @@ jobs:
           MAX_ROUNDS=5
           MAX_RETRIES=2
           RETRY_DELAY=15
+          # Hard wall-clock budget (well under the job's timeout-minutes) so a flaky
+          # model that streams-and-resets for tens of minutes can't consume the run.
+          DEADLINE=$(( $(date +%s) + 4200 ))
           ALL_FINDINGS=""
           CONVERGENCE_REASON=""
           REVIEW_RAN=0
@@ -163,13 +177,17 @@ jobs:
               echo "Trying: $MODEL" >&2
 
               for ATTEMPT in $(seq 1 $MAX_RETRIES); do
+                if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+                  echo "  Review deadline reached; aborting remaining attempts." >&2
+                  return 1
+                fi
                 echo "  Attempt $ATTEMPT/$MAX_RETRIES" >&2
 
                 TMP=$(mktemp)
                 tmp_files+=("$TMP")
                 ERR_FILE=$(mktemp /tmp/opencode-err-XXXXXX)
                 tmp_files+=("$ERR_FILE")
-                if opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
+                if timeout 420 opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
                   if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings|No regression risks' "$TMP" 2>/dev/null; then
                     cp "$TMP" "$result_file"
                     return 0

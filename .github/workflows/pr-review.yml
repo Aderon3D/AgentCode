@@ -348,6 +348,17 @@ jobs:
             exit 0
           fi
 
+          # A failed run must not touch review state. This body has no
+          # 'severity: Major', so HAS_ANY=0 below and the "no findings" branch
+          # would dismiss an existing CHANGES_REQUESTED review and post COMMENT —
+          # clearing the merge gate. 'review' is not a required check, so exit 1
+          # in the previous step would not block on its own. The separate
+          # 'Post review comment' step still posts the notice for visibility.
+          if printf '%s' "$BODY" | grep -q "every configured model failed"; then
+            echo "::notice::Review did not run — leaving existing review state unchanged"
+            exit 0
+          fi
+
           # Count actionable findings (Major or Critical only)
           # Strip nested <details> blocks (old review context) before counting
           HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity:\s*\*{0,2}\s*(major|critical)' || true)
@@ -546,8 +557,9 @@ jobs:
             FAIL="$FAIL$MODEL "
             sleep 2
           done
-          echo "MODEL=opencode/mimo-v2.6-flash-free" >> "$GITHUB_ENV"
-          echo "All models failed: $FAIL, using default"
+          echo "::error::All models failed: $FAIL — cannot run AI fixes"
+          echo "NO_REVIEW=true" >> "$GITHUB_ENV"
+          exit 1
 
       - name: Locate review
         env:
@@ -576,8 +588,8 @@ jobs:
                   open(state_path,'w').write('NO_REVIEW=true\n'); print('NO_REVIEW'); sys.exit(0)
               ai.sort(key=lambda c: c.get('submitted_at','')); latest = ai[-1]
               body = latest.get('body','')
-              if not body.strip():
-                  print('Review body empty', file=sys.stderr)
+              if not body.strip() or 'every configured model failed' in body:
+                  print('Review body empty or review did not run', file=sys.stderr)
                   open(state_path,'w').write('NO_REVIEW=true\n'); sys.exit(0)
               open(state_path,'w').write(f'REVIEW_ID={latest["id"]}\nNO_REVIEW=false\n')
               open('/tmp/review.md','w').write(body)
@@ -1020,7 +1032,15 @@ jobs:
             LATEST=$(gh run list --workflow=pr-review.yml --limit=5 --json databaseId,event \
               --jq '[.[] | select(.event=="workflow_dispatch")] | first | .databaseId // 0' 2>/dev/null || echo "0")
             [ "$LATEST" = "0" ] && sleep 5 && continue
-            gh run watch "$LATEST" --exit-status 2>/dev/null && break || sleep 10
+            if gh run watch "$LATEST" --exit-status 2>/dev/null; then
+              break
+            fi
+            STATE=$(gh run view "$LATEST" --json conclusion --jq '.conclusion // ""' 2>/dev/null || echo "")
+            if [ "$STATE" = "failure" ] || [ "$STATE" = "cancelled" ]; then
+              echo "::warning::Review run $LATEST concluded: $STATE — not retrying"
+              break
+            fi
+            sleep 10
           done
           python3 << 'PYEOF'
           import json, subprocess, os

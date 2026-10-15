@@ -129,9 +129,8 @@ jobs:
           fi
 
           MODELS=(
-            "opencode/mimo-v2.5-free"
-            "opencode/hy3-free"
-            "opencode/nemotron-3-ultra-free"
+            "opencode/mimo-v2.6-flash-free"
+            "opencode/space-bunny-free"
           )
 
           MAX_ROUNDS=5
@@ -139,6 +138,7 @@ jobs:
           RETRY_DELAY=15
           ALL_FINDINGS=""
           CONVERGENCE_REASON=""
+          REVIEW_RAN=0
           trap 'rm -f /tmp/round-review-*.md' EXIT
 
           review_round() {
@@ -257,7 +257,12 @@ jobs:
               cat /tmp/review.diff >> "$PROMPT_FILE"
             fi
 
-            review_round "$PROMPT_FILE" "$ROUND" && ROUND_REVIEW=$(cat "/tmp/round-review-${ROUND}.md") || ROUND_REVIEW=""
+            if review_round "$PROMPT_FILE" "$ROUND"; then
+              ROUND_REVIEW=$(cat "/tmp/round-review-${ROUND}.md")
+              REVIEW_RAN=1
+            else
+              ROUND_REVIEW=""
+            fi
             rm -f "$PROMPT_FILE" "/tmp/round-review-${ROUND}.md"
 
             if [ -z "$ROUND_REVIEW" ]; then
@@ -294,6 +299,18 @@ jobs:
               CONVERGENCE_REASON="reached max rounds ($MAX_ROUNDS)"
             fi
           done
+
+          if [ "${REVIEW_RAN:-0}" -eq 0 ]; then
+            echo "::error::All review models failed — review did not run. Not treating as clean."
+            {
+              echo "# AI Code Review"
+              echo ""
+              echo "⚠️ **Review did not run** — every configured model failed (see job logs)."
+              echo ""
+              echo "This is *not* a clean review. Re-run once models are available."
+            } > /tmp/review.md
+            exit 1
+          fi
 
           REVIEW_TMP=$(mktemp)
 
@@ -518,7 +535,7 @@ jobs:
       - name: Resolve model
         run: |
           FAIL=""
-          for MODEL in "opencode/mimo-v2.5-free" "opencode/hy3-free" "opencode/nemotron-3-ultra-free"; do
+          for MODEL in "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
             echo "Testing $MODEL..."
             RESPONSE=$(timeout 30 opencode -p --model "$MODEL" "Respond with only the word PONG" 2>&1 || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then
@@ -529,7 +546,7 @@ jobs:
             FAIL="$FAIL$MODEL "
             sleep 2
           done
-          echo "MODEL=opencode/mimo-v2.5-free" >> "$GITHUB_ENV"
+          echo "MODEL=opencode/mimo-v2.6-flash-free" >> "$GITHUB_ENV"
           echo "All models failed: $FAIL, using default"
 
       - name: Locate review
@@ -578,7 +595,7 @@ jobs:
         id: apply
         if: env.NO_REVIEW != 'true'
         env:
-          MODEL: ${{ env.MODEL || 'opencode/mimo-v2.5-free' }}
+          MODEL: ${{ env.MODEL || 'opencode/mimo-v2.6-flash-free' }}
           FIX_PROMPT: |
             You are a code fixer agent. Apply fixes for Major-severity findings in the AI review below.
 
@@ -833,7 +850,7 @@ jobs:
       - name: Resolve model
         run: |
           FAIL=""
-          for MODEL in "opencode/mimo-v2.5-free" "opencode/hy3-free" "opencode/nemotron-3-ultra-free"; do
+          for MODEL in "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
             echo "Testing $MODEL..."
             RESPONSE=$(timeout 30 opencode -p -m "$MODEL" -q "Respond with only the word PONG" 2>&1 || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then

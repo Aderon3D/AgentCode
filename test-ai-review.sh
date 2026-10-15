@@ -52,9 +52,9 @@ TOOL_BIN=$(find_tool) || {
     echo "Would send $LINES lines through model fallback chain"
     echo ""
     echo "=== Model chain (all free, no API key) ==="
-    echo "1. opencode/mimo-v2.5-free       (79% SWE-bench)"
-    echo "2. opencode/hy3-free              (78% SWE-bench)"
-    echo "3. opencode/nemotron-3-ultra-free (72% SWE-bench)"
+    echo "1. opencode/deepseek-v4.1-flash-free"
+    echo "2. opencode/mimo-v2.6-flash-free"
+    echo "3. opencode/space-bunny-free"
     echo ""
     echo "=== Install opencode ==="
     echo "curl -fsSL https://opencode.ai/install | bash"
@@ -78,9 +78,9 @@ if [ "$DRY_RUN" = "--dry-run" ]; then
   echo "Diff lines: $LINES"
   echo ""
   echo "=== Model chain (all free, no API key) ==="
-  echo "1. opencode/mimo-v2.5-free       (79% SWE-bench)"
-  echo "2. opencode/hy3-free              (78% SWE-bench)"
-  echo "3. opencode/nemotron-3-ultra-free (72% SWE-bench)"
+  echo "1. opencode/deepseek-v4.1-flash-free"
+  echo "2. opencode/mimo-v2.6-flash-free"
+  echo "3. opencode/space-bunny-free"
   echo ""
   echo "=== First 30 lines of diff ==="
   head -30 "$DIFF"
@@ -88,9 +88,9 @@ if [ "$DRY_RUN" = "--dry-run" ]; then
 fi
 
 MODELS=(
-  "opencode/mimo-v2.5-free"
-  "opencode/hy3-free"
-  "opencode/nemotron-3-ultra-free"
+  "opencode/deepseek-v4.1-flash-free"
+  "opencode/mimo-v2.6-flash-free"
+  "opencode/space-bunny-free"
 )
 
 PROMPT_FILE=$(mktemp)
@@ -122,7 +122,7 @@ for MODEL in "${MODELS[@]}"; do
     echo "    Attempt $ATTEMPT/$MAX_RETRIES"
 
     TMP=$(mktemp)
-    if "$TOOL_BIN" run -m "$MODEL" < "$PROMPT_FILE" > "$TMP" 2>"$OPENCODE_ERR"; then
+    if "$TOOL_BIN" run --auto -m "$MODEL" < "$PROMPT_FILE" > "$TMP" 2>"$OPENCODE_ERR"; then
       if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings' "$TMP" 2>/dev/null; then
         mv "$TMP" /tmp/review.md
         echo "    ✓ Success"

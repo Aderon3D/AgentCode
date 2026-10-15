@@ -276,7 +276,9 @@ jobs:
               ALL_FINDINGS=$(printf '%s\n\n%s' "$ALL_FINDINGS" "$ROUND_REVIEW")
             fi
 
-            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '^\s*\*{0,2}severity:\s*\*{0,2}\s*major' || true)
+            # Findings may use "severity: Major" lines or "## Major: ..." headers
+            # (the prompt allows both) — count either or convergence lies.
+            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '^\s*\*{0,2}severity:\s*\*{0,2}\s*major|^\s*(#{1,6}\s*)+\**\s*major\b' || true)
 
             echo "Round $ROUND: Major=$MAJOR_COUNT" >&2
 
@@ -302,13 +304,12 @@ jobs:
 
           if [ "${REVIEW_RAN:-0}" -eq 0 ]; then
             echo "::error::All review models failed — review did not run. Not treating as clean."
-            {
-              echo "# AI Code Review"
-              echo ""
-              echo "⚠️ **Review did not run** — every configured model failed (see job logs)."
-              echo ""
-              echo "This is *not* a clean review. Re-run once models are available."
-            } > /tmp/review.md
+            # Marker file, not body text: downstream steps key off this file so a
+            # review body that quotes this workflow can never trigger the guard.
+            # /tmp/review.md is deliberately left unwritten (rm defends against
+            # runner reuse) so the empty-body early exits also fail safe.
+            rm -f /tmp/review.md
+            touch /tmp/review-failed
             exit 1
           fi
 
@@ -342,26 +343,29 @@ jobs:
         run: |
           set -euo pipefail
 
+          # A failed run must not touch review state: with no 'severity: Major'
+          # in the notice body, HAS_ANY=0 below would take the "no findings"
+          # branch — dismissing an existing CHANGES_REQUESTED review and clearing
+          # the merge gate. 'review' is not a required check, so the previous
+          # step's exit 1 would not block on its own. Signal via a marker file
+          # that only the failure path creates; sniffing body text is unsafe
+          # because model output may legitimately quote this workflow. On a
+          # failed run /tmp/review.md is absent, so the empty-body exit below
+          # also fails safe if this guard were ever removed.
+          if [ -f /tmp/review-failed ]; then
+            echo "::notice::Review did not run — leaving existing review state unchanged"
+            exit 0
+          fi
+
           BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
           if [ -z "$BODY" ]; then
             echo "No review body to post"
             exit 0
           fi
 
-          # A failed run must not touch review state. This body has no
-          # 'severity: Major', so HAS_ANY=0 below and the "no findings" branch
-          # would dismiss an existing CHANGES_REQUESTED review and post COMMENT —
-          # clearing the merge gate. 'review' is not a required check, so exit 1
-          # in the previous step would not block on its own. The separate
-          # 'Post review comment' step still posts the notice for visibility.
-          if printf '%s' "$BODY" | grep -q "every configured model failed"; then
-            echo "::notice::Review did not run — leaving existing review state unchanged"
-            exit 0
-          fi
-
           # Count actionable findings (Major or Critical only)
           # Strip nested <details> blocks (old review context) before counting
-          HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity:\s*\*{0,2}\s*(major|critical)' || true)
+          HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity:\s*\*{0,2}\s*(major|critical)|^\s*(#{1,6}\s*)+\**\s*(major|critical)\b' || true)
 
           PAYLOAD=$(mktemp)
           trap 'rm -f "$PAYLOAD"' EXIT
@@ -445,6 +449,14 @@ jobs:
           EXISTING_COMMENT_ID: ${{ steps.fetch.outputs.comment_id }}
         run: |
           set -euo pipefail
+
+          # Failed run: post nothing. A red 'review' check plus the ::error::
+          # annotation already report the outage; posting a notice would either
+          # delete the prior findings comment or accumulate duplicate notices.
+          if [ -f /tmp/review-failed ]; then
+            echo "Review did not run — keeping existing PR comments unchanged"
+            exit 0
+          fi
 
           BODY=$(cat /tmp/review.md 2>/dev/null) || BODY=""
           if [ -z "$BODY" ]; then
@@ -559,6 +571,7 @@ jobs:
           done
           echo "::error::All models failed: $FAIL — cannot run AI fixes"
           echo "NO_REVIEW=true" >> "$GITHUB_ENV"
+          echo "FIX_MODELS_DOWN=true" >> "$GITHUB_ENV"
           exit 1
 
       - name: Locate review
@@ -588,8 +601,8 @@ jobs:
                   open(state_path,'w').write('NO_REVIEW=true\n'); print('NO_REVIEW'); sys.exit(0)
               ai.sort(key=lambda c: c.get('submitted_at','')); latest = ai[-1]
               body = latest.get('body','')
-              if not body.strip() or 'every configured model failed' in body:
-                  print('Review body empty or review did not run', file=sys.stderr)
+              if not body.strip():
+                  print('Review body empty', file=sys.stderr)
                   open(state_path,'w').write('NO_REVIEW=true\n'); sys.exit(0)
               open(state_path,'w').write(f'REVIEW_ID={latest["id"]}\nNO_REVIEW=false\n')
               open('/tmp/review.md','w').write(body)
@@ -770,7 +783,7 @@ jobs:
           gh pr comment "$NUM" --body-file /tmp/comment-body.md
 
       - name: Remove label
-        if: always()
+        if: always() && env.FIX_MODELS_DOWN != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           NUM: ${{ github.event.number }}
@@ -876,6 +889,7 @@ jobs:
           done
           echo "MODEL=" >> "$GITHUB_ENV"
           echo "MODEL_LOADED=false" >> "$GITHUB_ENV"
+          echo "FIX_MODELS_DOWN=true" >> "$GITHUB_ENV"
           echo "All models failed: $FAIL"
 
       - name: Fetch review for context
@@ -1036,7 +1050,7 @@ jobs:
               break
             fi
             STATE=$(gh run view "$LATEST" --json conclusion --jq '.conclusion // ""' 2>/dev/null || echo "")
-            if [ "$STATE" = "failure" ] || [ "$STATE" = "cancelled" ]; then
+            if [ -n "$STATE" ]; then
               echo "::warning::Review run $LATEST concluded: $STATE — not retrying"
               break
             fi
@@ -1080,7 +1094,7 @@ jobs:
           gh pr comment "$NUM" --body-file /tmp/autofix-comment.md
 
       - name: Remove label
-        if: always()
+        if: always() && env.FIX_MODELS_DOWN != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           NUM: ${{ github.event.number }}

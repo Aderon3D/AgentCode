@@ -96,7 +96,7 @@ jobs:
           MAX_DIFF_BYTES=400000
           if [ "$(wc -c < /tmp/review.diff)" -gt "$MAX_DIFF_BYTES" ]; then
             echo "::warning::Diff exceeds ${MAX_DIFF_BYTES} bytes ($(wc -c < /tmp/review.diff)); truncating for review."
-            head -c "$MAX_DIFF_BYTES" /tmp/review.diff > /tmp/review.diff.cap
+            head -c "$MAX_DIFF_BYTES" /tmp/review.diff | sed '$d' > /tmp/review.diff.cap
             printf '\n[... diff truncated at %s bytes ...]\n' "$MAX_DIFF_BYTES" >> /tmp/review.diff.cap
             mv /tmp/review.diff.cap /tmp/review.diff
           fi
@@ -187,7 +187,7 @@ jobs:
                 tmp_files+=("$TMP")
                 ERR_FILE=$(mktemp /tmp/opencode-err-XXXXXX)
                 tmp_files+=("$ERR_FILE")
-                if timeout 420 opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
+                if timeout -k 30 420 opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
                   if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings|No regression risks' "$TMP" 2>/dev/null; then
                     cp "$TMP" "$result_file"
                     return 0

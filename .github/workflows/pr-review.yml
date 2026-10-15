@@ -168,7 +168,7 @@ jobs:
                 tmp_files+=("$TMP")
                 ERR_FILE=$(mktemp /tmp/opencode-err-XXXXXX)
                 tmp_files+=("$ERR_FILE")
-                if opencode run --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
+                if opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
                   if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings|No regression risks' "$TMP" 2>/dev/null; then
                     cp "$TMP" "$result_file"
                     return 0
@@ -583,7 +583,7 @@ jobs:
           FAIL=""
           for MODEL in "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
             echo "Testing $MODEL..."
-            RESPONSE=$(timeout 30 opencode run -m "$MODEL" "Respond with only the word PONG" 2>/dev/null || true)
+            RESPONSE=$(timeout 30 opencode run --auto -m "$MODEL" "Respond with only the word PONG" 2>/dev/null || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then
               echo "MODEL=$MODEL" >> "$GITHUB_ENV"
               echo "Model resolved: $MODEL"
@@ -674,7 +674,7 @@ jobs:
 
           echo "opencode: $(which opencode) $MOD" >&2
           set +e
-          opencode run -m "$MOD" < "$PROMPT" > /tmp/opencode-fix-result.txt 2>&1
+          opencode run --auto -m "$MOD" < "$PROMPT" > /tmp/opencode-fix-result.txt 2>&1
           RC=$?
           set -e
           echo "opencode exit=$RC" >&2
@@ -900,7 +900,7 @@ jobs:
           FAIL=""
           for MODEL in "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
             echo "Testing $MODEL..."
-            RESPONSE=$(timeout 30 opencode run -m "$MODEL" "Respond with only the word PONG" 2>/dev/null || true)
+            RESPONSE=$(timeout 30 opencode run --auto -m "$MODEL" "Respond with only the word PONG" 2>/dev/null || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then
               echo "MODEL=$MODEL" >> "$GITHUB_ENV"
               echo "MODEL_LOADED=true" >> "$GITHUB_ENV"
@@ -971,7 +971,7 @@ jobs:
           except Exception:
               import traceback; traceback.print_exc(); sys.exit(1)
           PYEOF
-          RESP=$(timeout 300 opencode run -m "$MOD" < /tmp/review-prompt.txt 2>/dev/null || echo "ERROR")
+          RESP=$(timeout 300 opencode run --auto -m "$MOD" < /tmp/review-prompt.txt 2>/dev/null || echo "ERROR")
           echo "$RESP" > /tmp/review-response.txt
           # Check if DONE
           TRIMMED=$(echo "$RESP" | head -1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')

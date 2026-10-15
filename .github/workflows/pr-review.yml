@@ -81,7 +81,7 @@ jobs:
         run: |
           [ -n "$PR_NUMBER" ] && echo "$PR_NUMBER" | grep -qE '^[0-9]+$' || { echo "Invalid PR number"; exit 1; }
           if [ -n "$PR_NUMBER" ]; then
-            gh pr diff "$PR_NUMBER" > /tmp/review.diff
+            gh pr diff "$PR_NUMBER" --allow-escape-sequences > /tmp/review.diff
           elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "::error::workflow_dispatch requires pr_number input"
             exit 1

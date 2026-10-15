@@ -27,7 +27,7 @@ permissions:
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     if: >
       (github.event.action != 'labeled' || github.event.label.name == 'ai-review') &&
       !contains(github.event.pull_request.labels.*.name, 'fix-requested') &&

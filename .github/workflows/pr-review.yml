@@ -24,6 +24,12 @@ permissions:
   pull-requests: write
   actions: write
 
+env:
+  # Pinned so the cache key changes with the version. The install script fetches
+  # "latest" but the install step is skipped on a cache hit, so a static key
+  # would freeze CI on whatever version was cached first.
+  OPENCODE_VERSION: "1.19.1"
+
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -42,10 +48,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: /home/runner/.opencode
-          key: opencode-${{ runner.os }}-v2
+          key: opencode-${{ runner.os }}-${{ env.OPENCODE_VERSION }}
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'
+        env:
+          VERSION: ${{ env.OPENCODE_VERSION }}
         run: |
           for i in 1 2 3; do
             curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh && break
@@ -80,6 +88,10 @@ jobs:
           PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
+          # Clear any stale partial marker up front. This step runs before the
+          # review, so a marker left by a reused runner would otherwise suppress
+          # every future gate update. Set again below only if the diff is cut.
+          rm -f /tmp/review-partial
           [ -n "$PR_NUMBER" ] && echo "$PR_NUMBER" | grep -qE '^[0-9]+$' || { echo "Invalid PR number"; exit 1; }
           if [ -n "$PR_NUMBER" ]; then
             gh pr diff "$PR_NUMBER" --allow-escape-sequences > /tmp/review.diff.raw
@@ -91,14 +103,28 @@ jobs:
           fi
           # Strip bulk non-code artifacts (debug logs, scratch notes) and cap the total
           # bytes: a PR that commits thousands of lines of transcripts otherwise blows
-          # model context (instant 400s) and makes every round minutes long.
-          awk '/^diff --git / { skip = ($0 ~ / a\/(logs|thoughts)\// || $0 ~ /\.log( |$)/) } !skip' /tmp/review.diff.raw > /tmp/review.diff
+          # model context (instant 400s) and makes every round minutes long. Select on
+          # the post-image (b/) path — the file actually under review — not the a/ side,
+          # so a rename out of a filtered dir into real source is still reviewed. Drop
+          # git's quoting so paths with spaces match.
+          awk '
+            /^diff --git / {
+              line=$0; gsub(/"/, "", line); sub(/^diff --git +/, "", line)
+              n=split(line, p, " ")
+              new=p[n]
+              skip = (new ~ /^b\/(logs|thoughts)\// || new ~ /\.log( |$)/)
+            }
+            !skip
+          ' /tmp/review.diff.raw > /tmp/review.diff
           MAX_DIFF_BYTES=400000
           if [ "$(wc -c < /tmp/review.diff)" -gt "$MAX_DIFF_BYTES" ]; then
             echo "::warning::Diff exceeds ${MAX_DIFF_BYTES} bytes ($(wc -c < /tmp/review.diff)); truncating for review."
             head -c "$MAX_DIFF_BYTES" /tmp/review.diff | sed '$d' > /tmp/review.diff.cap
             printf '\n[... diff truncated at %s bytes ...]\n' "$MAX_DIFF_BYTES" >> /tmp/review.diff.cap
             mv /tmp/review.diff.cap /tmp/review.diff
+            # A truncated diff was only partly reviewed: the gate must fail closed
+            # rather than treat "no Major finding in the visible head" as clean.
+            touch /tmp/review-partial
           fi
           echo "Lines: $(wc -l < /tmp/review.diff)  Bytes: $(wc -c < /tmp/review.diff)"
 
@@ -394,8 +420,8 @@ jobs:
           # because model output may legitimately quote this workflow. On a
           # failed run /tmp/review.md is absent, so the empty-body exit below
           # also fails safe if this guard were ever removed.
-          if [ -f /tmp/review-failed ]; then
-            echo "::notice::Review did not run — leaving existing review state unchanged"
+          if [ -f /tmp/review-failed ] || [ -f /tmp/review-partial ]; then
+            echo "::notice::Review did not run or was partial — leaving existing review state unchanged"
             exit 0
           fi
 
@@ -496,8 +522,8 @@ jobs:
           # Failed run: post nothing. A red 'review' check plus the ::error::
           # annotation already report the outage; posting a notice would either
           # delete the prior findings comment or accumulate duplicate notices.
-          if [ -f /tmp/review-failed ]; then
-            echo "Review did not run — keeping existing PR comments unchanged"
+          if [ -f /tmp/review-failed ] || [ -f /tmp/review-partial ]; then
+            echo "Review did not run or was partial — keeping existing PR comments unchanged"
             exit 0
           fi
 
@@ -568,10 +594,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: /home/runner/.opencode
-          key: opencode-${{ runner.os }}-v2
+          key: opencode-${{ runner.os }}-${{ env.OPENCODE_VERSION }}
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'
+        env:
+          VERSION: ${{ env.OPENCODE_VERSION }}
         run: |
           for i in 1 2 3; do
             curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh && break
@@ -885,10 +913,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: /home/runner/.opencode
-          key: opencode-${{ runner.os }}-v2
+          key: opencode-${{ runner.os }}-${{ env.OPENCODE_VERSION }}
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'
+        env:
+          VERSION: ${{ env.OPENCODE_VERSION }}
         run: |
           for i in 1 2 3; do
             curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh && break

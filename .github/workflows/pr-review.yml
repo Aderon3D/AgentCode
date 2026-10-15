@@ -311,7 +311,7 @@ jobs:
               break
             fi
 
-            if echo "$ROUND_REVIEW" | grep -iq "No new material findings\|No regression risks"; then
+            if [ "$MAJOR_COUNT" -eq 0 ] && echo "$ROUND_REVIEW" | grep -iq "No new material findings\|No regression risks"; then
               CONVERGENCE_REASON="model reported nothing new in round $ROUND"
               break
             fi
@@ -387,9 +387,10 @@ jobs:
             exit 0
           fi
 
-          # Count actionable findings (Major or Critical only)
-          # Strip nested <details> blocks (old review context) before counting
-          HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity\*{0,2}:\*{0,2}\s*\*{0,2}\s*(major|critical)|^\s*#{2,4}\s+(\*\*)?(major|critical)(\*\*)?([^[:alnum:]._/-]|$)|^\s*#{2,4}\s+.*[():\[*—]\s*\*{0,2}(major|critical)\b' || true)
+          # Count actionable findings (Major or Critical only). Read the same
+          # text the round loop counts (no <details> strip) so the gate and
+          # the round loop can never disagree.
+          HAS_ANY=$(echo "$BODY" | grep -ciE 'severity\*{0,2}:\*{0,2}\s*\*{0,2}\s*(major|critical)|^\s*#{2,4}\s+(\*\*)?(major|critical)(\*\*)?([^[:alnum:]._/-]|$)|^\s*#{2,4}\s+.*[():\[*—]\s*\*{0,2}(major|critical)\b' || true)
 
           PAYLOAD=$(mktemp)
           trap 'rm -f "$PAYLOAD"' EXIT

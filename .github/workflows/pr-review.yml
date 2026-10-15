@@ -120,6 +120,9 @@ jobs:
       - name: Run review with regression check
         run: |
           set -euo pipefail
+          # Clear stale failure marker/body from any prior run on this runner —
+          # a leftover marker would silently suppress every future review.
+          rm -f /tmp/review.md /tmp/review-failed
 
           echo "opencode: $(which opencode) $(opencode --version)" >&2
 
@@ -278,7 +281,7 @@ jobs:
 
             # Findings may use "severity: Major" lines or "## Major: ..." headers
             # (the prompt allows both) — count either or convergence lies.
-            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '^\s*\*{0,2}severity:\s*\*{0,2}\s*major|^\s*(#{1,6}\s*)+\**\s*major\b' || true)
+            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE '^\s*\*{0,2}severity:\s*\*{0,2}\s*major|^\s*(#{2,4}\s*)+\**\s*major\b' || true)
 
             echo "Round $ROUND: Major=$MAJOR_COUNT" >&2
 
@@ -365,7 +368,7 @@ jobs:
 
           # Count actionable findings (Major or Critical only)
           # Strip nested <details> blocks (old review context) before counting
-          HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity:\s*\*{0,2}\s*(major|critical)|^\s*(#{1,6}\s*)+\**\s*(major|critical)\b' || true)
+          HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity:\s*\*{0,2}\s*(major|critical)|^\s*(#{2,4}\s*)+\**\s*(major|critical)\b' || true)
 
           PAYLOAD=$(mktemp)
           trap 'rm -f "$PAYLOAD"' EXIT
@@ -890,7 +893,8 @@ jobs:
           echo "MODEL=" >> "$GITHUB_ENV"
           echo "MODEL_LOADED=false" >> "$GITHUB_ENV"
           echo "FIX_MODELS_DOWN=true" >> "$GITHUB_ENV"
-          echo "All models failed: $FAIL"
+          echo "::error::All models failed: $FAIL — cannot run autofix"
+          exit 1
 
       - name: Fetch review for context
         id: context

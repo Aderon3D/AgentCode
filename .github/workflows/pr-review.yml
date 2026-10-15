@@ -133,6 +133,7 @@ jobs:
           fi
 
           MODELS=(
+            "opencode/deepseek-v4.1-flash-free"
             "opencode/mimo-v2.6-flash-free"
             "opencode/space-bunny-free"
           )
@@ -581,9 +582,9 @@ jobs:
       - name: Resolve model
         run: |
           FAIL=""
-          for MODEL in "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
+          for MODEL in "opencode/deepseek-v4.1-flash-free" "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
             echo "Testing $MODEL..."
-            RESPONSE=$(timeout 30 opencode run --auto -m "$MODEL" "Respond with only the word PONG" 2>/dev/null || true)
+            RESPONSE=$(timeout 30 opencode run --auto -m "$MODEL" "Respond with only the word PONG" </dev/null 2>/dev/null || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then
               echo "MODEL=$MODEL" >> "$GITHUB_ENV"
               echo "Model resolved: $MODEL"
@@ -643,7 +644,7 @@ jobs:
         id: apply
         if: env.NO_REVIEW != 'true'
         env:
-          MODEL: ${{ env.MODEL || 'opencode/mimo-v2.6-flash-free' }}
+          MODEL: ${{ env.MODEL || 'opencode/deepseek-v4.1-flash-free' }}
           FIX_PROMPT: |
             You are a code fixer agent. Apply fixes for Major-severity findings in the AI review below.
 
@@ -898,9 +899,9 @@ jobs:
       - name: Resolve model
         run: |
           FAIL=""
-          for MODEL in "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
+          for MODEL in "opencode/deepseek-v4.1-flash-free" "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
             echo "Testing $MODEL..."
-            RESPONSE=$(timeout 30 opencode run --auto -m "$MODEL" "Respond with only the word PONG" 2>/dev/null || true)
+            RESPONSE=$(timeout 30 opencode run --auto -m "$MODEL" "Respond with only the word PONG" </dev/null 2>/dev/null || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then
               echo "MODEL=$MODEL" >> "$GITHUB_ENV"
               echo "MODEL_LOADED=true" >> "$GITHUB_ENV"

@@ -296,11 +296,12 @@ jobs:
               ALL_FINDINGS=$(printf '%s\n\n%s' "$ALL_FINDINGS" "$ROUND_REVIEW")
             fi
 
-            # Severity as a bullet (any bold wrapping), leading the ##
-            # heading, or after a delimiter ( [ : * - em-dash ) so a path
-            # like src/critical.py never counts. Must stay identical to
+            # Severity as a bullet (bold wrapping on either side of the
+            # colon), leading the ## heading (trailing letters/./_/- disqualify
+            # so ## major-x.py never counts), or after a delimiter ( [ : * or
+            # em-dash — which cannot appear in paths). Must stay identical to
             # HAS_ANY below: gate and round loop may never disagree.
-            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE 'severity\*{0,2}:\s*\*{0,2}\s*(major|critical)|^\s*#{2,4}\s+(\*\*)?(major|critical)\b|^\s*#{2,4}\s+.*[():\[*—-]\s*\*{0,2}(major|critical)\b' || true)
+            MAJOR_COUNT=$(echo "$ROUND_REVIEW" | grep -ciE 'severity\*{0,2}:\*{0,2}\s*\*{0,2}\s*(major|critical)|^\s*#{2,4}\s+(\*\*)?(major|critical)(\*\*)?([^[:alnum:]._/-]|$)|^\s*#{2,4}\s+.*[():\[*—]\s*\*{0,2}(major|critical)\b' || true)
 
             echo "Round $ROUND: Major=$MAJOR_COUNT" >&2
 
@@ -387,7 +388,7 @@ jobs:
 
           # Count actionable findings (Major or Critical only)
           # Strip nested <details> blocks (old review context) before counting
-          HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity\*{0,2}:\s*\*{0,2}\s*(major|critical)|^\s*#{2,4}\s+(\*\*)?(major|critical)\b|^\s*#{2,4}\s+.*[():\[*—-]\s*\*{0,2}(major|critical)\b' || true)
+          HAS_ANY=$(echo "$BODY" | sed '/<details>/,/<\/details>/d' | grep -ciE 'severity\*{0,2}:\*{0,2}\s*\*{0,2}\s*(major|critical)|^\s*#{2,4}\s+(\*\*)?(major|critical)(\*\*)?([^[:alnum:]._/-]|$)|^\s*#{2,4}\s+.*[():\[*—]\s*\*{0,2}(major|critical)\b' || true)
 
           PAYLOAD=$(mktemp)
           trap 'rm -f "$PAYLOAD"' EXIT

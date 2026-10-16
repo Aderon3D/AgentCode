@@ -149,13 +149,24 @@ class MultiAgentOrchestrator(
             } finally {
                 // Only clean up if this is still the current job (guards against taskId reuse)
                 val myJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
-                mutex.withLock {
+                var ownedPort: Int? = null
+                val owned = mutex.withLock {
                     if (jobs[taskId] === myJob) {
+                        ownedPort = _slots.value[taskId]?.port
                         jobs.remove(taskId)
                         managers.remove(taskId)
-                        _slots.value[taskId]?.port?.let { allocatedPorts.remove(it) }
                         _slots.value = _slots.value - taskId
-                    }
+                        true
+                    } else false
+                }
+                if (owned) {
+                    // Stop the child before its port returns to the pool, or a
+                    // new task can bind the same port while this server still
+                    // listens. NonCancellable: this may run on a cancelled job.
+                    try {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { manager.stop() }
+                    } catch (_: Exception) {}
+                    ownedPort?.let { p -> mutex.withLock { allocatedPorts.remove(p) } }
                 }
             }
         }
@@ -165,14 +176,18 @@ class MultiAgentOrchestrator(
     suspend fun cancelTask(taskId: String) {
         val job: Job?
         val manager: OpenCodeManager?
+        val port: Int?
         mutex.withLock {
             job = jobs.remove(taskId)
             manager = managers.remove(taskId)
-            _slots.value[taskId]?.port?.let { allocatedPorts.remove(it) }
+            port = _slots.value[taskId]?.port
             _slots.value = _slots.value - taskId
         }
         job?.cancelAndJoin()
+        // Stop the child before returning its port to the pool, or a new task
+        // can bind the same port while this server still listens.
         manager?.stop()
+        port?.let { p -> mutex.withLock { allocatedPorts.remove(p) } }
     }
 
     suspend fun stopAll() {

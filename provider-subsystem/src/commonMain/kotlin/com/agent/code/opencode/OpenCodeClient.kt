@@ -221,16 +221,22 @@ class OpenCodeClient(
                 socketTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
             }
         }.bodyAsChannel()
-        while (true) {
-            // Idle deadline, not a whole-run deadline: reset on every event, so
-            // only a true stall trips it. Without it a server that accepts the
-            // stream but never closes it hangs the run forever (no
-            // idle/completion event: the stream just stays open).
-            val line = withTimeout(idleTimeoutMs) { channel.readUTF8Line() } ?: break
-            if (!line.startsWith("data:")) continue
-            val payload = line.removePrefix("data:").trim()
-            val event = parseSessionEvent(payload)
-            if (event != null) emit(event)
+        try {
+            while (true) {
+                // Idle deadline, not a whole-run deadline: reset on every event, so
+                // only a true stall trips it. Without it a server that accepts the
+                // stream but never closes it hangs the run forever (no
+                // idle/completion event: the stream just stays open).
+                val line = withTimeout(idleTimeoutMs) { channel.readUTF8Line() } ?: break
+                if (!line.startsWith("data:")) continue
+                val payload = line.removePrefix("data:").trim()
+                val event = parseSessionEvent(payload)
+                if (event != null) emit(event)
+            }
+        } finally {
+            // Release the response/connection on early termination (idle timeout
+            // or collector cancellation) instead of leaking it in the pool.
+            channel.cancel()
         }
     }
 

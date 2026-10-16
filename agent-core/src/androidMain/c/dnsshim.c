@@ -42,8 +42,12 @@ static uint16_t parse_port(const char *service) {
     char *end = NULL;
     long p = strtol(service, &end, 10);
     if (end && *end == 0 && p > 0 && p <= 65535) return htons((uint16_t)p);
-    struct servent *se = getservbyname(service, NULL);
-    return se ? (uint16_t)se->s_port : 0;
+    /* getservbyname is not thread-safe; the child is multi-threaded. */
+    struct servent se, *res = NULL;
+    char buf[256];
+    if (getservbyname_r(service, NULL, &se, buf, sizeof buf, &res) == 0 && res)
+        return (uint16_t)res->s_port;
+    return 0;
 }
 
 int openat(int dirfd, const char *path, int flags, ...) {

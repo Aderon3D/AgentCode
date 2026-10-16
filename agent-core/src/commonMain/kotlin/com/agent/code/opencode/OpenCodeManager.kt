@@ -5,6 +5,7 @@ import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,6 +40,11 @@ class OpenCodeManager(
     @Volatile
     private var _state: OpenCodeState = OpenCodeState.NotInstalled
     private var serverPort: Int = config.defaultPort
+
+    // Pid of the currently spawned child, recorded before the state becomes
+    // Running so stop() can still kill a child spawned during Starting.
+    @Volatile
+    private var activePid: Int = 0
 
     // Installed-asset fingerprint: the glibc set is baked into the sentinel
     // value, so changing the list forces a re-download instead of running a
@@ -178,17 +184,21 @@ class OpenCodeManager(
         }
 
         delay(1000)
+        activePid = pid
 
         try {
             waitForServer(port, pid)
         } catch (e: CancellationException) {
-            // Cancelled while waiting: still reap the child, then propagate
-            // instead of swallowing the cancellation as a start failure.
-            try {
-                processRunner.run(listOf("kill", "-9", pid.toString()))
-                delay(200)
-                PlatformOps.checkChild(pid)
-            } catch (_: Exception) {}
+            // The coroutine is already cancelled, so the kill must run under
+            // NonCancellable or it is cancelled before it executes.
+            withContext(NonCancellable) {
+                try {
+                    processRunner.run(listOf("kill", "-9", pid.toString()))
+                    delay(200)
+                    PlatformOps.checkChild(pid)
+                } catch (_: Exception) {}
+            }
+            activePid = 0
             throw e
         } catch (e: Exception) {
             // Failure path never reaches stop() (state is Error, not Running) —
@@ -199,6 +209,7 @@ class OpenCodeManager(
                 delay(200)
                 PlatformOps.checkChild(pid)
             } catch (_: Exception) {}
+            activePid = 0
             val logSnippet = readLogSnippet(logFile)
             _state = OpenCodeState.Error("Server failed to start: ${e.message}$logSnippet")
             return@withLock _state
@@ -263,10 +274,12 @@ class OpenCodeManager(
     }
 
     suspend fun stop() = stateMutex.withLock {
-        if (_state !is OpenCodeState.Running) return@withLock
-        val pid = (_state as OpenCodeState.Running).pid
+        // Also covers a child spawned during Starting: activePid is recorded
+        // before the state becomes Running.
+        val st = _state
+        val pid = (st as? OpenCodeState.Running)?.pid ?: activePid
         if (pid == 0) {
-            _state = OpenCodeState.Stopped
+            if (st is OpenCodeState.Running) _state = OpenCodeState.Stopped
             return@withLock
         }
 
@@ -289,6 +302,7 @@ class OpenCodeManager(
             // Reap the child so it does not linger as a zombie.
             try { PlatformOps.checkChild(pid) } catch (_: Exception) {}
         }
+        activePid = 0
         _state = OpenCodeState.Stopped
     }
 

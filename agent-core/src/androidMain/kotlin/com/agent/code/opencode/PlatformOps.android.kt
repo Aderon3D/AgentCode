@@ -19,8 +19,8 @@ actual object PlatformOps {
         conn.instanceFollowRedirects = true
         conn.connectTimeout = 30_000
         conn.readTimeout = 60_000
-        conn.connect()
         try {
+            conn.connect()
             // Follow redirects manually (HttpURLConnection doesn't cross-domain)
             var redirects = 0
             while (conn.responseCode in 300..399 && redirects < 5) {

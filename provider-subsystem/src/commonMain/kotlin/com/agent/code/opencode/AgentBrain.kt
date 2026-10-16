@@ -6,6 +6,7 @@ import com.agent.code.core.journal.LogEntry
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.path.VirtualPath
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.takeWhile
@@ -119,6 +120,9 @@ fun executeTask(
                     return@channelFlow
                 }
                 lastError = failure ?: "stream ended before a final step"
+            } catch (e: TimeoutCancellationException) {
+                // Idle timeout (sessionEvents): fall through to the next model.
+                lastError = "stream idle timeout"
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -128,7 +132,7 @@ fun executeTask(
         }
 
         val failId = nextId()
-        journal.append(AgentEvent.TaskSucceeded(failId, taskId, now(), lastError))
+        journal.append(AgentEvent.TaskFailed(failId, taskId, now(), lastError))
         send(BrainEvent.TaskFailed(lastError))
     }
 }

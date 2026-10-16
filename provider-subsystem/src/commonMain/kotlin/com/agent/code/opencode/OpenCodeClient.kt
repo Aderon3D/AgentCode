@@ -15,6 +15,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -211,7 +212,7 @@ class OpenCodeClient(
         if (resp.status.value >= 400) error("sendPrompt: ${resp.status} ${bodyText.take(300)}")
     }
 
-    fun sessionEvents(sessionID: String): Flow<SessionEvent> = flow {
+    fun sessionEvents(sessionID: String, idleTimeoutMs: Long = 120_000L): Flow<SessionEvent> = flow {
         // The event channel idles between agent steps (LLM latency can exceed
         // the default 10s read timeout and would kill a healthy run).
         val channel = httpClient.get("${manager.baseUrl()}/api/session/$sessionID/event") {
@@ -221,7 +222,11 @@ class OpenCodeClient(
             }
         }.bodyAsChannel()
         while (true) {
-            val line = channel.readUTF8Line() ?: break
+            // Idle deadline, not a whole-run deadline: reset on every event, so
+            // only a true stall trips it. Without it a server that accepts the
+            // stream but never closes it hangs the run forever (no
+            // idle/completion event: the stream just stays open).
+            val line = withTimeout(idleTimeoutMs) { channel.readUTF8Line() } ?: break
             if (!line.startsWith("data:")) continue
             val payload = line.removePrefix("data:").trim()
             val event = parseSessionEvent(payload)

@@ -47,12 +47,17 @@ class MultiAgentOrchestrator(
 
     private val managers = mutableMapOf<String, OpenCodeManager>()
     private val jobs = mutableMapOf<String, Job>()
+    private val allocatedPorts = mutableSetOf<Int>()
 
     suspend fun submitTask(taskId: String, goal: String): AgentSlot = mutex.withLock {
         if (managers.size >= maxConcurrent) {
             throw IllegalStateException("Max concurrent agents ($maxConcurrent) reached")
         }
-        val port = (4096..65535).first { p -> managers.values.none { it.currentState().let { s -> s is OpenCodeState.Running && s.port == p } } }
+        // Reserve on submit, not on Running: the documented flow is
+        // submit-all-then-start, so deriving the port from currentState() gave
+        // every not-yet-started task the same default port (4096).
+        val port = (4096..65535).first { it !in allocatedPorts }
+        allocatedPorts += port
         val config = OpenCodeConfig(defaultPort = port, nativeLibraryDir = nativeLibraryDir)
         val manager = OpenCodeManager(fileSystem, processRunner, config)
         managers[taskId] = manager
@@ -89,7 +94,17 @@ class MultiAgentOrchestrator(
                 val stillRunning2 = mutex.withLock { _slots.value.containsKey(taskId) }
                 if (!stillRunning2) return@launch
 
-                val httpClient = io.ktor.client.HttpClient()
+                val httpClient = io.ktor.client.HttpClient {
+                    // Must match AgentViewModel.create: the SSE per-request
+                    // INFINITE override is only honored when HttpTimeout is
+                    // installed, else the default 10s read timeout kills a
+                    // healthy run that idles between steps.
+                    install(io.ktor.client.plugins.HttpTimeout) {
+                        requestTimeoutMillis = 30_000
+                        connectTimeoutMillis = 5_000
+                        socketTimeoutMillis = 30_000
+                    }
+                }
                 try {
                     val client = OpenCodeClient(httpClient, manager)
                     val journal = AgentEventJournal(InMemoryWalStore())
@@ -136,6 +151,7 @@ class MultiAgentOrchestrator(
                     if (jobs[taskId] === myJob) {
                         jobs.remove(taskId)
                         managers.remove(taskId)
+                        _slots.value[taskId]?.port?.let { allocatedPorts.remove(it) }
                         _slots.value = _slots.value - taskId
                     }
                 }
@@ -150,6 +166,7 @@ class MultiAgentOrchestrator(
         mutex.withLock {
             job = jobs.remove(taskId)
             manager = managers.remove(taskId)
+            _slots.value[taskId]?.port?.let { allocatedPorts.remove(it) }
             _slots.value = _slots.value - taskId
         }
         job?.cancelAndJoin()
@@ -162,6 +179,7 @@ class MultiAgentOrchestrator(
             snapshot = jobs.values.toList() to managers.values.toList()
             jobs.clear()
             managers.clear()
+            allocatedPorts.clear()
             _slots.value = emptyMap()
         }
         snapshot.first.forEach { it.cancelAndJoin() }

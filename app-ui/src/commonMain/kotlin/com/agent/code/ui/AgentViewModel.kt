@@ -76,7 +76,9 @@ class AgentViewModel(
         // a stale watcher for a previous child, and after the poll survives
         // past Stopped we must be able to replace it on the next Start.
         statePollJob?.cancel()
-        val poll = scope.launch {
+        // Dispatchers.IO: currentState() -> nativeCheck does /proc + log file
+        // I/O every heartbeat; keep it off the Main dispatcher.
+        val poll = scope.launch(Dispatchers.IO) {
             while (true) {
                 val s = openCodeManager.currentState()
                 // update{} not copy: the 500ms poll races the brain's per-event

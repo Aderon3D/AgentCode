@@ -24,6 +24,12 @@ permissions:
   pull-requests: write
   actions: write
 
+env:
+  # Pinned so the cache key changes with the version. The install script fetches
+  # "latest" but the install step is skipped on a cache hit, so a static key
+  # would freeze CI on whatever version was cached first.
+  OPENCODE_VERSION: "1.19.1"
+
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -42,10 +48,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: /home/runner/.opencode
-          key: opencode-${{ runner.os }}-v2
+          key: opencode-${{ runner.os }}-${{ env.OPENCODE_VERSION }}
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'
+        env:
+          VERSION: ${{ env.OPENCODE_VERSION }}
         run: |
           for i in 1 2 3; do
             curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh && break
@@ -80,16 +88,46 @@ jobs:
           PR_NUMBER: ${{ github.event.number || inputs.pr_number }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
+          # Clear any stale partial marker up front. This step runs before the
+          # review, so a marker left by a reused runner would otherwise suppress
+          # every future gate update. Set again below only if the diff is cut.
+          rm -f /tmp/review-partial
           [ -n "$PR_NUMBER" ] && echo "$PR_NUMBER" | grep -qE '^[0-9]+$' || { echo "Invalid PR number"; exit 1; }
           if [ -n "$PR_NUMBER" ]; then
-            gh pr diff "$PR_NUMBER" --allow-escape-sequences > /tmp/review.diff
+            gh pr diff "$PR_NUMBER" --allow-escape-sequences > /tmp/review.diff.raw
           elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "::error::workflow_dispatch requires pr_number input"
             exit 1
           else
-            git diff HEAD~1 HEAD > /tmp/review.diff 2>/dev/null || git show HEAD > /tmp/review.diff 2>/dev/null || touch /tmp/review.diff
+            git diff HEAD~1 HEAD > /tmp/review.diff.raw 2>/dev/null || git show HEAD > /tmp/review.diff.raw 2>/dev/null || touch /tmp/review.diff.raw
           fi
-          echo "Lines: $(wc -l < /tmp/review.diff)"
+          # Strip bulk non-code artifacts (debug logs, scratch notes) and cap the total
+          # bytes: a PR that commits thousands of lines of transcripts otherwise blows
+          # model context (instant 400s) and makes every round minutes long. Match the
+          # post-image (b/) side in the header — the file actually under review — not
+          # the a/ side, so a rename out of a filtered dir into real source is still
+          # reviewed. Test the whole header line rather than splitting on spaces: git
+          # quotes only unusual bytes, never spaces, so `... a/logs/a b.txt b/logs/a
+          # b.txt` would otherwise split to `b.txt` and leak through. The `.log`
+          # test is anchored to end-of-line because the b/ path is the last token, so
+          # a rename *from* `x.log` into real source is still reviewed.
+          awk '
+            /^diff --git / {
+              skip = ($0 ~ /[" ]b\/(logs|thoughts)\// || $0 ~ /\.log"?$/)
+            }
+            !skip
+          ' /tmp/review.diff.raw > /tmp/review.diff
+          MAX_DIFF_BYTES=400000
+          if [ "$(wc -c < /tmp/review.diff)" -gt "$MAX_DIFF_BYTES" ]; then
+            echo "::warning::Diff exceeds ${MAX_DIFF_BYTES} bytes ($(wc -c < /tmp/review.diff)); truncating for review."
+            head -c "$MAX_DIFF_BYTES" /tmp/review.diff | sed '$d' > /tmp/review.diff.cap
+            printf '\n[... diff truncated at %s bytes ...]\n' "$MAX_DIFF_BYTES" >> /tmp/review.diff.cap
+            mv /tmp/review.diff.cap /tmp/review.diff
+            # A truncated diff was only partly reviewed: the gate must fail closed
+            # rather than treat "no Major finding in the visible head" as clean.
+            touch /tmp/review-partial
+          fi
+          echo "Lines: $(wc -l < /tmp/review.diff)  Bytes: $(wc -c < /tmp/review.diff)"
 
       - name: Fetch existing review
         id: fetch
@@ -138,9 +176,12 @@ jobs:
             "opencode/space-bunny-free"
           )
 
-          MAX_ROUNDS=5
+          MAX_ROUNDS=3
           MAX_RETRIES=2
           RETRY_DELAY=15
+          # Hard wall-clock budget (well under the job's timeout-minutes) so a flaky
+          # model that streams-and-resets for tens of minutes can't consume the run.
+          DEADLINE=$(( $(date +%s) + 4200 ))
           ALL_FINDINGS=""
           CONVERGENCE_REASON=""
           REVIEW_RAN=0
@@ -163,13 +204,17 @@ jobs:
               echo "Trying: $MODEL" >&2
 
               for ATTEMPT in $(seq 1 $MAX_RETRIES); do
+                if [ "$(date +%s)" -ge "$DEADLINE" ]; then
+                  echo "  Review deadline reached; aborting remaining attempts." >&2
+                  return 1
+                fi
                 echo "  Attempt $ATTEMPT/$MAX_RETRIES" >&2
 
                 TMP=$(mktemp)
                 tmp_files+=("$TMP")
                 ERR_FILE=$(mktemp /tmp/opencode-err-XXXXXX)
                 tmp_files+=("$ERR_FILE")
-                if opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
+                if timeout -k 30 420 opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
                   if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings|No regression risks' "$TMP" 2>/dev/null; then
                     cp "$TMP" "$result_file"
                     return 0
@@ -392,6 +437,17 @@ jobs:
           # the round loop can never disagree.
           HAS_ANY=$(echo "$BODY" | grep -ciE 'severity\*{0,2}:\*{0,2}\s*\*{0,2}\s*(major|critical)|^\s*#{2,4}\s+(\*\*)?(major|critical)(\*\*)?([^[:alnum:]._/-]|$)|^\s*#{2,4}\s+.*[():\[*—]\s*\*{0,2}(major|critical)\b' || true)
 
+          # A truncated diff was only partly reviewed: never let that report as
+          # clean — that would open the merge gate on an un-reviewed tail. Coerce
+          # to blocking, and keep '# AI Code Review' as the first line so the
+          # Fetch step's startswith() selector still finds this review next run.
+          if [ -f /tmp/review-partial ]; then
+            echo "::warning::Review ran on a truncated diff — treating as not clean."
+            BODY=$(printf '%s' "$BODY" | awk 'NR==1 && /^# AI Code Review[[:space:]]*$/{next} {print}')
+            BODY=$(printf '# AI Code Review\n\n> :warning: Review ran on a truncated diff; the unreviewed tail means this PR is not treated as clean.\n\n%s' "$BODY")
+            HAS_ANY=$(( ${HAS_ANY:-0} + 1 ))
+          fi
+
           PAYLOAD=$(mktemp)
           trap 'rm -f "$PAYLOAD"' EXIT
 
@@ -550,10 +606,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: /home/runner/.opencode
-          key: opencode-${{ runner.os }}-v2
+          key: opencode-${{ runner.os }}-${{ env.OPENCODE_VERSION }}
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'
+        env:
+          VERSION: ${{ env.OPENCODE_VERSION }}
         run: |
           for i in 1 2 3; do
             curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh && break
@@ -867,10 +925,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: /home/runner/.opencode
-          key: opencode-${{ runner.os }}-v2
+          key: opencode-${{ runner.os }}-${{ env.OPENCODE_VERSION }}
 
       - name: Install opencode
         if: steps.cache-opencode.outputs.cache-hit != 'true'
+        env:
+          VERSION: ${{ env.OPENCODE_VERSION }}
         run: |
           for i in 1 2 3; do
             curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh && break

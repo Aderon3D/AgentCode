@@ -4,7 +4,6 @@ import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.InMemoryWalStore
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.path.VirtualPath
-import com.agent.code.mcp.McpHost
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
 import kotlinx.coroutines.CancellationException
@@ -78,7 +77,9 @@ class MultiAgentOrchestrator(
             _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Starting))
         }
 
-        val job = scope.launch {
+        // LAZY: jobs[taskId] must be set before the body can reach its finally,
+        // else a fast-finishing job sees no map entry and skips all cleanup.
+        val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             // Check slot still exists before expensive work (handles cancelTask during launch window)
             val slotExists = mutex.withLock { _slots.value.containsKey(taskId) }
             if (!slotExists) return@launch
@@ -115,8 +116,10 @@ class MultiAgentOrchestrator(
 
                     mutex.withLock {
                         val slot = _slots.value[taskId] ?: return@withLock
-                        val port = manager.currentState().let { if (it is OpenCodeState.Running) it.port else null }
-                        _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0), port = port))
+                        // Keep the reserved port when currentState() isn't
+                        // Running: nulling it leaked the reservation.
+                        val running = manager.currentState().let { if (it is OpenCodeState.Running) it.port else null }
+                        _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0), port = running ?: slot.port))
                     }
 
                     val goal = mutex.withLock { _slots.value[taskId]?.goal } ?: return@launch
@@ -171,6 +174,7 @@ class MultiAgentOrchestrator(
             }
         }
         mutex.withLock { jobs[taskId] = job }
+        job.start()
     }
 
     suspend fun cancelTask(taskId: String) {

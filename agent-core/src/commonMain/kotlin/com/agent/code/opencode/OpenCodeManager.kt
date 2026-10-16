@@ -3,6 +3,7 @@ package com.agent.code.opencode
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -180,6 +181,15 @@ class OpenCodeManager(
 
         try {
             waitForServer(port, pid)
+        } catch (e: CancellationException) {
+            // Cancelled while waiting: still reap the child, then propagate
+            // instead of swallowing the cancellation as a start failure.
+            try {
+                processRunner.run(listOf("kill", "-9", pid.toString()))
+                delay(200)
+                PlatformOps.checkChild(pid)
+            } catch (_: Exception) {}
+            throw e
         } catch (e: Exception) {
             // Failure path never reaches stop() (state is Error, not Running) —
             // kill the child here or a timed-out spawn keeps running, keeps

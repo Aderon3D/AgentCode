@@ -11,7 +11,6 @@ import com.agent.code.opencode.OpenCodeClient
 import com.agent.code.opencode.OpenCodeConfig
 import com.agent.code.opencode.OpenCodeManager
 import com.agent.code.opencode.OpenCodeState
-import com.agent.code.opencode.MockOpenCodeClient
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
 import io.ktor.client.HttpClient

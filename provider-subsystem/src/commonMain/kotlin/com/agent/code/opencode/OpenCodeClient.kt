@@ -254,7 +254,7 @@ class OpenCodeClient(
                 "session.next.tool.input.ended" -> SessionEvent.ToolInput(str("command") ?: str("filePath") ?: "")
                 "session.next.tool.success" -> SessionEvent.ToolFinished(str("callID") ?: "?", true)
                 "session.next.tool.error" -> SessionEvent.ToolFinished(str("callID") ?: "?", false)
-                "session.next.step.ended" -> SessionEvent.StepEnded(str("finish") ?: "stop")
+                "session.next.step.ended" -> SessionEvent.StepEnded(str("finish") ?: "unknown")
                 "session.next.step.failed" -> {
                     val err = data["error"]?.jsonObject
                     SessionEvent.Failed(

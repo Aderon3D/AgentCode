@@ -89,7 +89,9 @@ class MultiAgentOrchestrator(
                 val stillRunning = mutex.withLock { _slots.value.containsKey(taskId) }
                 if (!stillRunning) return@launch
 
-                manager.start(projectDir = workspaceRoot)
+                manager.start(projectDir = workspaceRoot).let { s ->
+                    if (s is OpenCodeState.Error) throw IllegalStateException(s.message)
+                }
                 // Re-check after suspending call
                 val stillRunning2 = mutex.withLock { _slots.value.containsKey(taskId) }
                 if (!stillRunning2) return@launch

@@ -145,10 +145,16 @@ class OpenCodeManager(
         // OC_RESOLV_CONF). ponytail: hardcoded public DNS — switch to
         // ConnectivityManager device DNS if a carrier blocks outbound :53
         // (shows up as EAI failures in the opencode server log we dump).
-        fileSystem.write(
+        val resolv = fileSystem.write(
             config.installDir.resolve("resolv.conf"),
             "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
         )
+        if (resolv.isFailure) {
+            _state = OpenCodeState.Error(
+                "resolv.conf write failed: ${resolv.exceptionOrNull()?.message}"
+            )
+            return@withLock _state
+        }
 
         val pid = try {
             PlatformOps.spawnLdLinux(

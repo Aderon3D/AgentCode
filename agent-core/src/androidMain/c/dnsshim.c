@@ -138,7 +138,7 @@ static int query_a(const struct in_addr *ns, int nsn, const char *host,
                    struct in_addr *out, int maxout) {
     unsigned char q[512 + 256];
     static uint16_t txid = 0x4000;
-    uint16_t id = ++txid;
+    uint16_t id = __atomic_add_fetch(&txid, 1, __ATOMIC_RELAXED);
     q[0] = id >> 8; q[1] = id & 0xff;
     q[2] = 0x01; q[3] = 0x00; /* RD */
     q[4] = 0; q[5] = 1;       /* QDCOUNT */

@@ -29,3 +29,11 @@ gcc -shared -fPIC -O2 -Wall \
   "$ROOT/agent-core/src/androidMain/c/dnsshim.c" -ldl
 
 echo "ok: $OUT/libdnsshim.so ($(stat -c%s "$OUT/libdnsshim.so") bytes)"
+
+# libdnsshim.so is LD_PRELOADed into the glibc aarch64 child; a bare host gcc
+# on a non-aarch64 machine silently writes an x86_64 ELF the child refuses,
+# breaking DNS with no build-time error. Fail loudly instead.
+if ! readelf -h "$OUT/libdnsshim.so" | grep -q 'Machine:.*AArch64'; then
+  echo "ERROR: libdnsshim.so is not AArch64 — build it on an aarch64 host" >&2
+  exit 1
+fi

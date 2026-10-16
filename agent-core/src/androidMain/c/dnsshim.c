@@ -137,6 +137,8 @@ static int query_a(const struct in_addr *ns, int nsn, const char *host,
         const char *dot = strchr(h, '.');
         int len = dot ? (int)(dot - h) : (int)strlen(h);
         if (len <= 0 || len > 63) return 0;
+        /* Running bound: label byte + label + root byte + qtype + qclass. */
+        if (i + 1 + len + 5 > (int)sizeof q) return 0;
         q[i++] = (unsigned char)len;
         memcpy(q + i, h, len); i += len;
         if (!dot) break;

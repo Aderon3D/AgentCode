@@ -9,6 +9,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+private const val LOG_TAIL_LINES = 200
+
 data class OpenCodeConfig(
     val installDir: VirtualPath = VirtualPath.of("/data/user/0/com.agent.code/files/opencode"),
     val nativeLibraryDir: String = "/data/app/~~placeholder~~/com.agent.code/lib/arm64",
@@ -121,6 +123,12 @@ class OpenCodeManager(
         port: Int = config.defaultPort
     ): OpenCodeState = stateMutex.withLock {
         if (_state is OpenCodeState.Running) return@withLock _state
+        // Fail loudly instead of spawning from the placeholder nativeLibraryDir:
+        // libld.so would not open and the child would _exit(127) with no clue.
+        if (config.nativeLibraryDir.contains("~~placeholder~~")) {
+            _state = OpenCodeState.Error("nativeLibraryDir not configured (placeholder default)")
+            return@withLock _state
+        }
 
         val installed = ensureInstalledInternal()
         if (installed is OpenCodeState.Error) return@withLock installed
@@ -221,13 +229,17 @@ class OpenCodeManager(
         }
     }
 
-    private suspend fun readLogSnippet(logFile: VirtualPath): String {
-        return try {
-            val logResult = fileSystem.read(logFile).getOrNull()
-            if (logResult != null) {
-                val all = logResult.lines()
-                if (all.isNotEmpty()) "\n\nLog:\n${all.joinToString("\n")}" else ""
-            } else ""
+    // Tail-only, like logDump: a failed spawn can leave a multi-MB loader log,
+    // and start() runs on the UI dispatcher — reading + re-joining all of it
+    // would build a giant UI state string and can ANR. Read off the main thread
+    // and keep only the last LOG_TAIL_LINES lines.
+    private suspend fun readLogSnippet(logFile: VirtualPath): String = withContext(Dispatchers.IO) {
+        try {
+            val all = fileSystem.read(logFile).getOrNull()?.lines().orEmpty()
+            if (all.isNotEmpty())
+                "\n\nLog (last ${minOf(all.size, LOG_TAIL_LINES)} lines):\n" +
+                    all.takeLast(LOG_TAIL_LINES).joinToString("\n")
+            else ""
         } catch (_: Exception) { "" }
     }
 

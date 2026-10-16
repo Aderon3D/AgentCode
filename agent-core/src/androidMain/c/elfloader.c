@@ -356,6 +356,9 @@ static LdInfo map_any(const char *path, long pagesz, int must_dyn) {
         die("bad ELF", path);
     }
     if (eh.e_phnum == 0 || eh.e_phnum > LD_MAX_PHDR) die("bad loader phnum", path);
+    /* e_phentsize is straight from the (possibly corrupt) header; an oversized
+     * value would read past Elf64_Phdr ph[LD_MAX_PHDR] on the stack. */
+    if (eh.e_phentsize != sizeof(Elf64_Phdr)) die("bad loader phentsize", path);
     Elf64_Phdr ph[LD_MAX_PHDR];
     if (rd_full(fd, ph, eh.e_phentsize * eh.e_phnum, (off_t)eh.e_phoff) !=
         (ssize_t)(eh.e_phentsize * eh.e_phnum)) {
@@ -587,7 +590,16 @@ static void child_main(const char *loader, const char *glibc, const char *binary
     if (c_len(glibc) > 4096) die("glibc path too long", glibc);
     c_cpy(ldvar, "LD_LIBRARY_PATH=", glibc);
     nenv[nenvc++] = ldvar;
-    nenv[nenvc++] = "LD_DEBUG=all";
+    /* LD_DEBUG=all dumps the dynamic linker's full relocation/version trace to
+     * the log on every spawn — huge, and it leaks loader internals into
+     * user-exported logs. Gate it behind ELFLOADER_LD_DEBUG=1, read from the
+     * copied cenv[] (environ is unsafe here: clear_window() evicted it). */
+    for (int i = 0; i < cenvc; i++) {
+        if (c_eq(cenv[i], "ELFLOADER_LD_DEBUG=1", 20) && nenvc < LD_MAX_ENV) {
+            nenv[nenvc++] = "LD_DEBUG=all";
+            break;
+        }
+    }
 
     /* Android app processes have no HOME, and glibc getpwuid has no passwd
      * entry for the app uid — uv_os_homedir then returns ENOENT and Bun dies
@@ -1005,7 +1017,17 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
     const char *binary = (*env)->GetStringUTFChars(env, jBinary, 0);
     const char *work = (*env)->GetStringUTFChars(env, jWork, 0);
     const char *logp = (*env)->GetStringUTFChars(env, jLog, 0);
-    if (!loader || !glibc || !binary || !work || !logp) return -EINVAL;
+    /* A NULL here means GetStringUTFChars threw OutOfMemoryError: release only
+     * the non-NULL pointers (NULL to ReleaseStringUTFChars is invalid) and bail
+     * with the pending exception. */
+    if (!loader || !glibc || !binary || !work || !logp) {
+        if (logp) (*env)->ReleaseStringUTFChars(env, jLog, logp);
+        if (work) (*env)->ReleaseStringUTFChars(env, jWork, work);
+        if (binary) (*env)->ReleaseStringUTFChars(env, jBinary, binary);
+        if (glibc) (*env)->ReleaseStringUTFChars(env, jGlibc, glibc);
+        if (loader) (*env)->ReleaseStringUTFChars(env, jLoader, loader);
+        return -EINVAL;
+    }
     snprintf(g_child_log, sizeof g_child_log, "%s", logp);
     g_child_log_set = 1;
     /* Resolve libdnsshim.so's directory here, in the parent: child_main runs
@@ -1026,9 +1048,23 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
         }
     }
     jsize n = (*env)->GetArrayLength(env, jArgs);
-    if (n < 0 || n > LD_MAX_ARGS) return -E2BIG;
+    if (n < 0 || n > LD_MAX_ARGS) {
+        (*env)->ReleaseStringUTFChars(env, jLog, logp);
+        (*env)->ReleaseStringUTFChars(env, jWork, work);
+        (*env)->ReleaseStringUTFChars(env, jBinary, binary);
+        (*env)->ReleaseStringUTFChars(env, jGlibc, glibc);
+        (*env)->ReleaseStringUTFChars(env, jLoader, loader);
+        return -E2BIG;
+    }
     struct spawn_req *req = calloc(1, sizeof *req);
-    if (!req) return -ENOMEM;
+    if (!req) {
+        (*env)->ReleaseStringUTFChars(env, jLog, logp);
+        (*env)->ReleaseStringUTFChars(env, jWork, work);
+        (*env)->ReleaseStringUTFChars(env, jBinary, binary);
+        (*env)->ReleaseStringUTFChars(env, jGlibc, glibc);
+        (*env)->ReleaseStringUTFChars(env, jLoader, loader);
+        return -ENOMEM;
+    }
     snprintf(req->loader, sizeof req->loader, "%s", loader);
     snprintf(req->glibc, sizeof req->glibc, "%s", glibc);
     snprintf(req->binary, sizeof req->binary, "%s", binary);
@@ -1037,9 +1073,26 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
     req->nargs = n;
     for (jsize i = 0; i < n; i++) {
         jstring s = (jstring)(*env)->GetObjectArrayElement(env, jArgs, i);
-        if (!s) { free(req); return -EINVAL; }
+        if (!s) {
+            free(req);
+            (*env)->ReleaseStringUTFChars(env, jLog, logp);
+            (*env)->ReleaseStringUTFChars(env, jWork, work);
+            (*env)->ReleaseStringUTFChars(env, jBinary, binary);
+            (*env)->ReleaseStringUTFChars(env, jGlibc, glibc);
+            (*env)->ReleaseStringUTFChars(env, jLoader, loader);
+            return -EINVAL;
+        }
         const char *a = (*env)->GetStringUTFChars(env, s, 0);
-        if (!a) { (*env)->DeleteLocalRef(env, s); free(req); return -EINVAL; }
+        if (!a) {
+            (*env)->DeleteLocalRef(env, s);
+            free(req);
+            (*env)->ReleaseStringUTFChars(env, jLog, logp);
+            (*env)->ReleaseStringUTFChars(env, jWork, work);
+            (*env)->ReleaseStringUTFChars(env, jBinary, binary);
+            (*env)->ReleaseStringUTFChars(env, jGlibc, glibc);
+            (*env)->ReleaseStringUTFChars(env, jLoader, loader);
+            return -EINVAL;
+        }
         snprintf(req->argbuf[i], sizeof req->argbuf[i], "%s", a);
         req->args[i] = req->argbuf[i];
         (*env)->ReleaseStringUTFChars(env, s, a);
@@ -1153,14 +1206,18 @@ Java_com_agent_code_opencode_ElfLoader_nativeCheck(JNIEnv *env, jobject thiz, ji
     /* NO ptrace from here: the spawn thread owns the tracee (kernel requires
      * child->parent == current) and services stops itself; a second waiter
      * would race it for the same event. Heartbeat only. */
-    int logfd = g_child_log_set ? open(g_child_log, O_WRONLY | O_APPEND) : -1;
+    static int hb_n;
+    int exit_now = __atomic_load_n(&g_child_exit, __ATOMIC_ACQUIRE);
+    /* Don't open the log on every 100ms poll: only the ~2s heartbeat writes,
+     * and a dead child needs no I/O to report. Avoids Main-thread file I/O. */
+    if (exit_now) return exit_now;
+    if (g_child_pid <= 0 || ++hb_n < 20) return 0;
+    hb_n = 0;
     /* ~2s child-state heartbeat (Kotlin polls this every 100ms): leader
      * state letter + wchan + kernel stack — names "traced-parked",
      * "blocked-in-syscall-X" or "running" in the next pasted log. */
-    static int hb_n;
-    int exit_now = __atomic_load_n(&g_child_exit, __ATOMIC_ACQUIRE);
-    if (!exit_now && g_child_pid > 0 && ++hb_n >= 20) {
-        hb_n = 0;
+    int logfd = g_child_log_set ? open(g_child_log, O_WRONLY | O_APPEND) : -1;
+    {
         char hb[1024];
         char state[2] = "?", wchan[48] = "0";
         char path[64];

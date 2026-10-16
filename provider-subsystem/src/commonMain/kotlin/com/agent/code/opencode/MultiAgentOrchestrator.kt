@@ -37,6 +37,7 @@ class MultiAgentOrchestrator(
     private val fileSystem: FileSystemProvider,
     private val processRunner: ProcessRunner,
     private val workspaceRoot: VirtualPath,
+    private val nativeLibraryDir: String,
     private val maxConcurrent: Int = 3
 ) {
     private val scope = CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
@@ -52,7 +53,7 @@ class MultiAgentOrchestrator(
             throw IllegalStateException("Max concurrent agents ($maxConcurrent) reached")
         }
         val port = (4096..65535).first { p -> managers.values.none { it.currentState().let { s -> s is OpenCodeState.Running && s.port == p } } }
-        val config = OpenCodeConfig(defaultPort = port)
+        val config = OpenCodeConfig(defaultPort = port, nativeLibraryDir = nativeLibraryDir)
         val manager = OpenCodeManager(fileSystem, processRunner, config)
         managers[taskId] = manager
 

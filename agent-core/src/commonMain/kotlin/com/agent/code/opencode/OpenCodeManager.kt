@@ -55,7 +55,10 @@ class OpenCodeManager(
         val s = _state
         if (s is OpenCodeState.Running) {
             val code = try { PlatformOps.checkChild(s.pid) } catch (_: Exception) { 0 }
-            if (code != 0) _state = OpenCodeState.Error("OpenCode exited (${childStatus(code)})")
+            // Only clobber if nobody moved the state since we sampled it — a
+            // poll otherwise overwrites a concurrent stop() result with Error
+            // (leaving the child unkilled, since stop() then early-returns).
+            if (code != 0 && _state === s) _state = OpenCodeState.Error("OpenCode exited (${childStatus(code)})")
         }
         return _state
     }

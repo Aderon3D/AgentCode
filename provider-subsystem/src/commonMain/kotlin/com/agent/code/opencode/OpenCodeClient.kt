@@ -206,9 +206,9 @@ class OpenCodeClient(
             contentType(ContentType.Application.Json)
             setBody(body.toString())
         }
-        if (resp.status.value >= 400) {
-            error("sendPrompt: ${resp.status} ${resp.bodyAsText().take(300)}")
-        }
+        // Always drain the body so the connection returns to the pool.
+        val bodyText = resp.bodyAsText()
+        if (resp.status.value >= 400) error("sendPrompt: ${resp.status} ${bodyText.take(300)}")
     }
 
     fun sessionEvents(sessionID: String): Flow<SessionEvent> = flow {

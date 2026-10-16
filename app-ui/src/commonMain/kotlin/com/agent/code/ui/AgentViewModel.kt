@@ -20,6 +20,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,14 +61,21 @@ class AgentViewModel(
     val state: StateFlow<AgentUiState> = _state.asStateFlow()
 
     private var brainJob: Job? = null
+    @Volatile
     private var statePollJob: Job? = null
+
+    // destroy() runs as the composition scope is being torn down, so stop()
+    // must not be launched on it — the launch would be cancelled before it ran
+    // and the native child would leak. This scope outlives composition for the
+    // one final teardown call.
+    private val teardownScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun startOpenCode() {
         // Cancel-and-relaunch (was: early-return if alive). A live poll can be
         // a stale watcher for a previous child, and after the poll survives
         // past Stopped we must be able to replace it on the next Start.
         statePollJob?.cancel()
-        statePollJob = scope.launch {
+        val poll = scope.launch {
             while (true) {
                 val s = openCodeManager.currentState()
                 // update{} not copy: the 500ms poll races the brain's per-event
@@ -78,21 +86,24 @@ class AgentViewModel(
                 // cancelling on Running froze the UI at "Running" after the
                 // loader killed the child, r14), and Stopped is transient
                 // during startup (ensureInstalled sets it before start()).
-                if (s is OpenCodeState.Error) {
-                    statePollJob?.cancel()
-                    statePollJob = null
-                    break
-                }
+                if (s is OpenCodeState.Error) break
                 delay(500)
             }
         }
+        statePollJob = poll
+        // Clear the slot only if it still points at THIS poll — a newer
+        // startOpenCode() may have already installed its own watcher.
+        poll.invokeOnCompletion { if (statePollJob === poll) statePollJob = null }
         scope.launch {
             try {
                 openCodeManager.ensureInstalled()
                 openCodeManager.start(projectDir = workspaceRoot)
             } catch (e: Exception) {
-                statePollJob?.cancel()
-                statePollJob = null
+                // Never cancel a newer start's watcher.
+                if (statePollJob === poll) {
+                    poll.cancel()
+                    statePollJob = null
+                }
                 _state.update {
                     it.copy(processState = OpenCodeState.Error(e.message ?: "start failed"))
                 }
@@ -186,7 +197,8 @@ class AgentViewModel(
     fun destroy() {
         cancelTask()
         statePollJob?.cancel()
-        scope.launch { openCodeManager.stop() }
+        statePollJob = null
+        teardownScope.launch { openCodeManager.stop() }
         httpClient.close()
     }
 

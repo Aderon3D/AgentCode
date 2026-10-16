@@ -34,6 +34,18 @@ static const char *redirect(const char *path) {
     return path;
 }
 
+/* getaddrinfo's `service` may be a name ("https"); atoi() silently yields 0
+ * for those, so callers get port 0. Accept decimal, else look the name up.
+ * Returns network byte order, as every call site needs. */
+static uint16_t parse_port(const char *service) {
+    if (!service) return 0;
+    char *end = NULL;
+    long p = strtol(service, &end, 10);
+    if (end && *end == 0 && p > 0 && p <= 65535) return htons((uint16_t)p);
+    struct servent *se = getservbyname(service, NULL);
+    return se ? (uint16_t)se->s_port : 0;
+}
+
 int openat(int dirfd, const char *path, int flags, ...) {
     static int (*real_openat)(int, const char *, int, ...);
     if (!real_openat) real_openat = dlsym(RTLD_NEXT, "openat");
@@ -218,7 +230,7 @@ int getaddrinfo(const char *node, const char *service,
         struct sockaddr_in *sa = calloc(1, sizeof *sa);
         if (!ai || !sa) { free(ai); free(sa); return EAI_MEMORY; }
         sa->sin_family = AF_INET;
-        sa->sin_port = service ? (uint16_t)htons((uint16_t)atoi(service)) : 0;
+        sa->sin_port = parse_port(service);
         sa->sin_addr = lit4;
         ai->ai_family = AF_INET;
         ai->ai_socktype = (hints && hints->ai_socktype) ? hints->ai_socktype : SOCK_STREAM;
@@ -236,7 +248,7 @@ int getaddrinfo(const char *node, const char *service,
         struct sockaddr_in6 *sa = calloc(1, sizeof *sa);
         if (!ai || !sa) { free(ai); free(sa); return EAI_MEMORY; }
         sa->sin6_family = AF_INET6;
-        sa->sin6_port = service ? (uint16_t)htons((uint16_t)atoi(service)) : 0;
+        sa->sin6_port = parse_port(service);
         sa->sin6_addr = lit6;
         ai->ai_family = AF_INET6;
         ai->ai_socktype = (hints && hints->ai_socktype) ? hints->ai_socktype : SOCK_STREAM;
@@ -253,7 +265,7 @@ int getaddrinfo(const char *node, const char *service,
         struct sockaddr_in *sa = calloc(1, sizeof *sa);
         if (!ai || !sa) { free(ai); free(sa); return EAI_MEMORY; }
         sa->sin_family = AF_INET;
-        sa->sin_port = service ? (uint16_t)htons((uint16_t)atoi(service)) : 0;
+        sa->sin_port = parse_port(service);
         sa->sin_addr.s_addr = (hints && (hints->ai_flags & AI_PASSIVE)) ? htonl(INADDR_ANY)
                                                                         : htonl(INADDR_LOOPBACK);
         ai->ai_family = AF_INET;
@@ -281,7 +293,7 @@ int getaddrinfo(const char *node, const char *service,
 
     int socktype = (hints && hints->ai_socktype) ? hints->ai_socktype : SOCK_STREAM;
     int protocol = (hints && hints->ai_protocol) ? hints->ai_protocol : IPPROTO_TCP;
-    uint16_t port = service ? (uint16_t)htons((uint16_t)atoi(service)) : 0;
+    uint16_t port = parse_port(service);
 
     struct addrinfo *head = NULL, *tail = NULL;
     for (int i = 0; i < na; i++) {

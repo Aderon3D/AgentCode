@@ -25,8 +25,9 @@ actual object PlatformOps {
             var redirects = 0
             while (conn.responseCode in 300..399 && redirects < 5) {
                 val location = conn.getHeaderField("Location") ?: break
+                val base = conn.url
                 conn.disconnect()
-                conn = URL(location).openConnection() as HttpURLConnection
+                conn = URL(base, location).openConnection() as HttpURLConnection
                 conn.instanceFollowRedirects = true
                 conn.connectTimeout = 30_000
                 conn.readTimeout = 60_000

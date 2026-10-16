@@ -5,6 +5,7 @@ import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.LogEntry
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.path.VirtualPath
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.takeWhile
@@ -71,8 +72,13 @@ fun executeTask(
                             ev is SessionEvent.Failed -> {
                                 failure = ev.message; null
                             }
-                            ev is SessionEvent.StepEnded && ev.finish != "tool-calls" -> {
-                                finished = true; null
+                            ev is SessionEvent.StepEnded -> when (ev.finish) {
+                                // still working
+                                "tool-calls" -> ev
+                                // only "stop" is a successful terminal step
+                                "stop" -> { finished = true; null }
+                                // "error" / "length" (truncated): a failed run
+                                else -> { failure = "run ended: ${ev.finish}"; null }
                             }
                             else -> ev
                         }
@@ -113,6 +119,8 @@ fun executeTask(
                     return@channelFlow
                 }
                 lastError = failure ?: "stream ended before a final step"
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 lastError = "${e::class.simpleName}: ${e.message}"
             }

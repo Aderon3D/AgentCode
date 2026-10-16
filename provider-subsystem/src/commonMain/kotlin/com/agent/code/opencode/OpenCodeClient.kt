@@ -236,7 +236,7 @@ class OpenCodeClient(
         } finally {
             // Release the response/connection on early termination (idle timeout
             // or collector cancellation) instead of leaking it in the pool.
-            channel.cancel()
+            channel.cancel(null)
         }
     }
 

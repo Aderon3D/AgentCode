@@ -108,10 +108,12 @@ jobs:
           # the a/ side, so a rename out of a filtered dir into real source is still
           # reviewed. Test the whole header line rather than splitting on spaces: git
           # quotes only unusual bytes, never spaces, so `... a/logs/a b.txt b/logs/a
-          # b.txt` would otherwise split to `b.txt` and leak through.
+          # b.txt` would otherwise split to `b.txt` and leak through. The `.log`
+          # test is anchored to end-of-line because the b/ path is the last token, so
+          # a rename *from* `x.log` into real source is still reviewed.
           awk '
             /^diff --git / {
-              skip = ($0 ~ /[" ]b\/(logs|thoughts)\// || $0 ~ /\.log"?([ \t]|$)/)
+              skip = ($0 ~ /[" ]b\/(logs|thoughts)\// || $0 ~ /\.log"?$/)
             }
             !skip
           ' /tmp/review.diff.raw > /tmp/review.diff

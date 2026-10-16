@@ -37,7 +37,12 @@ class MultiAgentOrchestrator(
     private val processRunner: ProcessRunner,
     private val workspaceRoot: VirtualPath,
     private val nativeLibraryDir: String,
-    private val maxConcurrent: Int = 3
+    // Pinned to 1: the native loader keys child state process-globally
+    // (elfloader g_child_pid/g_child_exit), so a 2nd concurrent spawn clobbers
+    // the 1st's pid/exit/log — and every manager would share one installDir,
+    // truncating one opencode.log. Raise only once #200 (per-pid slots + single
+    // drain/dispatcher) and per-slot log/install isolation land.
+    private val maxConcurrent: Int = 1
 ) {
     private val scope = CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
     private val mutex = Mutex()

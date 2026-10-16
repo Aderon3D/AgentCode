@@ -100,6 +100,10 @@ class AgentViewModel(
             try {
                 openCodeManager.ensureInstalled()
                 openCodeManager.start(projectDir = workspaceRoot)
+            } catch (e: CancellationException) {
+                // Teardown cancelled start(); propagate instead of turning it
+                // into a spurious Error on the way out.
+                throw e
             } catch (e: Exception) {
                 // Never cancel a newer start's watcher.
                 if (statePollJob === poll) {

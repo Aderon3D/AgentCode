@@ -183,10 +183,10 @@ class OpenCodeManager(
             return@withLock _state
         }
 
-        delay(1000)
         activePid = pid
 
         try {
+            delay(1000)
             waitForServer(port, pid)
         } catch (e: CancellationException) {
             // The coroutine is already cancelled, so the kill must run under
@@ -312,7 +312,12 @@ class OpenCodeManager(
         val deadline = PlatformOps.currentTimeMs() + config.startupTimeoutMs
         var lastError = "no attempts made"
         while (PlatformOps.currentTimeMs() < deadline) {
-            val child = try { PlatformOps.checkChild(pid) } catch (_: Exception) { 0 }
+            val child = try {
+                // nativeCheck reads /proc and appends a heartbeat to the log —
+                // keep it off the caller's (Main) thread.
+                withContext(Dispatchers.IO) { PlatformOps.checkChild(pid) }
+            } catch (e: CancellationException) { throw e
+            } catch (_: Exception) { 0 }
             if (child != 0) throw IllegalStateException("OpenCode exited during startup (${childStatus(child)})")
             try {
                 // Blocking socket I/O must leave the caller's thread: start()
@@ -323,6 +328,7 @@ class OpenCodeManager(
                 }
                 if (code == 200) return
                 lastError = "HTTP $code"
+            } catch (e: CancellationException) { throw e
             } catch (e: Exception) { lastError = e.toString().take(160) }
             delay(100)
         }

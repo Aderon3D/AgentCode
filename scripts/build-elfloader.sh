@@ -24,16 +24,21 @@ echo "building libdnsshim.so"
 # MUST be glibc, not NDK/bionic: this .so is LD_PRELOADed into the opencode
 # child (glibc 2.27 aarch64), not loaded by the Android app. Built with the
 # container's gcc (same glibc 2.27 family as the shipped glibc dir).
+# Compile to a temp path and only publish it after the arch check below, so a
+# host gcc on a non-aarch64 machine can never overwrite the committed .so with
+# an x86_64 ELF.
 gcc -shared -fPIC -O2 -Wall \
-  -o "$OUT/libdnsshim.so" \
+  -o "$OUT/libdnsshim.so.tmp" \
   "$ROOT/agent-core/src/androidMain/c/dnsshim.c" -ldl
-
-echo "ok: $OUT/libdnsshim.so ($(stat -c%s "$OUT/libdnsshim.so") bytes)"
 
 # libdnsshim.so is LD_PRELOADed into the glibc aarch64 child; a bare host gcc
 # on a non-aarch64 machine silently writes an x86_64 ELF the child refuses,
 # breaking DNS with no build-time error. Fail loudly instead.
-if ! readelf -h "$OUT/libdnsshim.so" | grep -q 'Machine:.*AArch64'; then
+if ! readelf -h "$OUT/libdnsshim.so.tmp" | grep -q 'Machine:.*AArch64'; then
   echo "ERROR: libdnsshim.so is not AArch64 — build it on an aarch64 host" >&2
+  rm -f "$OUT/libdnsshim.so.tmp"
   exit 1
 fi
+mv "$OUT/libdnsshim.so.tmp" "$OUT/libdnsshim.so"
+
+echo "ok: $OUT/libdnsshim.so ($(stat -c%s "$OUT/libdnsshim.so") bytes)"

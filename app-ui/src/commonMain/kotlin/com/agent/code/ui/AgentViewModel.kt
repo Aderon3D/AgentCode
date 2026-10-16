@@ -198,7 +198,9 @@ class AgentViewModel(
         cancelTask()
         statePollJob?.cancel()
         statePollJob = null
-        teardownScope.launch { openCodeManager.stop() }
+        // Cancel the scope once stop() returns: it exists only to outlive
+        // composition for this one teardown, not to leak a live coroutine.
+        teardownScope.launch { try { openCodeManager.stop() } finally { teardownScope.cancel() } }
         httpClient.close()
     }
 

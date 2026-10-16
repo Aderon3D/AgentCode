@@ -322,7 +322,13 @@ static int clear_window(uint64_t lo, uint64_t hi) {
                         close(s);
                         return -1;
                     }
-                    if (munmap((void *)(uintptr_t)a, (size_t)(e - a)) != 0) {
+                    /* Unmap only the part inside [lo,hi): a VMA that merely
+                     * straddles the window edge must keep its outside half —
+                     * munmapping the whole VMA evicts live memory below lo /
+                     * above hi that opencode does not own. */
+                    uint64_t ca = a > lo ? a : lo;
+                    uint64_t ce = e < hi ? e : hi;
+                    if (munmap((void *)(uintptr_t)ca, (size_t)(ce - ca)) != 0) {
                         w_all(2, "elfloader: evict FAIL ");
                         w_all(2, lb);
                         w_all(2, "\n");

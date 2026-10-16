@@ -37,6 +37,12 @@ class OpenCodeManager(
     private var _state: OpenCodeState = OpenCodeState.NotInstalled
     private var serverPort: Int = config.defaultPort
 
+    // Installed-asset fingerprint: the glibc set is baked into the sentinel
+    // value, so changing the list forces a re-download instead of running a
+    // half-updated loader that is missing a newly-required library.
+    private val glibcFiles = listOf("libc.so.6", "libm.so.6", "libpthread.so.0", "libdl.so.2")
+    private val loaderSentinel = "2:" + glibcFiles.joinToString(",")
+
     val state: OpenCodeState get() = _state
 
     /* Liveness, not a snapshot: once Running nobody used to watch the child,
@@ -59,7 +65,9 @@ class OpenCodeManager(
     private suspend fun ensureInstalledInternal(): OpenCodeState {
         val binaryPath = config.installDir.resolve(config.binaryName)
         val sentinelPath = config.installDir.resolve(".loader-v2")
-        if (fileSystem.exists(binaryPath) && fileSystem.exists(sentinelPath)) {
+        val upToDate = fileSystem.exists(binaryPath) &&
+            fileSystem.read(sentinelPath).getOrNull()?.trim() == loaderSentinel
+        if (upToDate) {
             _state = OpenCodeState.Stopped
             return _state
         }
@@ -80,13 +88,6 @@ class OpenCodeManager(
         val glibcDir = "$installDir/glibc"
         PlatformOps.createDirectories(installDir)
         PlatformOps.createDirectories(glibcDir)
-
-        val glibcFiles = listOf(
-            "libc.so.6",
-            "libm.so.6",
-            "libpthread.so.0",
-            "libdl.so.2"
-        )
 
         glibcFiles.forEachIndexed { index, name ->
             _state = OpenCodeState.Installing(
@@ -109,7 +110,7 @@ class OpenCodeManager(
         PlatformOps.setExecutable(binaryDest)
 
         _state = OpenCodeState.Installing(0.95f, "Finalizing...")
-        fileSystem.write(VirtualPath.of("$installDir/.loader-v2"), "2")
+        fileSystem.write(VirtualPath.of("$installDir/.loader-v2"), loaderSentinel)
             .getOrThrow()
 
         _state = OpenCodeState.Installing(1.0f, "Ready")

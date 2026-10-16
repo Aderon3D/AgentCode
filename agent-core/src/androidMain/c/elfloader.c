@@ -444,6 +444,11 @@ __attribute__((noinline)) static void enter_loader(void *sp, void *entry) {
         : );
 }
 
+/* LD_PRELOAD=<libdir>/libdnsshim.so, resolved in the parent (nativeSpawn) where
+ * dladdr is safe — dladdr takes the dynamic-loader lock and is not
+ * async-signal-safe, and child_main runs post-fork. */
+static char g_dnsshim_preload[4160];
+
 static void child_main(const char *loader, const char *glibc, const char *binary,
                        const char *workdir, const char *logpath,
                        const char **uargs, int nargs) {
@@ -606,23 +611,11 @@ static void child_main(const char *loader, const char *glibc, const char *binary
     /* DNS: glibc getaddrinfo reads /etc/resolv.conf (absent on Android), and
      * glibc's internal resolv opens are NOT LD_PRELOAD-interposable
      * (verified empirically) — so preload a getaddrinfo shim instead.
-     * libdnsshim.so ships next to libelfloader.so (found via dladdr);
-     * OC_RESOLV_CONF points at resolv.conf next to the binary (written by
-     * OpenCodeManager.start). */
-    if (nenvc < LD_MAX_ENV - 1) {
-        Dl_info di;
-        if (dladdr((void *)w_all, &di) && di.dli_fname && di.dli_fname[0] == '/') {
-            static char prevar[4160];
-            static const char rel[] = "/libdnsshim.so";
-            const char *slash = strrchr(di.dli_fname, '/');
-            size_t dl = slash ? (size_t)(slash - di.dli_fname) : 0;
-            if (dl > 0 && dl + sizeof rel < sizeof prevar - 11) {
-                memcpy(prevar, "LD_PRELOAD=", 11);
-                memcpy(prevar + 11, di.dli_fname, dl);
-                memcpy(prevar + 11 + dl, rel, sizeof rel);
-                nenv[nenvc++] = prevar;
-            }
-        }
+     * The LD_PRELOAD value is resolved in the parent (nativeSpawn), where
+     * dladdr is safe; OC_RESOLV_CONF points at resolv.conf next to the binary
+     * (written by OpenCodeManager.start). */
+    if (g_dnsshim_preload[0] && nenvc < LD_MAX_ENV) {
+        nenv[nenvc++] = g_dnsshim_preload;
     }
     if (nenvc < LD_MAX_ENV) {
         static char resolvvar[4160];
@@ -1015,6 +1008,23 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
     if (!loader || !glibc || !binary || !work || !logp) return -EINVAL;
     snprintf(g_child_log, sizeof g_child_log, "%s", logp);
     g_child_log_set = 1;
+    /* Resolve libdnsshim.so's directory here, in the parent: child_main runs
+     * post-fork, where a non-async-signal-safe call like dladdr can deadlock
+     * if another thread held the dynamic-loader lock at fork() time. */
+    g_dnsshim_preload[0] = 0;
+    {
+        Dl_info di;
+        if (dladdr((void *)w_all, &di) && di.dli_fname && di.dli_fname[0] == '/') {
+            const char *slash = strrchr(di.dli_fname, '/');
+            size_t dl = slash ? (size_t)(slash - di.dli_fname) : 0;
+            static const char rel[] = "/libdnsshim.so";
+            if (dl > 0 && 11 + dl + sizeof rel <= sizeof g_dnsshim_preload) {
+                memcpy(g_dnsshim_preload, "LD_PRELOAD=", 11);
+                memcpy(g_dnsshim_preload + 11, di.dli_fname, dl);
+                memcpy(g_dnsshim_preload + 11 + dl, rel, sizeof rel);
+            }
+        }
+    }
     jsize n = (*env)->GetArrayLength(env, jArgs);
     if (n < 0 || n > LD_MAX_ARGS) return -E2BIG;
     struct spawn_req *req = calloc(1, sizeof *req);

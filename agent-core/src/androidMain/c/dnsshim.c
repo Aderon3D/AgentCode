@@ -111,10 +111,11 @@ static int hosts_lookup(const char *node, struct in_addr *out, int maxout) {
         int ok = inet_pton(AF_INET, p, &a) == 1;
         *sp = save;
         if (!ok) continue;
-        char *tok = strtok(sp, " \t\r\n");
+        char *saveptr = NULL;
+        char *tok = strtok_r(sp, " \t\r\n", &saveptr);
         while (tok) {
             if (strcmp(tok, node) == 0) { out[got++] = a; break; }
-            tok = strtok(NULL, " \t\r\n");
+            tok = strtok_r(NULL, " \t\r\n", &saveptr);
         }
     }
     fclose(f);

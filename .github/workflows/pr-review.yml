@@ -175,7 +175,7 @@ jobs:
             "opencode/space-bunny-free"
           )
 
-          MAX_ROUNDS=5
+          MAX_ROUNDS=3
           MAX_RETRIES=2
           RETRY_DELAY=15
           # Hard wall-clock budget (well under the job's timeout-minutes) so a flaky

@@ -67,6 +67,34 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
     )
 
     @Suppress("TooGenericExceptionCaught") // FS boundary: unexpected runtime faults map to FileError.IOError
+    override suspend fun readFrom(path: VirtualPath, fromByteOffset: Long): Result<String> = confinedFile(path).fold(
+        onSuccess = { file ->
+            try {
+                if (!file.exists()) {
+                    Result.failure(FileError.NotFound(path, "file not found"))
+                } else if (fromByteOffset >= file.length()) {
+                    Result.success("")
+                } else {
+                    val rest = java.io.RandomAccessFile(file, "r").use { raf ->
+                        raf.seek(fromByteOffset)
+                        val buf = ByteArray((file.length() - fromByteOffset).toInt())
+                        raf.readFully(buf)
+                        String(buf, StandardCharsets.UTF_8)
+                    }
+                    Result.success(rest)
+                }
+            } catch (e: SecurityException) {
+                Result.failure(FileError.PermissionDenied(path, e.message ?: "read denied"))
+            } catch (e: FileNotFoundException) {
+                Result.failure(FileError.NotFound(path, e.message ?: "file not found"))
+            } catch (e: Exception) {
+                Result.failure(FileError.IOError(path, e.message ?: "read failed", e))
+            }
+        },
+        onFailure = { Result.failure(it) }
+    )
+
+    @Suppress("TooGenericExceptionCaught") // FS boundary: unexpected runtime faults map to FileError.IOError
     override suspend fun write(path: VirtualPath, content: String): Result<Unit> = confinedFile(path).fold(
         onSuccess = { target ->
             try {

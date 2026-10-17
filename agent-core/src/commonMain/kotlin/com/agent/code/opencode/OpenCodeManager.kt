@@ -292,6 +292,12 @@ class OpenCodeManager(
     // ensureWorkspaceConfig must leave the collector's thread — the UI collects
     // this flow on Main.
     private suspend fun prepareRun(taskId: String, workspace: VirtualPath): VirtualPath {
+        // Fail loudly instead of spawning from the placeholder nativeLibraryDir:
+        // libld.so would not open and the child would _exit(127) with no clue
+        // (start() enforces the same precondition).
+        if (config.nativeLibraryDir.contains("~~placeholder~~")) {
+            error("nativeLibraryDir not configured (placeholder default)")
+        }
         // Non-blocking install check. ensureInstalled() takes stateMutex, which
         // start() holds for its entire duration (including waitForServer, up to
         // 15s) — calling it here deadlocked the run flow against the web-UI
@@ -410,19 +416,21 @@ class OpenCodeManager(
         emit: suspend (String) -> Unit
     ) {
         var deadline = PlatformOps.currentTimeMs() + config.runTimeoutMs
+        // Byte offset of the next unread byte. Advanced by the exact UTF-8 length
+        // of each consumed prefix so it always lands on a char boundary — a char
+        // count would drift on multibyte tool output.
         var offset = 0L
         var stablePolls = 0
         while (true) {
-            val content = readEventsFile(eventsFile)
-            if (content.length > offset) {
+            val chunk = readEventsFrom(eventsFile, offset)
+            if (chunk.isNotEmpty()) {
                 // Only consume whole lines: a read can land mid-line for a
                 // large tool output; emitting the fragment (then advancing
                 // past it) would silently lose the event.
-                val chunk = content.substring(offset.toInt())
                 val nl = chunk.lastIndexOf('\n')
                 if (nl >= 0) {
                     val complete = chunk.substring(0, nl)
-                    offset += nl + 1
+                    offset += chunk.substring(0, nl + 1).toByteArray(Charsets.UTF_8).size
                     stablePolls = 0
                     for (line in complete.lineSequence()) {
                         val trimmed = line.trim()
@@ -441,8 +449,7 @@ class OpenCodeManager(
             // Drained: child gone and no new bytes for a few consecutive polls.
             if (exit != 0 && stablePolls >= 3) {
                 // Flush a final event that had no trailing newline.
-                val content = readEventsFile(eventsFile)
-                val tail = content.substring(minOf(offset.toInt(), content.length)).trim()
+                val tail = readEventsFrom(eventsFile, offset).trim()
                 if (tail.startsWith("{")) emit(tail)
                 return
             }
@@ -454,9 +461,13 @@ class OpenCodeManager(
         }
     }
 
-    private suspend fun readEventsFile(eventsFile: VirtualPath): String = withContext(Dispatchers.IO) {
-        try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
-    }
+    // Read only the bytes past [fromByteOffset] so a growing events file is not
+    // re-decoded every poll (O(n²) over a run; the file carries multi-MB loader
+    // forensics — same #201 class as readTail).
+    private suspend fun readEventsFrom(eventsFile: VirtualPath, fromByteOffset: Long): String =
+        withContext(Dispatchers.IO) {
+            try { fileSystem.readFrom(eventsFile, fromByteOffset).getOrNull().orEmpty() } catch (_: Exception) { "" }
+        }
 
     // Write a starter opencode.json into the workspace if none exists, so
     // run-mode has a config anchor from cwd. Never overwrite a user's config.

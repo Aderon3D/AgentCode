@@ -782,6 +782,44 @@ probing here. Sockets and curl are fine.
 if MiMo/Space Bunny can't resolve, the UI now shows the exact error), and
 permission prompts (`/api/permission/*`) if opencode ever asks mid-run.
 
+## Round 28 — loader: `waitpid` selection + single-spawn gate (Oct 17)
+
+**Symptom:** after r27's `runPrompt`→`stop()` serialization, scenario A
+(single spawn) still hung on device: the spawn line printed, then nothing —
+the drain thread never saw a single stop.
+
+**Root cause (proven with a minimal repro):** r28 had replaced the drain's
+`waitpid(-1)` with `waitpid(-sp->pgid)` to stop two drains stealing each
+other's events. But the kernel does **not** deliver a tracee's ptrace-stops
+through a process-group wait: against a stopped tracee
+`waitpid(-pgid, __WALL)` returns **0 events** (and never sees its exit
+either), while `waitpid(tid)` and `waitpid(-1)` both see it.
+`waitpid(leader_pid)` sees the leader's stops but **misses the
+`PTRACE_O_TRACECLONE` worker-thread stops** (they carry a fresh tid). So the
+scoped wait was a regression — the drain observed nothing at all, and even
+the baseline hung.
+
+**Fix:** back to `waitpid(-1)` (the only selection that sees the whole tracee
+thread group). Because `-1` is process-wide, serialize spawns: a
+single-spawn gate (`spawn_gate_acquire`/`spawn_gate_release`, mutex+condvar)
+around `nativeSpawn` — a second concurrent spawn waits a short grace period,
+then returns `-EBUSY`. The r28 `setpgid`/`pgid` field is gone (it existed only
+to feed the broken selection).
+
+**Kept from r28:** per-spawn state isolation. `struct spawn` owns the log
+path, exit code, SIGPWR/rate counters and forensics counters; a pid-keyed
+registry lets `nativeCheck(pid)` find its spawn. No more global log-path /
+leader-pid clobbering when a second spawn starts.
+
+**Validated natively** (`/tmp/elfharness`, `#include`s the real
+`elfloader.c`): a traced child's stops are observed and `drain_loop` returns
+on its exit (no hang), and the gate refuses a concurrent spawn (`-1` after
+~3 s) then re-acquires after release. Build stamp bumped `r20` → `r28`.
+
+**Ceiling:** true concurrent spawns (multi-agent) still need per-tid tracking
+(a per-spawn set of tracee tids waited individually) — deferred (issue #200).
+App runs one child (`maxConcurrent = 1`).
+
 ## Related docs
 
 - `docs/OPENCODE_ON_ANDROID_LESSONS.md` — **read this first**: the distilled

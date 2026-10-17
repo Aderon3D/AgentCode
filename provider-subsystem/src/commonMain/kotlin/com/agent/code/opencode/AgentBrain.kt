@@ -1,32 +1,22 @@
 package com.agent.code.opencode
 
-import com.agent.code.core.fsm.ToolCall
 import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.LogEntry
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.path.VirtualPath
-import com.agent.code.mcp.McpHost
-import com.agent.code.provider.ChatMessage
-import com.agent.code.provider.LlmEvent
-import com.agent.code.provider.LlmRequest
-import com.agent.code.provider.Role
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 
 data class AgentConfig(
-    val maxIterations: Int = 20,
-    val maxToolCallsPerIteration: Int = 5
+    val providerID: String = "opencode",
+    // Tried in order; the first model that completes a run wins.
+    val models: List<String> = listOf("mimo-v2.6-flash-free", "space-bunny-free")
 )
 
 sealed interface BrainEvent {
@@ -40,7 +30,6 @@ sealed interface BrainEvent {
 
 class AgentBrain(
     private val client: OpenCodeClient,
-    private val mcp: McpHost,
     private val journal: AgentEventJournal,
     private val telemetry: TelemetryEngine,
     private val config: AgentConfig = AgentConfig()
@@ -50,137 +39,100 @@ class AgentBrain(
     private suspend fun nextId(): Long = seqMutex.withLock { ++seq }
     private fun now(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
 
-    fun executeTask(
+fun executeTask(
         taskId: String,
         goal: String,
         workspaceRoot: VirtualPath
     ) = channelFlow {
-        val history = mutableListOf<ChatMessage>()
-        history.add(ChatMessage(Role.SYSTEM, systemPrompt(workspaceRoot)))
-        history.add(ChatMessage(Role.USER, goal))
-
         val startId = nextId()
         journal.append(AgentEvent.TaskStarted(startId, taskId, now(), goal))
         telemetry.emit(LogEntry.AgentThought(now(), "Starting: $goal"))
 
-        for (iteration in 1..config.maxIterations) {
-            val request = LlmRequest(
-                modelId = "mimo-v2.5-free",
-                messages = history
-            )
-
-            val content = StringBuilder()
-            val toolCalls = mutableListOf<PendingToolCall>()
-
+        // opencode runs its own agent loop (tools + retries) behind the
+        // session API, so we drive exactly one prompt per model and stream
+        // what it does. First model to finish wins; a failed model falls
+        // through to the next.
+        var lastError = "no response"
+        for (model in config.models) {
             try {
-                client.streamChat(request).collect { event ->
-                    when (event) {
-                        is LlmEvent.ContentChunk -> content.append(event.text)
-                        is LlmEvent.ReasoningChunk -> {
-                            send(BrainEvent.Thinking(event.text))
-                            telemetry.emit(LogEntry.AgentThought(now(), event.text))
+                val sessionId = client.createSession(config.providerID, model)
+                send(BrainEvent.Thinking("session $sessionId · model $model"))
+                client.sendPrompt(sessionId, "$goal\n\n(workspace: ${workspaceRoot.rawPath})")
+
+                val transcript = StringBuilder()
+                var currentTool = ""
+                var steps = 0
+                var failure: String? = null
+                var finished = false
+
+                client.sessionEvents(sessionId)
+                    // stop at the first failure or at the final step; a
+                    // "tool-calls" finish means the agent is still working.
+                    .map { ev ->
+                        when {
+                            ev is SessionEvent.Failed -> {
+                                failure = ev.message; null
+                            }
+                            ev is SessionEvent.StepEnded -> when (ev.finish) {
+                                // still working
+                                "tool-calls" -> ev
+                                // only "stop" is a successful terminal step
+                                "stop" -> { finished = true; null }
+                                // "error" / "length" (truncated): a failed run
+                                else -> { failure = "run ended: ${ev.finish}"; null }
+                            }
+                            else -> ev
                         }
-                        is LlmEvent.ToolCallChunk -> {
-                            toolCalls.add(PendingToolCall(event.id, event.name, event.jsonArgsDelta))
-                            telemetry.emit(LogEntry.ToolCallStarted(now(), event.name, event.jsonArgsDelta))
-                        }
-                        is LlmEvent.UsageReport -> {
-                            telemetry.emit(LogEntry.AgentThought(now(), "tokens: ${event.promptTokens}+${event.completionTokens}"))
-                        }
-                        else -> {}
                     }
-                }
-            } catch (e: Exception) {
-                val failId = nextId()
-                journal.append(AgentEvent.TaskSucceeded(failId, taskId, now(), "LLM error: ${e.message}"))
-                send(BrainEvent.TaskFailed("LLM error: ${e.message}"))
-                return@channelFlow
-            }
+                    .takeWhile { it != null }
+                    .collect { ev ->
+                        when (ev) {
+                            is SessionEvent.StepStarted -> {
+                                steps++
+                                send(BrainEvent.Thinking("step ${steps} · ${ev.model}"))
+                            }
+                            is SessionEvent.ToolCalled -> {
+                                currentTool = ev.tool
+                                send(BrainEvent.ToolCallStarted(ev.tool, ""))
+                            }
+                            is SessionEvent.ToolInput ->
+                                if (ev.detail.isNotBlank()) send(BrainEvent.Thinking("run: ${ev.detail.take(200)}"))
+                            is SessionEvent.ToolFinished ->
+                                send(BrainEvent.ToolCallFinished(currentTool, ev.ok))
+                            is SessionEvent.TextEnded -> {
+                                val t = ev.text.trim()
+                                if (t.isNotEmpty()) {
+                                    transcript.append(t).append("\n\n")
+                                    send(BrainEvent.Thinking(t))
+                                }
+                            }
+                            is SessionEvent.StepEnded -> send(BrainEvent.IterationComplete(steps))
+                            null, is SessionEvent.TextDelta, is SessionEvent.PromptAdmitted,
+                            is SessionEvent.Failed -> {}
+                        }
+                    }
 
-            val assistantText = content.toString()
-
-            if (toolCalls.isEmpty()) {
-                val done = parseDone(assistantText)
-                if (done != null) {
-                    send(BrainEvent.TaskComplete(done))
+                if (finished && failure == null) {
+                    val summary = transcript.toString().trim().ifBlank { "done (no text output)" }
+                    send(BrainEvent.TaskComplete(summary))
                     val completeId = nextId()
-                    journal.append(AgentEvent.TaskSucceeded(completeId, taskId, now(), done))
+                    journal.append(AgentEvent.TaskSucceeded(completeId, taskId, now(), summary))
                     return@channelFlow
                 }
-                history.add(ChatMessage(Role.ASSISTANT, assistantText))
-                history.add(ChatMessage(Role.USER,
-                    "No tool calls. Either call tools or respond with {\"done\":true,\"summary\":\"...\"}"))
-                continue
+                lastError = failure ?: "stream ended before a final step"
+            } catch (e: TimeoutCancellationException) {
+                // Idle timeout (sessionEvents): fall through to the next model.
+                lastError = "stream idle timeout"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = "${e::class.simpleName}: ${e.message}"
             }
-
-            history.add(ChatMessage(Role.ASSISTANT, assistantText + "\n\n" + formatToolCalls(toolCalls)))
-
-            val results = mutableListOf<String>()
-            for ((i, pending) in toolCalls.withIndex()) {
-                if (i >= config.maxToolCallsPerIteration) break
-                send(BrainEvent.ToolCallStarted(pending.name, pending.arguments))
-                val reqId = nextId()
-                journal.append(AgentEvent.ToolExecutionRequested(
-                    reqId, taskId, now(), ToolCall(pending.id, pending.name, pending.arguments)))
-
-                val result = mcp.dispatch(ToolCall(pending.id, pending.name, pending.arguments))
-
-                val finId = nextId()
-                journal.append(AgentEvent.ToolExecutionFinished(finId, taskId, now(), result))
-                send(BrainEvent.ToolCallFinished(pending.name, result.isSuccess))
-                telemetry.emit(LogEntry.ToolCallStarted(now(), pending.name,
-                    if (result.isSuccess) "OK" else "FAIL: ${result.output.take(200)}"))
-
-                results.add("Tool ${pending.name} (${pending.id}) [${if (result.isSuccess) "ok" else "err"}]: ${result.output.take(4000)}")
-            }
-
-            history.add(ChatMessage(Role.TOOL, results.joinToString("\n\n")))
-            send(BrainEvent.IterationComplete(iteration))
+            telemetry.emit(LogEntry.AgentThought(now(), "model $model failed: $lastError"))
         }
 
         val failId = nextId()
-        journal.append(AgentEvent.TaskSucceeded(failId, taskId, now(), "Max iterations reached"))
-        send(BrainEvent.TaskFailed("Max iterations reached"))
-    }
-
-    private fun systemPrompt(workspaceRoot: VirtualPath): String = """
-        |You are an autonomous coding agent.
-        |Workspace: ${workspaceRoot.rawPath}
-        |Tools: ${mcp.listTools().joinToString(", ")}
-        |
-        |Call tools with JSON:
-        |```json
-        |{"tool_calls":[{"id":"tc1","name":"tool_name","arguments":"{\"arg\":\"val\"}"}]}
-        |```
-        |
-        |When done:
-        |```json
-        |{"done":true,"summary":"what was done"}
-        ```
-    """.trimMargin()
-
-    private fun formatToolCalls(calls: List<PendingToolCall>): String {
-        val arr = buildJsonArray {
-            for (tc in calls) {
-                add(buildJsonObject {
-                    put("id", JsonPrimitive(tc.id))
-                    put("name", JsonPrimitive(tc.name))
-                    put("arguments", JsonPrimitive(tc.arguments))
-                })
-            }
-        }
-        return buildJsonObject { put("tool_calls", arr) }.toString()
-    }
-
-    private fun parseDone(text: String): String? {
-        return try {
-            val m = Regex("""\{[^{}]*"done"\s*:\s*true[^{}]*\}""").find(text) ?: return null
-            val j = Json.parseToJsonElement(m.value).jsonObject
-            if (j["done"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() == true)
-                j["summary"]?.jsonPrimitive?.contentOrNull ?: "Done"
-            else null
-        } catch (_: Exception) { null }
+        journal.append(AgentEvent.TaskFailed(failId, taskId, now(), lastError))
+        send(BrainEvent.TaskFailed(lastError))
     }
 }
-
-private data class PendingToolCall(val id: String, val name: String, val arguments: String)

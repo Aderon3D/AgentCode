@@ -1,0 +1,27 @@
+OpenCode: Server failed to start: OpenCode exited during startup (signal 11)
+
+Log:
+elfloader: altstack ok
+elfloader: handlers armed
+elfloader: sbrk ok
+elfloader: tp ok
+elfloader: mapped ld
+elfloader: mapped prog
+elfloader: spawning: /data/user/0/com.agent.code/files/opencode/opencode serve --port 4096
+elfloader: jumping
+elfloader: maps begin
+00200000-020e9000 r--p 00000000 fe:4f 3619711                            /data/data/com.agent.code/files/opencode/opencode
+02370000-05ba7000 r-xp 01ef0000 fe:4f 3619711                            /data/data/com.agent.code/files/opencode/opencode
+05bb6000-0b420000 rw-p 05726000 fe:4f 3619711                            /data/data/com.agent.code/files/opencode/opencode
+…
+     21657:	file=libdl.so.2 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     21657:	file=libdl.so.2 [0];  generating link map
+     21657:	  dynamic: 0x0000006fe9cffda0  base: 0x0000006fe9ce0000   size: 0x0000000000020010
+     21657:	    entry: 0x0000006fe9ce0000  phdr: 0x0000006fe9ce0040  phnum:                  7
+     21657:	
+     21657:	
+     21657:	file=libm.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     21657:	file=libm.so.6 [0];  generating link map
+     21657:	  dynamic: 0x0000006f5592fd10  base: 0x0000006f55890000   size: 0x00000000000a0018
+     21657:	    entry: 0x0000006f55890000  phdr: 0x0000006f55890040  phnum:                  7
+     21657:

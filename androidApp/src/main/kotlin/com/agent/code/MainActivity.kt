@@ -35,7 +35,8 @@ class MainActivity : ComponentActivity() {
                     scope = scope,
                     fileSystem = fileSystem,
                     processRunner = GitProcessRunner(),
-                    workspaceRoot = workspaceRoot
+                    workspaceRoot = workspaceRoot,
+                    nativeLibraryDir = applicationInfo.nativeLibraryDir
                 )
             }
             DisposableEffect(Unit) {
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
             }
             App(
                 agentViewModel = viewModel,
+                governor = governor,
             )
         }
     }

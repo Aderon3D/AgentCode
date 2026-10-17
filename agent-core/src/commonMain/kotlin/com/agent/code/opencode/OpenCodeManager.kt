@@ -3,18 +3,19 @@ package com.agent.code.opencode
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.zip.GZIPInputStream
+
+private const val LOG_TAIL_LINES = 200
 
 data class OpenCodeConfig(
-    val installDir: VirtualPath = VirtualPath.of("/data/data/com.agent.code/files/opencode"),
+    val installDir: VirtualPath = VirtualPath.of("/data/user/0/com.agent.code/files/opencode"),
+    val nativeLibraryDir: String = "/data/app/~~placeholder~~/com.agent.code/lib/arm64",
     val binaryName: String = "opencode",
     val defaultPort: Int = 4096,
     val startupTimeoutMs: Long = 15_000L,
@@ -36,12 +37,38 @@ class OpenCodeManager(
     private val config: OpenCodeConfig = OpenCodeConfig()
 ) {
     private val stateMutex = Mutex()
+    @Volatile
     private var _state: OpenCodeState = OpenCodeState.NotInstalled
     private var serverPort: Int = config.defaultPort
 
+    // Pid of the currently spawned child, recorded before the state becomes
+    // Running so stop() can still kill a child spawned during Starting.
+    @Volatile
+    private var activePid: Int = 0
+
+    // Installed-asset fingerprint: the glibc set is baked into the sentinel
+    // value, so changing the list forces a re-download instead of running a
+    // half-updated loader that is missing a newly-required library.
+    private val glibcFiles = listOf("libc.so.6", "libm.so.6", "libpthread.so.0", "libdl.so.2")
+    private val loaderSentinel = "2:" + glibcFiles.joinToString(",")
+
     val state: OpenCodeState get() = _state
 
-    fun currentState(): OpenCodeState = _state
+    /* Liveness, not a snapshot: once Running nobody used to watch the child,
+     * so a loader kill (storm cap) or a crash left the UI on "Running" forever
+     * (r14 log: state=Running in the header, "killing child" in the tail).
+     * checkChild is an atomic read — cheap enough for the 500ms poll. */
+    fun currentState(): OpenCodeState {
+        val s = _state
+        if (s is OpenCodeState.Running) {
+            val code = try { PlatformOps.checkChild(s.pid) } catch (_: Exception) { 0 }
+            // Only clobber if nobody moved the state since we sampled it — a
+            // poll otherwise overwrites a concurrent stop() result with Error
+            // (leaving the child unkilled, since stop() then early-returns).
+            if (code != 0 && _state === s) _state = OpenCodeState.Error("OpenCode exited (${childStatus(code)})")
+        }
+        return _state
+    }
 
     suspend fun ensureInstalled(): OpenCodeState = stateMutex.withLock {
         ensureInstalledInternal()
@@ -49,7 +76,10 @@ class OpenCodeManager(
 
     private suspend fun ensureInstalledInternal(): OpenCodeState {
         val binaryPath = config.installDir.resolve(config.binaryName)
-        if (fileSystem.exists(binaryPath)) {
+        val sentinelPath = config.installDir.resolve(".loader-v2")
+        val upToDate = fileSystem.exists(binaryPath) &&
+            fileSystem.read(sentinelPath).getOrNull()?.trim() == loaderSentinel
+        if (upToDate) {
             _state = OpenCodeState.Stopped
             return _state
         }
@@ -66,83 +96,36 @@ class OpenCodeManager(
     }
 
     private suspend fun downloadAndExtract() = withContext(Dispatchers.IO) {
-        val installDir = File(config.installDir.rawPath)
-        val glibcDir = File(installDir, "glibc")
-        installDir.mkdirs()
-        glibcDir.mkdirs()
-
-        // Download and extract glibc libs
-        val glibcFiles = listOf(
-            "ld-linux-aarch64.so.1",
-            "libc.so.6",
-            "libpthread.so.0",
-            "libdl.so.2"
-        )
+        val installDir = config.installDir.rawPath
+        val glibcDir = "$installDir/glibc"
+        PlatformOps.createDirectories(installDir)
+        PlatformOps.createDirectories(glibcDir)
 
         glibcFiles.forEachIndexed { index, name ->
             _state = OpenCodeState.Installing(
                 (index + 1).toFloat() / (glibcFiles.size + 1),
                 "Downloading $name..."
             )
-            val dest = File(glibcDir, name)
-            downloadFile("${config.releaseUrl}/$name", dest)
+            val dest = "$glibcDir/$name"
+            PlatformOps.downloadFile("${config.releaseUrl}/$name", dest)
+            PlatformOps.setExecutable(dest)
         }
 
-        // Download and extract opencode binary (gzipped)
         _state = OpenCodeState.Installing(0.8f, "Downloading opencode binary...")
-        val gzFile = File(installDir, "${config.binaryName}.gz")
-        downloadFile("${config.releaseUrl}/opencode.gz", gzFile)
+        val gzFile = "$installDir/${config.binaryName}.gz"
+        PlatformOps.downloadFile("${config.releaseUrl}/opencode.gz", gzFile)
 
         _state = OpenCodeState.Installing(0.9f, "Extracting binary...")
-        val binaryDest = File(installDir, config.binaryName)
-        gzFile.inputStream().use { gzInput ->
-            GZIPInputStream(gzInput).use { input ->
-                binaryDest.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-        gzFile.delete()
-        binaryDest.setExecutable(true)
+        val binaryDest = "$installDir/${config.binaryName}"
+        PlatformOps.extractGzip(gzFile, binaryDest)
+        PlatformOps.deleteFile(gzFile)
+        PlatformOps.setExecutable(binaryDest)
 
-        _state = OpenCodeState.Installing(0.95f, "Setting up wrapper...")
-        createWrapper(installDir)
+        _state = OpenCodeState.Installing(0.95f, "Finalizing...")
+        fileSystem.write(VirtualPath.of("$installDir/.loader-v2"), loaderSentinel)
+            .getOrThrow()
 
         _state = OpenCodeState.Installing(1.0f, "Ready")
-    }
-
-    private fun downloadFile(url: String, dest: File) {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 30_000
-        conn.readTimeout = 60_000
-        conn.connect()
-
-        conn.inputStream.use { input ->
-            dest.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-    }
-
-    private fun createWrapper(installDir: File) {
-        val wrapper = File(installDir, "run-opencode.sh")
-        val installPath = installDir.absolutePath
-        val binaryName = config.binaryName
-        wrapper.writeText("#!/bin/sh\n" +
-            "_INSTALL_DIR=\"$installPath\"\n" +
-            "_GLIBC_DIR=\"\$_INSTALL_DIR/glibc\"\n" +
-            "_BIN=\"\$_INSTALL_DIR/$binaryName\"\n" +
-            "\n" +
-            "# Sanitize LD_LIBRARY_PATH (remove Android bionic libs that break glibc)\n" +
-            "if [ -n \"\$LD_LIBRARY_PATH\" ]; then\n" +
-            "    LD_LIBRARY_PATH=\$(printf '%s' \"\$LD_LIBRARY_PATH\" | tr ':' '\\n' | grep -v \"^/data/user/.*com.m4coding.ide/files/support\\\$\" | paste -sd:)\n" +
-            "    export LD_LIBRARY_PATH\n" +
-            "fi\n" +
-            "\n" +
-            "exec \"\$_GLIBC_DIR/ld-linux-aarch64.so.1\" \\\n" +
-            "     --library-path \"\$_GLIBC_DIR:/system/lib64:/apex/com.android.runtime/lib64\" \\\n" +
-            "     \"\$_BIN\" \"\$@\"\n")
-        wrapper.setExecutable(true)
     }
 
     suspend fun start(
@@ -150,42 +133,85 @@ class OpenCodeManager(
         port: Int = config.defaultPort
     ): OpenCodeState = stateMutex.withLock {
         if (_state is OpenCodeState.Running) return@withLock _state
-
-        val wrapperPath = config.installDir.resolve("run-opencode.sh")
-        if (!fileSystem.exists(wrapperPath)) {
-            val installed = ensureInstalledInternal()
-            if (installed is OpenCodeState.Error) return@withLock installed
+        // Fail loudly instead of spawning from the placeholder nativeLibraryDir:
+        // libld.so would not open and the child would _exit(127) with no clue.
+        if (config.nativeLibraryDir.contains("~~placeholder~~")) {
+            _state = OpenCodeState.Error("nativeLibraryDir not configured (placeholder default)")
+            return@withLock _state
         }
+
+        val installed = ensureInstalledInternal()
+        if (installed is OpenCodeState.Error) return@withLock installed
 
         _state = OpenCodeState.Starting
         serverPort = port
 
-        val pidFile = config.installDir.resolve("opencode.pid")
+        val installDir = config.installDir.rawPath
         val logFile = config.installDir.resolve("opencode.log")
-
-        val cmd = "cd '${projectDir.rawPath}' && " +
-            "sh '${wrapperPath.rawPath}' serve " +
-            "--port $port " +
-            "--pid-file '${pidFile.rawPath}' " +
-            "> '${logFile.rawPath}' 2>&1 & " +
-            "echo \$!"
-
-        val result = processRunner.run(listOf("sh", "-c", cmd))
-
-        if (!result.isSuccess) {
-            _state = OpenCodeState.Error("Start failed: ${result.getOrElse { "" }}")
+        // Nameservers for the child's DNS shim (getaddrinfo preload, read via
+        // OC_RESOLV_CONF). ponytail: hardcoded public DNS — switch to
+        // ConnectivityManager device DNS if a carrier blocks outbound :53
+        // (shows up as EAI failures in the opencode server log we dump).
+        val resolv = fileSystem.write(
+            config.installDir.resolve("resolv.conf"),
+            "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
+        )
+        if (resolv.isFailure) {
+            _state = OpenCodeState.Error(
+                "resolv.conf write failed: ${resolv.exceptionOrNull()?.message}"
+            )
             return@withLock _state
         }
 
         val pid = try {
-            val pidContent = processRunner.run(listOf("cat", pidFile.rawPath))
-            pidContent.getOrNull()?.trim()?.toIntOrNull() ?: 0
-        } catch (_: Exception) { 0 }
+            PlatformOps.spawnLdLinux(
+                loaderPath = "${config.nativeLibraryDir}/libld.so",
+                glibcDir = "$installDir/glibc",
+                binaryPath = "$installDir/${config.binaryName}",
+                workDir = projectDir.rawPath,
+                logPath = logFile.rawPath,
+                args = arrayOf("serve", "--port", port.toString())
+            )
+        } catch (e: Exception) {
+            _state = OpenCodeState.Error("Spawn failed: ${e.message}")
+            return@withLock _state
+        }
+
+        if (pid <= 0) {
+            val logSnippet = readLogSnippet(logFile)
+            _state = OpenCodeState.Error("Process did not start (spawn=$pid)$logSnippet")
+            return@withLock _state
+        }
+
+        activePid = pid
 
         try {
-            waitForServer(port)
+            delay(1000)
+            waitForServer(port, pid)
+        } catch (e: CancellationException) {
+            // The coroutine is already cancelled, so the kill must run under
+            // NonCancellable or it is cancelled before it executes.
+            withContext(NonCancellable) {
+                try {
+                    processRunner.run(listOf("kill", "-9", pid.toString()))
+                    delay(200)
+                    PlatformOps.checkChild(pid)
+                } catch (_: Exception) {}
+            }
+            activePid = 0
+            throw e
         } catch (e: Exception) {
-            _state = OpenCodeState.Error("Server failed to start: ${e.message}")
+            // Failure path never reaches stop() (state is Error, not Running) —
+            // kill the child here or a timed-out spawn keeps running, keeps
+            // appending storm lines to the log we are about to read.
+            try {
+                processRunner.run(listOf("kill", "-9", pid.toString()))
+                delay(200)
+                PlatformOps.checkChild(pid)
+            } catch (_: Exception) {}
+            activePid = 0
+            val logSnippet = readLogSnippet(logFile)
+            _state = OpenCodeState.Error("Server failed to start: ${e.message}$logSnippet")
             return@withLock _state
         }
 
@@ -193,11 +219,67 @@ class OpenCodeManager(
         _state
     }
 
+    // On-demand log export so the log can be pulled even while healthy.
+    // Tails the file: the loader forensics lines are what matter, and the
+    // clipboard can't take a multi-MB string.
+    suspend fun logDump(maxChars: Int = 200_000): String {
+        val logFile = config.installDir.resolve("opencode.log")
+        // The child's own opencode log (HOME = install dir, elfloader): the
+        // only place that shows whether the session/prompt/LLM call actually
+        // arrived server-side — loader stdout never sees Kotlin-side traffic.
+        val serverLog = VirtualPath.of("${config.installDir.rawPath}/.local/share/opencode/log/opencode.log")
+        val header = buildString {
+            appendLine("state=${_state}")
+            appendLine("port=$serverPort log=${logFile.rawPath} at=${PlatformOps.currentTimeMs()}")
+        }
+        val loaderBudget = maxChars * 3 / 4
+        val serverBudget = maxChars - loaderBudget
+        val body = try {
+            fileSystem.read(logFile).getOrNull().orEmpty()
+        } catch (e: Exception) {
+            "(log read failed: ${e.message})"
+        }
+        val truncated = body.length > loaderBudget
+        val tail = if (truncated) body.takeLast(loaderBudget) else body
+        val serverBody = try {
+            fileSystem.read(serverLog).getOrNull().orEmpty()
+        } catch (e: Exception) {
+            "(server log read failed: ${e.message})"
+        }
+        val serverTruncated = serverBody.length > serverBudget
+        val serverTail = if (serverTruncated) serverBody.takeLast(serverBudget) else serverBody
+        return buildString {
+            append(header)
+            if (truncated) appendLine("[... ${body.length - loaderBudget} earlier chars trimmed ...]")
+            append(tail.ifBlank { "(log empty)" })
+            appendLine()
+            appendLine("=== opencode server log (${serverLog.rawPath}) ===")
+            if (serverTruncated) appendLine("[... ${serverBody.length - serverBudget} earlier chars trimmed ...]")
+            append(serverTail.ifBlank { "(server log empty)" })
+        }
+    }
+
+    // Tail-only, like logDump: a failed spawn can leave a multi-MB loader log,
+    // and start() runs on the UI dispatcher — reading + re-joining all of it
+    // would build a giant UI state string and can ANR. Read off the main thread
+    // and keep only the last LOG_TAIL_LINES lines.
+    private suspend fun readLogSnippet(logFile: VirtualPath): String = withContext(Dispatchers.IO) {
+        try {
+            val all = fileSystem.read(logFile).getOrNull()?.lines().orEmpty()
+            if (all.isNotEmpty())
+                "\n\nLog (last ${minOf(all.size, LOG_TAIL_LINES)} lines):\n" +
+                    all.takeLast(LOG_TAIL_LINES).joinToString("\n")
+            else ""
+        } catch (_: Exception) { "" }
+    }
+
     suspend fun stop() = stateMutex.withLock {
-        if (_state !is OpenCodeState.Running) return@withLock
-        val pid = (_state as OpenCodeState.Running).pid
+        // Also covers a child spawned during Starting: activePid is recorded
+        // before the state becomes Running.
+        val st = _state
+        val pid = (st as? OpenCodeState.Running)?.pid ?: activePid
         if (pid == 0) {
-            _state = OpenCodeState.Stopped
+            if (st is OpenCodeState.Running) _state = OpenCodeState.Stopped
             return@withLock
         }
 
@@ -216,28 +298,48 @@ class OpenCodeManager(
             if (stillAlive) {
                 processRunner.run(listOf("kill", "-9", pid.toString()))
             }
+            delay(200)
+            // Reap the child so it does not linger as a zombie.
+            try { PlatformOps.checkChild(pid) } catch (_: Exception) {}
         }
+        activePid = 0
         _state = OpenCodeState.Stopped
     }
 
     fun baseUrl(): String = "http://127.0.0.1:$serverPort"
 
-    private suspend fun waitForServer(port: Int) {
-        val deadline = System.currentTimeMillis() + config.startupTimeoutMs
-        while (System.currentTimeMillis() < deadline) {
+    private suspend fun waitForServer(port: Int, pid: Int) {
+        val deadline = PlatformOps.currentTimeMs() + config.startupTimeoutMs
+        var lastError = "no attempts made"
+        while (PlatformOps.currentTimeMs() < deadline) {
+            val child = try {
+                // nativeCheck reads /proc and appends a heartbeat to the log —
+                // keep it off the caller's (Main) thread.
+                withContext(Dispatchers.IO) { PlatformOps.checkChild(pid) }
+            } catch (e: CancellationException) { throw e
+            } catch (_: Exception) { 0 }
+            if (child != 0) throw IllegalStateException("OpenCode exited during startup (${childStatus(child)})")
             try {
-                val url = java.net.URL("http://127.0.0.1:$port/api/health")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 1000
-                conn.readTimeout = 1000
-                try {
-                    if (conn.responseCode == 200) return
-                } finally {
-                    conn.disconnect()
+                // Blocking socket I/O must leave the caller's thread: start()
+                // runs on the UI scope (MainActivity rememberCoroutineScope),
+                // and Android throws NetworkOnMainThreadException otherwise.
+                val code = withContext(Dispatchers.IO) {
+                    PlatformOps.httpGet("http://127.0.0.1:$port/api/health", 1000, 1000)
                 }
-            } catch (_: Exception) {}
-            delay(500)
+                if (code == 200) return
+                lastError = "HTTP $code"
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { lastError = e.toString().take(160) }
+            delay(100)
         }
-        throw IllegalStateException("OpenCode server did not start within ${config.startupTimeoutMs}ms on port $port")
+        throw IllegalStateException("OpenCode server did not start within ${config.startupTimeoutMs}ms on port $port (last health: $lastError)")
+    }
+
+    private fun childStatus(code: Int): String = when {
+        code == 1 -> "exit 0"
+        code == 2 -> "exit fail"
+        code >= 100 -> "signal ${code - 100}"
+        code == 3 -> "stopped"
+        else -> "wait error $code"
     }
 }

@@ -1407,6 +1407,11 @@ CREATE TABLE AstNodeIndex (
 │ M9 (E2E DEMO)    │ End-to-end demo: agent reads repo → generates code →          │
 │ (Make it real)   │ runs tests → submits PR; ProbeDashboard integration;         │
 │                  │ Visual 3-Way Merge screen; Full Shizuku elevation flow.       │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ M10 (RUN         │ OpenDots-derived run integrity: central guard gate + live     │ 🔲 PLANNED
+│  INTEGRITY)      │ abort, HITL approval receipts, run leases + interrupted       │ (§18; phases 1+4
+│ (Borrowed        │ taxonomy, audit coverage, SSRF/auth/prompt hygiene,           │ parallel to M6–M7)
+│  hardening)      │ module-local tests + lint gate.                               │
 └──────────────────┴───────────────────────────────────────────────────────────────┘
 ```
 
@@ -1959,5 +1964,148 @@ Token usage is displayed in the Mission Control Dashboard:
 - **Per-session**: total tokens, total cost, session duration
 - **Circuit breaker**: visual indicator when approaching limits
 - **History**: token usage over time (plotted in dashboard)
+
+---
+
+## 18. M10 — Run Integrity & Guardrail Consolidation (Borrowed from OpenDots)
+
+> **Source:** comparative analysis of [CopilotKit/OpenDots](https://github.com/CopilotKit/OpenDots)
+> (TS/React/Hono template for persistent agents with per-agent sandboxed computers),
+> conducted 2026-10-05. OpenDots is a *different product* (web, hosted control plane,
+> knowledge work) — **nothing replaces AgentCode's engines**. What it earns is a set of
+> battle-tested *run-lifecycle and safety patterns* that map onto gaps we verified in our
+> own code. Full point-by-point analysis lives in the review session; this section is the
+> integration plan.
+
+### 18.1 Design Inputs — Verified Gaps (evidence, not assumptions)
+
+| # | Gap in AgentCode | Evidence |
+|---|---|---|
+| G1 | `McpHost.dispatch` is a bare pass-through: no central risk gate, no emergency-stop check, no audit | `agent-core/.../mcp/McpHost.kt:29-33` |
+| G2 | `EmergencyStop` is checked **only** inside `GitTool`/`TerminalTool`; file tools and the 186-line `AgentBrain` loop never poll it | `mcp/GitTool.kt:24`, `mcp/TerminalTool.kt:23`; grep over `AgentBrain.kt` = 0 hits |
+| G3 | `AuditLog` written **only** by Git/Terminal tools — `WriteFileTool`/`ApplyPatchTool` mutations are unaudited | grep `AuditLog.` → GitTool.kt, TerminalTool.kt only |
+| G4 | HITL is FSM-only: `AwaitingHumanApproval` + `BlockedOnApproval(approvalId)` exist, but there is **no decision API, no approval event, no receipt, no UI** | `AgentOrchestrator.kt:28,79,149`, `AgentState.kt:12` |
+| G5 | No run-level durability: single in-memory Kanban, `StepResult.FatalError(msg)` is one undifferentiated bucket, no interrupted/lease concept, no per-run progress log | `core/fsm/AgentOrchestrator.kt`, M7 not yet landed |
+| G6 | `FetchDocTool` does raw `URL(url).openConnection()` — no SSRF guard | `workspace-engine/.../tools/FetchDocTool.kt:31` |
+| G7 | `OpenCodeClient` sends no auth to the spawned loopback server; any on-device app can call it | `provider-subsystem/.../opencode/OpenCodeClient.kt` |
+| G8 | `BudgetTrackingCircuitBreaker` / `TaskSafetyBudget` defined but never wired into any dispatch path | defined in `core/tools/CircuitBreaker.kt`, zero call sites |
+| G9 | Prompt hygiene absent: repo file contents / tool results are injected without untrusted-data framing | `AgentBrain` / OpenCode tool results |
+| G10 | Engineering gates: 3 of 5 modules have **zero** tests; no lint tooling (no ktlint/detekt) in the build | module `src/*Test` dirs; `grep ktlint\|detekt` = none |
+
+### 18.2 OpenDots Mechanism → Our Adaptation
+
+**M10.1 — Central Guard Gate + Live Abort** *(deps: none — start during M6; effort: S)*
+
+- *OpenDots:* every tool executor in `dot-agent.ts` runs `check()` first — a 100 ms
+  watcher that **aborts the in-flight turn** if settings, permissions, or space grants
+  change mid-run. The computer gateway re-checks policy 4× per action plus a 50 ms
+  revocation watcher (`computer-service.ts:336-362`).
+- *Adaptation (root-cause fix, single choke point):* introduce a `GuardGate` invoked
+  **inside `McpHost.dispatch`** (G1) so all 6+ tools inherit it:
+  1. `EmergencyStop.check()` — closes G2 for every tool, not just two.
+  2. `AutonomyPolicy` current-state check (level changed → block non-allowed risk).
+  3. `BudgetTrackingCircuitBreaker.canProceed(taskId)` — finally wires G8.
+  4. Append `AuditLog` entry per dispatch — closes G3 uniformly (with the same
+     redaction rules Git/Terminal already use).
+  Plus a `RunWatchdog` (100 ms `while(isActive)` poll) owned by the orchestrator /
+  `AgentBrain` scopes that flips a shared flag → loops call `ensureActive()` so an
+  EmergencyStop or budget trip cancels *between* tool calls even when no tool
+  self-checks. `AgentBrain` gains the same guard before each re-prompt.
+- *Tests:* gate blocks all registered tools when stopped; watchdog cancels a running
+  step loop ≤200 ms; budget trip stops dispatch; every dispatch emits exactly one
+  audit row. Lives in `app-ui` host tests alongside `M2ConcurrencyTest`.
+
+**M10.2 — HITL Approval Receipts + Resume** *(deps: M10.1; durable store via M7 but in-memory first; effort: M)*
+
+- *OpenDots:* `review_space_page` pauses the turn; client renders an approval card;
+  decision posts a receipt keyed `(threadId, toolCallId)` as **PK** (idempotent —
+  replaying a decision returns the saved receipt), **draft-content-bound** (409 if the
+  artifact changed since review), declined → nothing written, receipt restorable after
+  reload (`pages.ts:150`, `page-review.ts`, `page-review-decision.ts`).
+- *Adaptation:* our FSM already blocks correctly (G4) but nowhere to resume from.
+  Add:
+  - `AgentEvent.ApprovalRequested(approvalId, toolCallId, riskLevel, artifactHash)` and
+    `AgentEvent.ApprovalDecided(approvalId, decision, artifactHash)` to the WAL
+    vocabulary (§7.2 extension — **event-sourced, so receipts are mandatory**: a WAL
+    replay must re-derive "already decided" instead of re-prompting).
+  - `ApprovalReceiptStore` keyed by `toolCallId` (uniqueness = our analogue of their
+    PK) holding `(approvalId, artifactHash, decision, decidedAt)`.
+  - `AgentOrchestrator.resume(approvalId, Approve|Reject)`: unknown → error;
+    already-decided → return stored receipt (**idempotent redelivery**); hash mismatch
+    → reject with "artifact changed since review" (their 409 semantics).
+  - `AgentPanel` approval card for `BlockedOnApproval` states (M6 panel already has the
+    event list + buttons; small addition).
+- *Tests:* double-resume is idempotent; changed-artifact resume refused; crash +
+  replay-from-WAL lands on `BlockedOnApproval` with decision already attached, no
+  re-execution of the tool.
+
+**M10.3 — Run Leases, Interrupted Taxonomy, Retry-after-Review** *(deps: M7 (SQLDelight); effort: M)*
+
+- *OpenDots:* `tasks/runs/events` tables; `Store.claim()` runs in `BEGIN IMMEDIATE` with
+  a 180 s lease, reaps expired leases → `interrupted`; 100 ms ownership watchdog;
+  90 s hard timeout; single-flight scheduler; **reason taxonomy** (settings-changed /
+  lease-expired / paused / server-stopped) each written as an `events` row; UI offers
+  explicit *Retry after review* (`store.ts:192-225`, `runner.ts`).
+- *Adaptation:*
+  - Split `StepResult.FatalError` → keep for unrecoverable faults; add
+    `StepResult.Interrupted(reason: SettingsChanged | LeaseExpired | Paused |
+    Shutdown | BudgetExceeded)` so callers can distinguish "review then retry" from
+    "failed".
+  - Kanban: `INTERRUPTED` task state + retry action; task card shows reason +
+    run history (their `events` ≙ our telemetry frames, but **persisted per run**).
+  - `MultiAgentOrchestrator` slots get a lease: a slot that dies (OpenCode crash) is
+    reaped as `Interrupted(LeaseExpired)` rather than hanging in an ambiguous state —
+    pairs with the in-flight `OpenCodeManager` `checkChild` work (M6).
+  - SQLDelight schema additions ride along with M7: `runs`, `run_events`, `lease`,
+    `interrupt_reason` (aligns with §13 DB spec; OpenDots' plain-SQL schema is the
+    reference shape).
+  - Per-run single-flight guard (one active run per slot/task) like their
+    `if (this.active.size) return`.
+
+**M10.4 — Security Deltas** *(deps: none — independent small items; effort: S each)*
+
+| Item | OpenDots reference | Our change |
+|---|---|---|
+| 4a SSRF guard | `src/browser/security.ts` + `transport.ts`: scheme/port allowlist, DNS resolve, **all** A records must be public IP (RFC1918/loopback/link-local/CGNAT blocked), socket **pinned** to validated IP (defeats DNS rebinding), redirect re-validated | Extract a `PublicEndpointGuard` (commonMain, pure Kotlin: IP-range classification) and apply in `FetchDocTool` (G6) before `openConnection()`. Cap redirects (2) and body size. |
+| 4b Loopback auth | `app.ts:55-68`: `OWNER_TOKEN ≥24`, `timingSafeEqual` + length check; `runtime-scope.ts` deny-by-default path/method allowlist for the runtime endpoint | (i) Check whether `opencode serve` supports an auth token/flag — if yes, pass a per-launch random secret and send it from `OpenCodeClient` (G7). (ii) If unsupported: mitigate with per-launch random high port + confirm no `--hostname` exposure, document ceiling in §12. (iii) `MissionControlMcpServer`: method allowlist (deny-by-default) mirroring `runtime-scope.ts`. |
+| 4c Error/log redaction | `computer-service.ts:109-116` redacts master + derived tokens from upstream responses; `safeFailure()` collapses provider errors to `Name (HTTP nnn)` | One `redactSecrets(text)` helper applied to the `opencode.log` snippets surfaced in `AgentPanel` and to provider error strings before they leave `provider-subsystem` (M6 already truncates to 200 chars — extend with redaction). |
+| 4d Prompt hygiene | `dot-agent.ts:277,292-297`: page/memory/Slack/voice content injected as *"untrusted data, never instructions"*; incoming `system`/`developer` roles filtered | Wrap every tool-result/file-content string passed into prompts with delimiters + a standing system rule in `AgentBrain` and the OpenCode system prompt (G9). Strip/disallow role-escalation markers arriving from tool output. |
+
+**M10.5 — Engineering Gates** *(deps: none; effort: S–M)*
+
+- *OpenDots CI* (`ci.yml`): `check-format → lint → typecheck → test → build` on every
+  push/PR; tests co-located with the logic they cover (~192 tests, in-memory SQLite,
+  `app.request()`-style route tests).
+- *Adaptation:* (i) add a lint gate — ktlint or detekt to `build.gradle.kts` + a CI job
+  (G10); (ii) move toward **module-local tests**: new M10 features get their tests in
+  the module that owns them (`agent-core` gate/receipt tests in `agent-core`'s test
+  source set instead of `app-ui`), stopping the `app-ui`-catch-all drift; (iii) keep
+  the existing security-scanning CI (CodeQL/OSV/gitleaks) — that's our advantage over
+  OpenDots, do not drop it for their gate list.
+
+### 18.3 Evaluated and Rejected as Replacements
+
+| OpenDots capability | Verdict | Why |
+|---|---|---|
+| AG-UI protocol as the agent↔UI contract | **Defer** | Our runtime and Compose UI are in-process; a wire protocol adds a boundary with no consumer. Revisit at M8 (desktop/web console) — *then* exposing an AG-UI endpoint and reusing CopilotKit's React components is the cheapest web-UI path. |
+| CopilotKit runtime / Intelligence replacing `AgentBrain` | **Reject** | Requires Node 24 + hosted/local control plane; contradicts the self-contained on-device thesis (§15.1). |
+| OpenBot per-agent containers as isolation model | **Reject** | Our isolation = workspace confinement + sparse worktrees + path sandbox (§3, §12.7); no container runtime exists on the target. Their *gateway* pattern (broker holds secrets, enforces permissions, audits, redacts) is what we adopt — via `GuardGate` + `McpHost`. |
+| Spaces/Pages document workspace, TipTap editor | **Reject** | Code artifacts, not documents; git is our source of truth. |
+| Voice calls, Slack channels | **Reject** | Out of product scope for an on-device programming agent. |
+| SQLite schema (node:sqlite) | **Borrow as reference only** | Confirms the M7 SQLDelight shape: `tasks`/`runs`/`events` + lease columns (see M10.3). |
+
+### 18.4 Phase Summary
+
+| Phase | Scope | Depends On | Status | Effort |
+|---|---|---|---|---|
+| **M10.1** Guard gate + live abort | `McpHost.dispatch` choke point, `RunWatchdog`, wire budgets, uniform audit | None (parallel to M6) | 🔲 PLANNED | S |
+| **M10.2** HITL receipts + resume | `AgentEvent.Approval*`, `ApprovalReceiptStore`, `orchestrator.resume()`, AgentPanel card | M10.1; M7 for durable store | 🔲 PLANNED | M |
+| **M10.3** Run leases + interrupted taxonomy | `StepResult.Interrupted`, run/run_events tables, slot leases, Kanban INTERRUPTED + retry | M7 | 🔲 PLANNED | M |
+| **M10.4** Security deltas | SSRF guard, loopback auth/scope allowlist, redaction helper, prompt hygiene | None | 🔲 PLANNED | S (4 items) |
+| **M10.5** Engineering gates | ktlint/detekt + CI job; module-local test placement policy | None | 🔲 PLANNED | S–M |
+
+Acceptance for the milestone: all G1–G10 gaps closed or explicitly waived with a
+`ponytail:`-style ceiling comment; host tests green (`:app-ui:testAndroidHostTest` +
+new module test tasks); CI lint job green on a PR.
 
 ---

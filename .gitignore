@@ -49,6 +49,7 @@ docs/AAPT2_AARCH64_WORKAROUND.md
 docs/GLIBC_WORKAROUND.md
 docs/SETUP_NODE_MUSL.md
 docs/APK_SAVE_IDE_MODULE_BUG.md
+ANDROIDIDE_BUILD_NOTES.md
 
 # Superseded standalone demos (replaced by ProbeDashboard)
 shared/src/androidMain/kotlin/com/agent/code/ui/LibGit2Demo.kt

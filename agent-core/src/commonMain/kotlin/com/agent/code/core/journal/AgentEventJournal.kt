@@ -51,6 +51,10 @@ object FsmStateReconstructor {
         return when {
             successSummary != null ->
                 AgentState.Success(lastTaskId, successSummary, patchedFiles)
+            // A run that only journals TaskStarted + TaskFailed (no tool
+            // results) must replay as Error, not fall through to Planning.
+            errorTrace != null ->
+                AgentState.Error(lastTaskId, errorTrace)
             lastResult != null && !lastResult.isSuccess ->
                 AgentState.Error(lastTaskId, errorTrace ?: lastResult.output)
             patchedFiles.isNotEmpty() ->

@@ -4,7 +4,6 @@ import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.InMemoryWalStore
 import com.agent.code.core.journal.TelemetryEngine
 import com.agent.code.core.path.VirtualPath
-import com.agent.code.mcp.McpHost
 import com.agent.code.workspace.FileSystemProvider
 import com.agent.code.workspace.ProcessRunner
 import kotlinx.coroutines.CancellationException
@@ -37,7 +36,13 @@ class MultiAgentOrchestrator(
     private val fileSystem: FileSystemProvider,
     private val processRunner: ProcessRunner,
     private val workspaceRoot: VirtualPath,
-    private val maxConcurrent: Int = 3
+    private val nativeLibraryDir: String,
+    // Pinned to 1: the native loader keys child state process-globally
+    // (elfloader g_child_pid/g_child_exit), so a 2nd concurrent spawn clobbers
+    // the 1st's pid/exit/log — and every manager would share one installDir,
+    // truncating one opencode.log. Raise only once #200 (per-pid slots + single
+    // drain/dispatcher) and per-slot log/install isolation land.
+    private val maxConcurrent: Int = 1
 ) {
     private val scope = CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
     private val mutex = Mutex()
@@ -46,13 +51,18 @@ class MultiAgentOrchestrator(
 
     private val managers = mutableMapOf<String, OpenCodeManager>()
     private val jobs = mutableMapOf<String, Job>()
+    private val allocatedPorts = mutableSetOf<Int>()
 
     suspend fun submitTask(taskId: String, goal: String): AgentSlot = mutex.withLock {
         if (managers.size >= maxConcurrent) {
             throw IllegalStateException("Max concurrent agents ($maxConcurrent) reached")
         }
-        val port = (4096..65535).first { p -> managers.values.none { it.currentState().let { s -> s is OpenCodeState.Running && s.port == p } } }
-        val config = OpenCodeConfig(defaultPort = port)
+        // Reserve on submit, not on Running: the documented flow is
+        // submit-all-then-start, so deriving the port from currentState() gave
+        // every not-yet-started task the same default port (4096).
+        val port = (4096..65535).first { it !in allocatedPorts }
+        allocatedPorts += port
+        val config = OpenCodeConfig(defaultPort = port, nativeLibraryDir = nativeLibraryDir)
         val manager = OpenCodeManager(fileSystem, processRunner, config)
         managers[taskId] = manager
 
@@ -72,7 +82,9 @@ class MultiAgentOrchestrator(
             _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Starting))
         }
 
-        val job = scope.launch {
+        // LAZY: jobs[taskId] must be set before the body can reach its finally,
+        // else a fast-finishing job sees no map entry and skips all cleanup.
+        val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             // Check slot still exists before expensive work (handles cancelTask during launch window)
             val slotExists = mutex.withLock { _slots.value.containsKey(taskId) }
             if (!slotExists) return@launch
@@ -83,23 +95,36 @@ class MultiAgentOrchestrator(
                 val stillRunning = mutex.withLock { _slots.value.containsKey(taskId) }
                 if (!stillRunning) return@launch
 
-                manager.start(projectDir = workspaceRoot)
+                manager.start(projectDir = workspaceRoot).let { s ->
+                    if (s is OpenCodeState.Error) throw IllegalStateException(s.message)
+                }
                 // Re-check after suspending call
                 val stillRunning2 = mutex.withLock { _slots.value.containsKey(taskId) }
                 if (!stillRunning2) return@launch
 
-                val httpClient = io.ktor.client.HttpClient()
+                val httpClient = io.ktor.client.HttpClient {
+                    // Must match AgentViewModel.create: the SSE per-request
+                    // INFINITE override is only honored when HttpTimeout is
+                    // installed, else the default 10s read timeout kills a
+                    // healthy run that idles between steps.
+                    install(io.ktor.client.plugins.HttpTimeout) {
+                        requestTimeoutMillis = 30_000
+                        connectTimeoutMillis = 5_000
+                        socketTimeoutMillis = 30_000
+                    }
+                }
                 try {
                     val client = OpenCodeClient(httpClient, manager)
                     val journal = AgentEventJournal(InMemoryWalStore())
                     val telemetry = TelemetryEngine(scope)
-                    val mcp = McpHost(fileSystem, processRunner)
-                    val brain = AgentBrain(client, mcp, journal, telemetry)
+                    val brain = AgentBrain(client, journal, telemetry)
 
                     mutex.withLock {
                         val slot = _slots.value[taskId] ?: return@withLock
-                        val port = manager.currentState().let { if (it is OpenCodeState.Running) it.port else null }
-                        _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0), port = port))
+                        // Keep the reserved port when currentState() isn't
+                        // Running: nulling it leaked the reservation.
+                        val running = manager.currentState().let { if (it is OpenCodeState.Running) it.port else null }
+                        _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0), port = running ?: slot.port))
                     }
 
                     val goal = mutex.withLock { _slots.value[taskId]?.goal } ?: return@launch
@@ -132,28 +157,46 @@ class MultiAgentOrchestrator(
             } finally {
                 // Only clean up if this is still the current job (guards against taskId reuse)
                 val myJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
-                mutex.withLock {
+                var ownedPort: Int? = null
+                val owned = mutex.withLock {
                     if (jobs[taskId] === myJob) {
+                        ownedPort = _slots.value[taskId]?.port
                         jobs.remove(taskId)
                         managers.remove(taskId)
                         _slots.value = _slots.value - taskId
-                    }
+                        true
+                    } else false
+                }
+                if (owned) {
+                    // Stop the child before its port returns to the pool, or a
+                    // new task can bind the same port while this server still
+                    // listens. NonCancellable: this may run on a cancelled job.
+                    try {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { manager.stop() }
+                    } catch (_: Exception) {}
+                    ownedPort?.let { p -> mutex.withLock { allocatedPorts.remove(p) } }
                 }
             }
         }
         mutex.withLock { jobs[taskId] = job }
+        job.start()
     }
 
     suspend fun cancelTask(taskId: String) {
         val job: Job?
         val manager: OpenCodeManager?
+        val port: Int?
         mutex.withLock {
             job = jobs.remove(taskId)
             manager = managers.remove(taskId)
+            port = _slots.value[taskId]?.port
             _slots.value = _slots.value - taskId
         }
         job?.cancelAndJoin()
+        // Stop the child before returning its port to the pool, or a new task
+        // can bind the same port while this server still listens.
         manager?.stop()
+        port?.let { p -> mutex.withLock { allocatedPorts.remove(p) } }
     }
 
     suspend fun stopAll() {
@@ -162,6 +205,7 @@ class MultiAgentOrchestrator(
             snapshot = jobs.values.toList() to managers.values.toList()
             jobs.clear()
             managers.clear()
+            allocatedPorts.clear()
             _slots.value = emptyMap()
         }
         snapshot.first.forEach { it.cancelAndJoin() }

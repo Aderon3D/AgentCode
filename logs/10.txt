@@ -1,0 +1,231 @@
+OpenCode: Server failed to start: OpenCode server did not start within 15000ms on port 4096
+
+Log:
+elfloader: drain thread up
+elfloader: build r10 Oct  9 2026 21:08:53
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006f559548ac
+elfloader: mapped ld
+elfloader: window 0x0000000000200000-0x000000000b420000
+elfloader: evicted 02000000-12000000 rw-p 00000000 00:00 0                                  [anon:dalvik-main space]
+elfloader: mapped prog
+elfloader: altstack 0x0000007005c49000
+elfloader: altstack ok (kernel)
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006f559548ac
+elfloader: sbrk ok
+elfloader: tp ok
+elfloader: altstack probe ok
+elfloader: brk 0x0000005846268000
+elfloader: spawning: /data/user/0/com.agent.code/files/opencode/opencode serve --port 4096
+elfloader: jumping
+elfloader: maps begin
+00200000-020e9000 r--p 00000000 fe:4f 3724941                            /data/data/com.agent.code/files/opencode/opencode
+02370000-05ba7000 r-xp 01ef0000 fe:4f 3724941                            /data/data/com.agent.code/files/opencode/opencode
+05bb6000-0b420000 rw-p 05726000 fe:4f 3724941                            /data/data/com.agent.code/files/opencode/opencode
+5846264000-5846268000 rw-p 00000000 00:00 0                              [heap]
+6e24df4000-6e24df5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9904]
+6e24df5000-6e251fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9904]
+6e2620e000-6e2620f000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9899]
+6e2620f000-6e26616000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9899]
+6e281f4000-6e281f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9870]
+6e281f5000-6e285fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9870]
+6e2ad00000-6e2ad01000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9849]
+6e2ad01000-6e2adfc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9849]
+6e2b100000-6e2b1fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9927]
+6e2cff4000-6e2cff5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9847]
+6e2cff5000-6e2d3fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9847]
+6e3043a000-6e30536000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9837]
+6e338f8000-6e339f4000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9831]
+6e339fc000-6e339fd000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9757]
+6e339fd000-6e33af8000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9757]
+6e33b00000-6e33b01000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9756]
+6e33b01000-6e33bfc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9756]
+6ec0039000-6ec003a000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9748]
+6ec003a000-6ec0441000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9748]
+6ec0449000-6ec044a000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9747]
+6ec044a000-6ec0851000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9747]
+6f0ac72000-6f0ad6e000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9754]
+6f1493d000-6f1496c000 r--p 00000000 fe:1b 9155039                        /vendor/lib64/libunwindstack.so
+6f1496d000-6f149e0000 r-xp 00030000 fe:1b 9155039                        /vendor/lib64/libunwindstack.so
+6f149e1000-6f149e9000 r--p 000a4000 fe:1b 9155039                        /vendor/lib64/libunwindstack.so
+6f149e9000-6f149ea000 rw-p 000ac000 fe:1b 9155039                        /vendor/lib64/libunwindstack.so
+6f17d0e000-6f17d11000 r--p 00000000 fe:1b 9155058                        /vendor/lib64/libutilscallstack.so
+6f17d12000-6f17d15000 r-xp 00004000 fe:1b 9155058                        /vendor/lib64/libutilscallstack.so
+6f17d16000-6f17d17000 r--p 00008000 fe:1b 9155058                        /vendor/lib64/libutilscallstack.so
+6f238e1000-6f238e2000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9707]
+6f238e2000-6f239dd000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9707]
+6f239e5000-6f239e6000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9704]
+6f239e6000-6f23ae1000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9704]
+6f23ae9000-6f23aea000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9702]
+6f23aea000-6f23be5000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9702]
+6f269e4000-6f269e5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9697]
+6f269e5000-6f26ae0000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9697]
+6f26ae8000-6f26ae9000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9511]
+6f26ae9000-6f26ef0000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9511]
+6f26ef8000-6f26ef9000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9510]
+6f26ef9000-6f26ff4000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9510]
+6f26ffc000-6f26ffd000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9504]
+6f26ffd000-6f270f8000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9504]
+6f27100000-6f27101000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9502]
+6f27101000-6f271fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9502]
+6f283e4000-6f283e5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9492]
+6f283e5000-6f287ec000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9492]
+6f287f4000-6f287f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9491]
+6f287f5000-6f28bfc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9491]
+6f29121000-6f29122000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9490]
+6f29122000-6f29529000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9490]
+6f29531000-6f29532000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9489]
+6f29532000-6f29939000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9489]
+6f29941000-6f29942000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9488]
+6f29942000-6f29a45000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9488]
+6f29a4d000-6f29a4e000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9487]
+6f29a4e000-6f29b49000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9487]
+6f29b51000-6f29b52000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9485]
+6f29b52000-6f29c4d000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9485]
+6f29c55000-6f29c56000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9484]
+6f29c56000-6f29d51000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9484]
+6f5594f000-6f55955000 r-xp 00000000 fe:4f 3745250                        /data/app/~~I-U6r3iNNfV00kgE3JFd3w==/com.agent.code-Suh0jIxIQPc_ZC2xOLjBcg==/lib/arm64/libelfloader.so
+6f55959000-6f5595a000 r--p 00006000 fe:4f 3745250                        /data/app/~~I-U6r3iNNfV00kgE3JFd3w==/com.agent.code-Suh0jIxIQPc_ZC2xOLjBcg==/lib/arm64/libelfloader.so
+6f5595d000-6f5595e000 rw-p 00006000 fe:4f 3745250                        /data/app/~~I-U6r3iNNfV00kgE3JFd3w==/com.agent.code-Suh0jIxIQPc_ZC2xOLjBcg==/lib/arm64/libelfloader.so
+6f55dfd000-6f565fe000 rw-p 00000000 00:00 0                              [anon:dalvik-live stack]
+6f565fe000-6f56dff000 rw-p 00000000 00:00 0                              [anon:dalvik-allocation stack]
+6f5764f000-6f57650000 ---p 00000000 00:00 0                              [anon:stack_and_tls:9700]
+6f57650000-6f57a57000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:9700]
+6fe87a8000-6fe87cf000 r-xp 00000000 fe:4f 3661556                        /data/app/~~I-U6r3iNNfV00kgE3JFd3w==/com.agent.code-Suh0jIxIQPc_ZC2xOLjBcg==/lib/arm64/libld.so
+6fe87e6000-6fe87ea000 rw-p 0002e000 fe:4f 3661556                        /data/app/~~I-U6r3iNNfV00kgE3JFd3w==/com.agent.code-Suh0jIxIQPc_ZC2xOLjBcg==/lib/arm64/libld.so
+6fe9d4d000-6fe9d7d000 r--p 00000000 fe:42 80                             /apex/com.android.art/lib64/libunwindstack.so
+6fe9d7d000-6fe9df5000 r-xp 00030000 fe:42 80                             /apex/com.android.art/lib64/libunwindstack.so
+6fe9df5000-6fe9dfd000 r--p 000a8000 fe:42 80                             /apex/com.android.art/lib64/libunwindstack.so
+6fe9dfd000-6fe9dfe000 rw-p 000b0000 fe:42 80                             /apex/com.android.art/lib64/libunwindstack.so
+6fff91a000-6fff91b000 r--p 00000000 07:b8 49252                          /apex/com.android.runtime/lib64/bionic/libdl.so
+6fff91e000-6fff91f000 r-xp 00004000 07:b8 49252                          /apex/com.android.runtime/lib64/bionic/libdl.so
+6fff922000-6fff923000 r--p 00008000 07:b8 49252                          /apex/com.android.runtime/lib64/bionic/libdl.so
+6fff94e000-6fff951000 r--p 00000000 fe:18 23138544                       /system/lib64/libutilscallstack.so
+6fff952000-6fff955000 r-xp 00004000 fe:18 23138544                       /system/lib64/libutilscallstack.so
+6fff956000-6fff957000 r--p 00008000 fe:18 23138544                       /system/lib64/libutilscallstack.so
+7000841000-7000854000 r--p 00000000 07:b8 49259                          /apex/com.android.runtime/lib64/bionic/libm.so
+7000855000-7000879000 r-xp 00014000 07:b8 49259                          /apex/com.android.runtime/lib64/bionic/libm.so
+7000879000-700087a000 r--p 00038000 07:b8 49259                          /apex/com.android.runtime/lib64/bionic/libm.so
+700087d000-700087e000 rw-p 0003c000 07:b8 49259                          /apex/com.android.runtime/lib64/bionic/libm.so
+7000e27000-7000e2f000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700117d000-7001185000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7001189000-7001191000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7003e0d000-7003e15000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7003e6b000-7003e73000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7003e77000-7003e7f000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70040a0000-70040a8000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7005519000-7005521000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70056f1000-70056f9000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7005c41000-7005c49000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7005caa000-7005cb2000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7005d97000-7005d9f000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7008c07000-7008c0f000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7008c13000-7008c1b000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7008df5000-7008dfd000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7009144000-700914c000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70091b3000-70091bb000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700ae39000-700ae41000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700affe000-700b006000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700b0aa000-700b0ea000 rw-p 00000000 00:00 0                              [anon:dalvik-mark stack]
+700be4a000-700be7a000 r--p 00000000 fe:18 23138496                       /system/lib64/libunwindstack.so
+700be7a000-700bef1000 r-xp 00030000 fe:18 23138496                       /system/lib64/libunwindstack.so
+700bef2000-700befa000 r--p 000a8000 fe:18 23138496                       /system/lib64/libunwindstack.so
+700befa000-700befb000 rw-p 000b0000 fe:18 23138496                       /system/lib64/libunwindstack.so
+700bf04000-700bf0c000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700bf72000-700bf7a000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+700d785000-700d786000 r--p 00000000 07:b8 49256                          /apex/com.android.runtime/lib64/bionic/libdl_android.so
+700d789000-700d78a000 r-xp 00004000 07:b8 49256                          /apex/com.android.runtime/lib64/bionic/libdl_android.so
+700d78d000-700d78e000 r--p 00008000 07:b8 49256                          /apex/com.android.runtime/lib64/bionic/libdl_android.so
+7011ec8000-7011f23000 r--p 00000000 07:b8 49207                          /apex/com.android.runtime/lib64/bionic/libc.so
+7011f24000-7011fce000 r-xp 0005c000 07:b8 49207                          /apex/com.android.runtime/lib64/bionic/libc.so
+7011fd0000-7011fd5000 r--p 00108000 07:b8 49207                          /apex/com.android.runtime/lib64/bionic/libc.so
+7011fd8000-7011fd9000 rw-p 00110000 07:b8 49207                          /apex/com.android.runtime/lib64/bionic/libc.so
+7014ebd000-7014ec5000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7014fcb000-7014fd3000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70150a6000-70150ae000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70150f8000-7015100000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70153f0000-70153f8000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70153fc000-7015404000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7015408000-7015410000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7015414000-701541c000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7015420000-7015428000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+70158ad000-70158b1000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:main]
+7016a49000-7016a51000 rw-p 00000000 00:00 0                              [anon:thread signal stack]
+7016a51000-7016a53000 r--p 00000000 00:00 0                              [vvar]
+7016a53000-7016a55000 r-xp 00000000 00:00 0                              [vdso]
+7fea23d000-7feaa3c000 rw-p 00000000 00:00 0                              [stack]
+elfloader: maps end
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006f559548ac
+elfloader: readback ret=0x0000000000000000 handler=0x0000006f559548ac expect=0x0000006f559548ac live
+elfloader: sigsys ret=0x0000000000000000 handler=0x0000006f559548ac live
+elfloader: delivery self-test...
+elfloader: handler delivery ok (self-test)
+elfloader: traceme ok
+     10275:	
+     10275:	file=libc.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	find library=libc.so.6 [0]; searching
+     10275:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     10275:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6
+     10275:	
+     10275:	file=libc.so.6 [0];  generating link map
+     10275:	  dynamic: 0x0000006f553efaf0  base: 0x0000006f55240000   size: 0x00000000001bdf90
+     10275:	    entry: 0x0000006f552686f0  phdr: 0x0000006f55240040  phnum:                 10
+     10275:	
+     10275:	
+     10275:	file=libpthread.so.0 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	find library=libpthread.so.0 [0]; searching
+     10275:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     10275:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0
+     10275:	
+     10275:	file=libpthread.so.0 [0];  generating link map
+     10275:	  dynamic: 0x0000006fe9aafda0  base: 0x0000006fe9a90000   size: 0x0000000000020010
+     10275:	    entry: 0x0000006fe9a90000  phdr: 0x0000006fe9a90040  phnum:                  7
+     10275:	
+     10275:	
+     10275:	file=libdl.so.2 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	find library=libdl.so.2 [0]; searching
+     10275:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     10275:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2
+     10275:	
+     10275:	file=libdl.so.2 [0];  generating link map
+     10275:	  dynamic: 0x0000006fe877fda0  base: 0x0000006fe8760000   size: 0x0000000000020010
+     10275:	    entry: 0x0000006fe8760000  phdr: 0x0000006fe8760040  phnum:                  7
+     10275:	
+     10275:	
+     10275:	file=libm.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	find library=libm.so.6 [0]; searching
+     10275:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     10275:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+     10275:	
+     10275:	file=libm.so.6 [0];  generating link map
+     10275:	  dynamic: 0x0000006f5593fd10  base: 0x0000006f558a0000   size: 0x00000000000a0018
+     10275:	    entry: 0x0000006f558a0000  phdr: 0x0000006f558a0040  phnum:                  7
+     10275:	
+     10275:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     10275:	checking for version `GLIBC_PRIVATE' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     10275:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     10275:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0]
+     10275:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0]
+     10275:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+     10275:	checking for version `GLIBC_PRIVATE' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+     10275:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+elfloader: drain ev tid=10275 st=0x1f7f
+elfloader: drain SETOPTIONS errno=3
+elfloader: fault stop sig=0 code=0 tid=10275 spid=0 st=0 addr=0x0 pc=0x0 syscall=-1 x8=0x0
+elfloader: SigBlk:	0000000000000000
+elfloader: SigIgn:	0000000000000001
+elfloader: SigCgt:	0000106e400084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: hb state=t wchan=ptrace_stop
+elfloader: hb state=t wchan=ptrace_stop
+elfloader: hb state=t wchan=ptrace_stop
+elfloader: hb state=t wchan=ptrace_stop
+elfloader: hb state=t wchan=ptrace_stop
+elfloader: hb state=t wchan=ptrace_stop
+elfloader: hb state=t wchan=ptrace_stop
+elfloader: drain ev tid=10275 st=0x9
+elfloader: drain thread exit

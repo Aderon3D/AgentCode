@@ -1,0 +1,302 @@
+OpenCode: Server failed to start: OpenCode exited during startup (signal 11)
+
+Log:
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006f55c19410
+elfloader: mapped ld
+elfloader: window 0x0000000000200000-0x000000000b420000
+elfloader: evicted 02000000-12000000 rw-p 00000000 00:00 0                                  [anon:dalvik-main space]
+elfloader: mapped prog
+elfloader: altstack 0x0000007005c49000
+elfloader: altstack ok (kernel)
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006f55c19410
+elfloader: sbrk ok
+elfloader: tp ok
+elfloader: altstack probe ok
+elfloader: brk 0x0000005846268000
+elfloader: spawning: /data/user/0/com.agent.code/files/opencode/opencode serve --port 4096
+elfloader: jumping
+elfloader: maps begin
+00200000-020e9000 r--p 00000000 fe:4f 3597436                            /data/data/com.agent.code/files/opencode/opencode
+02370000-05ba7000 r-xp 01ef0000 fe:4f 3597436                            /data/data/com.agent.code/files/opencode/opencode
+05bb6000-0b420000 rw-p 05726000 fe:4f 3597436                            /data/data/com.agent.code/files/opencode/opencode
+5846264000-5846268000 rw-p 00000000 00:00 0                              [heap]
+6e24df4000-6e24df5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:12176]
+6e24df5000-6e251fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:12176]
+6e2620e000-6e2620f000 ---p 00000000 00:00 0                              [anon:stack_and_tls:12136]
+6e2620f000-6e26616000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:12136]
+6e281f4000-6e281f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:12050]
+6e281f5000-6e285fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:12050]
+6e2bd3e000-6e2be3a000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:11955]
+6e2dcf0000-6e2dcf1000 ---p 00000000 00:00 0                              [anon:stack_and_tls:11952]
+6e2dcf1000-6e2ddec000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:11952]
+6e2ddf4000-6e2ddf5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:11951]
+6e2ddf5000-6e2e1fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:11951]
+…
+elfloader: maps end
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006f55c19410
+elfloader: readback ret=0x0000000000000000 handler=0x0000006f55c19410 expect=0x0000006f55c19410 live
+elfloader: delivery self-test...
+elfloader: handler delivery ok (self-test)
+elfloader: traceme ok
+     12731:	
+     12731:	file=libc.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	find library=libc.so.6 [0]; searching
+     12731:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     12731:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6
+     12731:	
+     12731:	file=libc.so.6 [0];  generating link map
+     12731:	  dynamic: 0x0000006f55bffaf0  base: 0x0000006f55a50000   size: 0x00000000001bdf90
+     12731:	    entry: 0x0000006f55a786f0  phdr: 0x0000006f55a50040  phnum:                 10
+     12731:	
+     12731:	
+     12731:	file=libpthread.so.0 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	find library=libpthread.so.0 [0]; searching
+     12731:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     12731:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0
+     12731:	
+     12731:	file=libpthread.so.0 [0];  generating link map
+     12731:	  dynamic: 0x000000700089fda0  base: 0x0000007000880000   size: 0x0000000000020010
+     12731:	    entry: 0x0000007000880000  phdr: 0x0000007000880040  phnum:                  7
+     12731:	
+     12731:	
+     12731:	file=libdl.so.2 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	find library=libdl.so.2 [0]; searching
+     12731:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     12731:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2
+     12731:	
+     12731:	file=libdl.so.2 [0];  generating link map
+     12731:	  dynamic: 0x0000006fe877fda0  base: 0x0000006fe8760000   size: 0x0000000000020010
+     12731:	    entry: 0x0000006fe8760000  phdr: 0x0000006fe8760040  phnum:                  7
+     12731:	
+     12731:	
+     12731:	file=libm.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	find library=libm.so.6 [0]; searching
+     12731:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     12731:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+     12731:	
+     12731:	file=libm.so.6 [0];  generating link map
+     12731:	  dynamic: 0x0000006f55a3fd10  base: 0x0000006f559a0000   size: 0x00000000000a0018
+     12731:	    entry: 0x0000006f559a0000  phdr: 0x0000006f559a0040  phnum:                  7
+     12731:	
+     12731:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+     12731:	checking for version `GLIBC_PRIVATE' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     12731:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     12731:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0]
+     12731:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0]
+     12731:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+     12731:	checking for version `GLIBC_PRIVATE' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+     12731:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+elfloader: fault stop sig=31 code=1 addr=0x6fe87b86d0 pc=0x6fe87b86d0 10-06 13:30:44.798  4042 10337 D OplusOsPackageManager: removePkgFromNotLaunchedList com.agent.code
+10-06 13:30:44.800  4042  5025 D StartingSurfacePreviewController: checkSupportSurfacePreview, token=com.agent.code/.MainActivity, enableSurfacePreview=false, supportMultiLayout=false, unsupportedSkipViewAnimLv=null, disableSurfacePreviewAnimLv=null, ignoreFileExistAnimLv=null
+10-06 13:30:44.800  4042 10337 D WindowManager: NFW_setClientVisible:ActivityRecord{114521794 u0 com.agent.code/.MainActivity clientVisible:true
+10-06 13:30:44.800  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.800  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.800  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.800  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.800  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.800  4042 10337 D FlexibleTaskController: isSupportFlexibleWindow target = com.agent.code/.MainActivity callPkg = FlexibleTaskController support = true ,caller = 4042
+10-06 13:30:44.800  4042 10337 I AppSnapshotController: init, sysSupport = true, mActivitySupport = false, activityRecord = ActivityRecord{114521794 u0 com.agent.code/.MainActivity t-1}
+10-06 13:30:44.801  4042 10337 D FlexibleTaskController: isSupportFlexibleWindow target = com.agent.code/.MainActivity callPkg = FlexibleTaskController support = true ,caller = 4042
+10-06 13:30:44.803  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.803  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.803  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.803  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.803  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.803  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.804  4042 10337 D ActivityTaskManager: validateStartingWindowTheme:  Pkg=com.agent.code, Translucent=false, Floating=false, ShowWallpaper=false, Disable=false, LaunchSource=4, Prev=null, LaunchedFromPackage=io.github.muntashirakon.AppManager
+10-06 13:30:44.804  4042 10337 D ActivityTaskManager: addStartingWindow for ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}, mainWin=null, state=INITIALIZING, isKeyguardLocked=false, isKeyguardGoingAway=false
+10-06 13:30:44.806  4042 10337 D TaskFragmentExtImpl: shouldSetReadyFalse and resumedActivity: ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} prev: ActivityRecord{37319243 u0 io.github.muntashirakon.AppManager/.apk.installer.PackageInstallerActivity t3249} prev.isVisible(): true resumedLaunchFromLauncher: false prevLaunchFromApp: true transitionType: 1
+10-06 13:30:44.807  5880  5939 V WindowManagerShell: Transition requested (#23458): android.os.BinderProxy@12d0a6 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=3250 effectiveUid=10646 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10000000 pkg=com.agent.code cmp=com.agent.code/.MainActivity mCallingUid=10515 } baseActivity=ComponentInfo{com.agent.code/com.agent.code.MainActivity} topActivity=ComponentInfo{com.agent.code/com.agent.code.MainActivity} origActivity=null realActivity=ComponentInfo{com.agent.code/com.agent.code.MainActivity}
+10-06 13:30:44.807  5880  5939 V WindowManagerShell:  topActivityInfo=ActivityInfo{2238694 com.agent.code.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(326, 806 - 947, 2078) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0
+10-06 13:30:44.807  4042 10337 D osense.compress: notifyActivityLaunched pkgName = com.agent.code, uid = 10646
+10-06 13:30:44.807  4042 10337 I ActivityTaskManager: START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10000000 xflg=0x4 pkg=com.agent.code cmp=com.agent.code/.MainActivity mCallingUid=10515} with LAUNCH_MULTIPLE from uid 10515 (sr=37319243) (BAL_ALLOW_VISIBLE_WINDOW (callingUid has visible window)) result code=0
+10-06 13:30:44.808  6045 17789 I iopgp   : Iopgp: TRANSACTION_IOPGP_PRELOAD Sequence_id = 779 pkg_name = com.agent.code uid = 10646 size = 1 isProfile = 1
+10-06 13:30:44.815  4042  4113 I AppSnapshotController: attachStartingWindow, win = Window{d23d121 u0 Splash Screen com.agent.code}, shouldAppSnapshot = false
+10-06 13:30:44.815  4042  4113 D ActivityTaskManager: attachStartingWindow: mStartingData=SplashScreenStartingData{c3cb707 removeAfterTransaction= 0}, mAssociatedTask=null, mStartingWindow=Window{d23d121 u0 Splash Screen com.agent.code}
+10-06 13:30:44.815  4042  4113 I WindowManager: addWindow: New client android.os.BinderProxy@b6b7388 : window=Window{d23d121 u0 Splash Screen com.agent.code}
+10-06 13:30:44.818  4042  5670 I AppsFilter: interaction: PackageSetting{493270d com.android.microdroid.empty_payload/10315} -> PackageSetting{a87eb2a com.agent.code/10646} BLOCKED
+10-06 13:30:44.818  4042  5670 I AppsFilter: interaction: PackageSetting{9eeecd3 app.simplicity.engine/10585} -> PackageSetting{a87eb2a com.agent.code/10646} BLOCKED
+10-06 13:30:44.818  4042  5670 I AppsFilter: interaction: PackageSetting{5155010 com.hollow.up/10582} -> PackageSetting{a87eb2a com.agent.code/10646} BLOCKED
+10-06 13:30:44.818  4042  5670 I AppsFilter: interaction: PackageSetting{4d82709 com.oplus.locationproxy/10222} -> PackageSetting{a87eb2a com.agent.code/10646} BLOCKED
+10-06 13:30:44.818  4042  5670 I AppsFilter: interaction: PackageSetting{5e38d0e com.android.certinstaller/10269} -> PackageSetting{a87eb2a com.agent.code/10646} BLOCKED
+10-06 13:30:44.818  4042  5670 I AppsFilter: interaction: PackageSetting{db1832f com.oplus.imsserviceentitlement/10115} -> PackageSetting{a87eb2a com.agent.code/10646} BLOCKED
+10-06 13:30:44.818  4042  5670 I AppsFilter: interaction: PackageSetting{fe75d3c com.oplus.location/10289} -> PackageSetting{a87eb2a com.agent.code/10646} BLOCKED
+10-06 13:30:44.818  4042  5670 D RefreshRate: Trigger app switch boost, ar=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250},currDisplayRate=90.0,boostId=1
+10-06 13:30:44.819  4042  5670 D RefreshRate: startAppSwitchBoost targetMode={id=3, width=1272, height=2800, fps=90.0, vsync=90.0, synthetic=false, alternativeRefreshRates=[60.000004, 120.00001, 144.00002, 165.0], supportedHdrTypes=[1, 2, 3, 4]} record=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}: votes=PRIORITY_START_ANIMATION_BOOST -> Vote{mRefreshRate=90.0, mMinRefreshRate=90.0, mRequestSource=null};PRIORITY_WINDOW_REQUEST -> Vote{mRefreshRate=90.0, mMinRefreshRate=90.0, mRequestSource=null};
+10-06 13:30:44.819  4042  5670 D ActivityTaskManager: setAppVisibility(Token{2779709 ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}}, visible=true):  visible=false mVisibleRequested=false
+10-06 13:30:44.819  4042  5670 D ActivityTaskManager: setVisibility(Token{2779709 ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}}, visible=true) defer commitVisibility for transition collecting
+10-06 13:30:44.821  4042  6644 V WindowManager: Relayout Window{d23d121 u0 Splash Screen com.agent.code}: viewVisibility=0, oldvis=0, req=1272x2800 , apr = 8, , x=0, y=0
+10-06 13:30:44.821  4042  6644 I WindowManager: Window{d23d121 u0 Splash Screen com.agent.code} state from NO_SURFACE to DRAW_PENDING; reason: resetDrawState
+10-06 13:30:44.823  4042  6644 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.823  4042  6644 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.830  4042  6644 D WindowManager: onSyncFinishedDrawing: Window{d23d121 u0 Splash Screen com.agent.code}
+10-06 13:30:44.830  4042  6644 I WindowManager: finishDrawing skipLayout:false,syncSeqId=0,mPrepareSyncSeqId=0 Window{d23d121 u0 Splash Screen com.agent.code} com.android.server.wm.WindowManagerService.finishDrawingWindow:3236 com.android.server.wm.Session.finishDrawing:403 android.view.IWindowSession$Stub.onTransact:807 
+10-06 13:30:44.830  4042  6644 I WindowManager: Window{d23d121 u0 Splash Screen com.agent.code} state from DRAW_PENDING to COMMIT_DRAW_PENDING; reason: finishDrawingLocked
+10-06 13:30:44.831  4042  4294 I WindowManager: Window{d23d121 u0 Splash Screen com.agent.code} state from COMMIT_DRAW_PENDING to READY_TO_SHOW; reason: commitFinishDrawingLocked
+10-06 13:30:44.831  4042  4294 D ActivityTaskManager: commitVisibility: ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}: visible=true visibleRequested=true, isInTransition=true 
+10-06 13:30:44.831  4042  4294 I WindowManager: Window{d23d121 u0 Splash Screen com.agent.code} state from READY_TO_SHOW to HAS_DRAWN; reason: performShowLocked
+10-06 13:30:44.831  4042  4294 I WindowStateExtImpl: onSurfaceShowChange show = true mPackageName = com.agent.code parentPkgName = com.agent.code
+10-06 13:30:44.833  4042  4294 D OplusTransitionAnimationManager:    ChangeInfo{fc85873 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x30}
+10-06 13:30:44.833  4042  4294 D OplusTransitionAnimationManager:    ChangeInfo{34462eb container=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} flags=0x0}
+10-06 13:30:44.842  4042  4309 I ActivityManager: Start proc 10220:com.agent.code/u0a646 for next-top-activity {com.agent.code/com.agent.code.MainActivity}
+10-06 13:30:44.844  4042  4332 I MemoryOperationUtils: add 10220 to com.agent.code
+10-06 13:30:44.853  4042  4294 D FlexibleWindowManagerService: should not dispatch appeared task Task{cc8010 #3250 type=standard A=10646:com.agent.code}
+10-06 13:30:44.859  4042  4290 V WindowManager: Sent Transition (#23458) createdAt=10-06 13:30:44.801 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=3250 effectiveUid=10646 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10000000 pkg=com.agent.code cmp=com.agent.code/.MainActivity mCallingUid=10515 } baseActivity=ComponentInfo{com.agent.code/com.agent.code.MainActivity} topActivity=ComponentInfo{com.agent.code/com.agent.code.MainActivity} origActivity=null realActivity=ComponentInfo{com.agent.code/com.agent.code.MainActivity}
+10-06 13:30:44.859  4042  4290 V WindowManager:  numActivities=1 lastActiveTime=3063072382 supportsSplitScreenMultiWindow=true supportsMultiWindow=true supportsPocketStudioMultiWindow=true isInFlexibleEmbedded = false uid = 10646 pid = 0 resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{469236d Task{cc8010 #3250 type=standard A=10646:com.agent.code}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 141 - 0, 0)
+10-06 13:30:44.859  4042  4290 V WindowManager:  topActivityInfo=ActivityInfo{cdd7ba2 com.agent.code.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(326, 806 - 947, 2078) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0
+10-06 13:30:44.859  4042  4290 V WindowManager:  mOplusExtraBundle = Bundle[{androidx.flexible.taskFrame=Rect(0, 0 - 0, 0), androidx.flexible.Alpha=1.0, androidx.activity.task.attach.blur=0, androidx.flexible.task_snapshot_mode=0, androidx.activity.LaunchInsensible=0, androidx.activity.LaunchCornerRadius=0, key_flexible_task_state=0, topActivitySupportAppInnerSplit=false, key_flexible_task_animating_type=-1, key_flexible_task_root_activity_processname=com.agent.code, androidx.activity.LaunchScenario=0, is_oplus_clone_task=false, flexible_super_mini_state=false, topRunningActivityHash=114521794, flexible.floatwindow.is_multi_instance=false, androidx.activity.LaunchScale=1.0, androidx.activity.LaunchShadowRadius=0, is_transient_hide_for_task_info=false, androidx.activity.key_flexible_task_pending_exit_to=0, key_flexible_task_root_activity_pid=0, key_flexible_task_root_activity_uid=10646}]}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 23458 }
+10-06 13:30:44.859  4042  4290 V WindowManager:         {WCT{RemoteToken{469236d Task{cc8010 #3250 type=standard A=10646:com.agent.code}}} m=OPEN f=MOVE_TO_TOP leash=Surface(name=Task=3250)/@0xd0381ad sb=Rect(0, 0 - 1272, 2800) eb=Rect(0, 0 - 1272, 2800) epz=Point(1272, 2800) d=0 taskParent=-1},
+10-06 13:30:44.908  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.909  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.909  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.909  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.909  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.909  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.909  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.909  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.909  4042  4840 D ActivityTaskManager: onWindowFocusChanged Task{cc8010 #3250 type=standard A=10646:com.agent.code} would transfer to compact
+10-06 13:30:44.910  4042  4305 I UserAwareMgr: handleTopAppChanged: com.agent.code, pid: 10220, uid: 10646
+10-06 13:30:44.910  4042  4840 D ActivityTaskManager: NFW_setLastResumedActivityUncheckLocked:true r:ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} currentFocus:null
+10-06 13:30:44.910  4042  4840 D FlexibleTaskController: onTaskFocusChanged prevTask:Task{5a31541 #3249 type=standard I=io.github.muntashirakon.AppManager/.apk.installer.PackageInstallerActivity} ,currentTask:Task{cc8010 #3250 type=standard A=10646:com.agent.code}, reason: realStartActivityLocked - onActivityStateChanged
+10-06 13:30:44.910  4042  4840 D OplusFlexibleDCSManager: onNextPkgChanged pkg = com.agent.code
+10-06 13:30:44.910  4042  4840 I OplusAppSwitchManagerService: appswitch hasProcess ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}
+10-06 13:30:44.910  4042  4840 I GameManagerServiceExt-GameManagerServiceExt: on FG change: io.github.muntashirakon.AppManager|com.agent.code
+10-06 13:30:44.910  4042  4840 I OplusAppSwitchManagerService: appswitch hasProcess ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}
+10-06 13:30:44.910  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D OplusEapManager: mTargetEnterName :com.agent.code
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042  4343 D OplusAppSwitchListener: Detect com.agent.code switch to foreground
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.911  4042 29367 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:44.913  4042  4345 D VRR [OPlusRefreshRateService]: handleFrontAppChange pkgName: com.agent.code
+10-06 13:30:44.915  4042  4318 E OplusThermalStats: Error getting package info: com.agent.code
+10-06 13:30:44.920  4042  4842 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:30:44.920  4042  4293 D BatteryStatsImplExtImpl: resumedUid:10646 resumedBatteryLevel:75  resumedPackage:com.agent.code  resumedBatteryRealtimeCapacity:5177
+10-06 13:30:45.368 10220 10220 D OplusPredictiveBackController: should not HookOnBackInvokedCallbackEnabled for application com.agent.code.MainActivity@fc25c04 sdk: 36
+10-06 13:30:45.368 10220 10220 D OplusPredictiveBackController: should not HookOnBackInvokedCallbackEnabled for application com.agent.code.MainActivity@fc25c04 sdk: 36
+10-06 13:30:45.453  4042 10335 I ActivityManager: Background started FGS: Allowed [callingPackage: com.agent.code; callingUid: 10646; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { xflg=0x4 cmp=com.agent.code/.service.ResilientAgentForegroundService mCallingUid=10646 }; code:PROC_STATE_TOP; tempAllowListReason:<shell,reasonCode:SHELL,duration:30000,callingUid:2000>; allowWiu:12; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-06 13:30:45.474  4042  6642 D Transition: finishTransition ar ActivityRecord{37319243 u0 io.github.muntashirakon.AppManager/.apk.installer.PackageInstallerActivity t3249 f}}, isVisibleRequested=false, state=STOPPING, visibleAtTransitionEndTokens={ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}}, this=TransitionRecord{4cf1ce2 id=23458 track=0 type=OPEN flags=0x0 state=2 c=[
+10-06 13:30:45.474  4042  6642 D Transition:    ChangeInfo{fc85873 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x30}
+10-06 13:30:45.474  4042  6642 D Transition:    ChangeInfo{34462eb container=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} flags=0x0}
+10-06 13:30:45.475 10220 10220 D ActivityThread: ComponentInfo{com.agent.code/com.agent.code.MainActivity} checkFinished=false 2
+10-06 13:30:45.475  4042  6642 D Transition: finishTransition ar ActivityRecord{56793650 u0 com.m4coding.ide/.component.edit.activity.CodeEditActivity t3193}, isVisibleRequested=false, state=PAUSED, visibleAtTransitionEndTokens={ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}}, this=TransitionRecord{4cf1ce2 id=23458 track=0 type=OPEN flags=0x0 state=2 c=[
+10-06 13:30:45.475  4042  6642 D Transition:    ChangeInfo{fc85873 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x30}
+10-06 13:30:45.475  4042  6642 D Transition:    ChangeInfo{34462eb container=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} flags=0x0}
+10-06 13:30:45.475  4042  6642 D Transition: finishTransition ar ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}, isVisibleRequested=true, state=RESUMED, visibleAtTransitionEndTokens={ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}}, this=TransitionRecord{4cf1ce2 id=23458 track=0 type=OPEN flags=0x0 state=2 c=[
+10-06 13:30:45.475  4042  6642 D Transition:    ChangeInfo{fc85873 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x30}
+10-06 13:30:45.475  4042  6642 D Transition:    ChangeInfo{34462eb container=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} flags=0x0}
+10-06 13:30:45.476  4042  6642 I OplusAppSwitchManagerService:  handleAppVisible , r = ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}
+10-06 13:30:45.476  4042  6642 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:45.476  4042  6642 D OplusTransitionController:    ChangeInfo{fc85873 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x30}
+10-06 13:30:45.476  4042  6642 D OplusTransitionController:    ChangeInfo{34462eb container=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} flags=0x0}
+10-06 13:30:45.476  4042  6642 D FlexibleTaskTransitionController:    ChangeInfo{fc85873 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x30}
+10-06 13:30:45.476  4042  6642 D FlexibleTaskTransitionController:    ChangeInfo{34462eb container=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} flags=0x0}
+10-06 13:30:45.490  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:45.493  4042  6645 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:45.512  4042  7033 I WindowManager: addWindow: New client android.os.BinderProxy@d5f59b9 : window=Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}
+10-06 13:30:45.517  4042  6645 D CoreBackPreview: Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@bbbf10, mPriority=-1, mIsAnimationCallback=false, mOverrideBehavior=0}
+10-06 13:30:45.712 10220 10220 D OplusPredictiveBackController: should not HookOnBackInvokedCallbackEnabled for application com.agent.code.MainActivity@fc25c04 sdk: 36
+10-06 13:30:45.738  4042 10337 V WindowManager: Relayout Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}: viewVisibility=0, oldvis=4, req=1272x2800 , apr = 0, , x=0, y=0
+10-06 13:30:45.738  4042 10337 I WindowManager: Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} state from NO_SURFACE to DRAW_PENDING; reason: resetDrawState
+10-06 13:30:45.740  4042 10337 D WindowManager: NFW_findFocusedWindowIfNeeded:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} mCurrentFocus:null
+10-06 13:30:45.740  4042 10337 V WindowManager: Changing focus from null to Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity},diplayid=0
+10-06 13:30:45.741  4042 10337 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:45.796  4042  6209 I WindowManager: Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} state from DRAW_PENDING to COMMIT_DRAW_PENDING; reason: finishDrawingLocked
+10-06 13:30:45.797  4042  4294 I WindowManager: Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} state from COMMIT_DRAW_PENDING to READY_TO_SHOW; reason: commitFinishDrawingLocked
+10-06 13:30:45.797  4042  4294 D ActivityTaskManager: Finish StartingWindow: ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}first real window is shown
+10-06 13:30:45.798  4042  4294 D ActivityTaskManager: removeStartingWindowAnimation starting ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} startingWindow=null ,startingView=com.android.server.wm.StartingSurfaceController$StartingSurface@ef39f92,Callers=com.android.server.wm.ActivityRecord.removeStartingWindow:3403 com.android.server.wm.ActivityRecord.onFirstWindowDrawn:8091 com.android.server.wm.WindowState.performShowLocked:4982 com.android.server.wm.WindowStateAnimator.commitFinishDrawingLocked:403 com.android.server.wm.DisplayContent.lambda$new$8:1152 
+10-06 13:30:45.798  4042  4294 D OplusStartingWindowManager: interceptRemoveStartingWindow: packageName=com.agent.code,  componentName=com.agent.code/.MainActivity, isSnapshot=false, startingSurfaceRunnable=null, isDrawCompleted=false, hasSurfaceView=false, inTransition=false
+10-06 13:30:45.798  4042  4294 D OplusSplitScreenDnDUI: notifyRemoveStartingWindow isSpitScreenDrag = false mDropTargetSurface = null StartingWindowpkgName = com.agent.code DragPkg = null isLauncherResume = false
+10-06 13:30:45.800  4042  4294 D OplusStartingWindowManager: interceptRemoveStartingWindow: hasSplashWindowFlag() return false for activity=ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}
+10-06 13:30:45.803  4042  4294 D QuickBackInputPolicy: setAppLaunchEndTime update timePair=Pair{ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} 2092360152}
+10-06 13:30:45.806  4042  4294 I WindowManager: Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} state from READY_TO_SHOW to HAS_DRAWN; reason: performShowLocked
+10-06 13:30:45.857  4042  5670 I ActivityManager: Background started FGS: Allowed [callingPackage: com.agent.code; callingUid: 10646; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { cmp=com.agent.code/.service.ResilientAgentForegroundService mCallingUid=10646 }; code:PROC_STATE_TOP; tempAllowListReason:<shell,reasonCode:SHELL,duration:30000,callingUid:2000>; allowWiu:12; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-06 13:30:45.861  4042  4308 D NotificationService--OplusNotificationFixHelper: fixAppIcon: pkg=com.agent.code
+10-06 13:30:45.861  4042  4308 D NotificationService--OplusNotificationFixHelper: fixAppIcon: appIcon = null, pkg = com.agent.code
+10-06 13:30:45.887  4042  5057 D InputMethodManagerService: isSecurity: attribute.packageName = com.agent.code mCurMethodId = com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME isSecurity = false ( enable = true needShow = false inBlackList = false isExist = true )
+10-06 13:30:45.912  4042  4842 W PackageConfigPersister: App-specific configuration not found for packageName: com.agent.code and userId: 0
+10-06 13:30:45.946  4042  5789 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:46.031  4042  4841 D WindowManager: NFW_findFocusedWindowIfNeeded:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} mCurrentFocus:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}
+10-06 13:30:46.046  4042  5670 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:46.048  4042 10335 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:30:46.074  4042  4840 V WindowManager: Relayout Window{d23d121 u0 Splash Screen com.agent.code}: viewVisibility=8, oldvis=0, req=1272x2800 , apr = 8, 
+10-06 13:30:46.075  4042  4295 D SurfaceAnimationRunner: onAnimationStart:Surface(name=Surface(name=d23d121 Splash Screen com.agent.code)/@0x2593721 - animation-leash of window_animation)/@0x34eb746
+10-06 13:30:46.075  4042  4840 D WindowManager: NFW_findFocusedWindowIfNeeded:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} mCurrentFocus:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}
+10-06 13:30:46.076  4042  4840 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:30:46.078  4042  4840 D WindowManager: NFW_findFocusedWindowIfNeeded:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} mCurrentFocus:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}
+10-06 13:30:46.126  4042  4349 I AppsFilter: interaction: PackageSetting{a87eb2a com.agent.code/10646} -> PackageSetting{64cd32e com.google.android.apps.docs/10345} BLOCKED
+10-06 13:30:46.126  4042  4349 I AppsFilter: interaction: PackageSetting{a87eb2a com.agent.code/10646} -> PackageSetting{aa21ecf app.revanced.android.gms/10609} BLOCKED
+10-06 13:30:46.230  4042  4295 D SurfaceAnimationRunner: onAnimationEnd:Surface(name=Surface(name=d23d121 Splash Screen com.agent.code)/@0x2593721 - animation-leash of window_animation)/@0x34eb746
+10-06 13:30:46.230  4042  4294 I WindowStateExtImpl: onSurfaceShowChange show = false mPackageName = com.agent.code parentPkgName = com.agent.code
+10-06 13:30:46.231  4042  4294 I WindowManager: Window{d23d121 u0 Splash Screen com.agent.code EXITING} state from HAS_DRAWN to NO_SURFACE; reason: destroySurface
+10-06 13:30:46.830  4042  6696 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:30:48.801  4042  4349 I AppsFilter: interaction: PackageSetting{a87eb2a com.agent.code/10646} -> PackageSetting{fbd68c3 com.oplus.securepay/10238} BLOCKED
+10-06 13:30:55.863  4042  4308 D NotificationService--OplusNotificationFixHelper: fixAppIcon: pkg=com.agent.code
+10-06 13:30:55.863  4042  4308 D NotificationService--OplusNotificationFixHelper: fixAppIcon: appIcon = null, pkg = com.agent.code
+10-06 13:31:00.778  4042  6497 D ClipboardService: clipboardAccessAllowed: op=30 result=true callingPackage=com.agent.code
+10-06 13:31:00.819  4042  5670 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:31:00.834  4042  5670 D WindowManager: NFW_findFocusedWindowIfNeeded:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} mCurrentFocus:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}
+10-06 13:31:00.834  4042  5670 D ActivityTaskManager: The isLandscapeFullscreenEnabled is: com.agent.code/.MainActivity
+10-06 13:31:01.486  4042  6209 D FlexibleTaskController: onTaskFocusChanged prevTask:Task{cc8010 #3250 type=standard A=10646:com.agent.code} ,currentTask:Task{28401cc #2547 type=home I=com.android.launcher/.Launcher}, reason: resumeTopActivity - onActivityStateChanged
+10-06 13:31:01.498  4042  6209 D OplusTransitionAnimationManager:    ChangeInfo{b284b58 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x4}
+10-06 13:31:01.498  4042  6209 D OplusTransitionAnimationManager: dispatchTransitionReadyToClient topWin=Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}, transitionId=23459, hasRemoteOpenFromViewSeamlessTransition=false
+10-06 13:31:01.503  4042  6497 W WindowManager: captureTaskSnapshot mSnapshotMode= 0 source=Task{cc8010 #3250 type=standard A=10646:com.agent.code}
+10-06 13:31:01.516  4042  6497 D TaskSnapshotCache: putSnapshot mRunningCache top= ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}, mTaskId=3250, snapshot=TaskSnapshot{ mId=1791286261503 mCaptureTime=3063089091795720 mTopActivityComponent=com.agent.code/.MainActivity mSnapshot=android.hardware.HardwareBuffer@4a3c95d (1272x2800) mColorSpace=sRGB IEC61966-2.1 (id=0, model=RGB) mOrientation=1 mRotation=0 mTaskSize=Point(1272, 2800) mOplusCompatMode=false mTopActivityBounds=[0,0][1272,2800] mHasDimLayer=false mContentInsets=[0,141][0,56] mLetterboxInsets=[0,0][0,0] mIsLowResolution=false mIsRealSnapshot=true mWindowingMode=1 mAppearance=0 mIsTranslucent=false mHasImeSurface=false mInternalReferences=2 mUiMode=21 mSnapshotColor=0 mSnapshotBundle=Bundle[{}], mAppIdMap size= 7
+10-06 13:31:01.516  4042  5670 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:01.517  4042  6938 I GameManagerServiceExt-GameManagerServiceExt: on FG change: com.agent.code|com.android.launcher
+10-06 13:31:01.517  4042 29367 D OplusEapManager: mTargetExitName :com.agent.code
+10-06 13:31:01.523  4042  4290 V WindowManager:         {WCT{RemoteToken{469236d Task{cc8010 #3250 type=standard A=10646:com.agent.code}}} m=TO_BACK f=NONE leash=Surface(name=Task=3250)/@0xd0381ad sb=Rect(0, 0 - 1272, 2800) eb=Rect(0, 0 - 1272, 2800) epz=Point(1272, 2800) d=0 taskParent=-1},
+10-06 13:31:01.526  4042  4343 D OplusAppSwitchListener: Detect com.agent.code switch to background
+10-06 13:31:01.526  4042  4343 D OplusFeatureReduceBrightness: onAppExit , info = com.agent.code
+10-06 13:31:01.534  4042  6696 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:01.589  4042  6208 D ActivityTaskManager: NFW_setLastResumedActivityUncheckLocked:true r:ActivityRecord{198661074 u0 com.android.launcher/.Launcher t2547} currentFocus:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}
+10-06 13:31:01.589  4042  6208 D WindowManager: NFW_findFocusedWindowIfNeeded:Window{5b67647 u0 com.android.launcher/com.android.launcher.Launcher} mCurrentFocus:Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}
+10-06 13:31:01.589  4042  6208 V WindowManager: Changing focus from Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} to Window{5b67647 u0 com.android.launcher/com.android.launcher.Launcher},diplayid=0
+10-06 13:31:01.732  4042  7214 W WindowManager: captureTaskSnapshot mSnapshotMode= 0 source=Task{cc8010 #3250 type=standard A=10646:com.agent.code}
+10-06 13:31:01.738  4042  7214 D TaskSnapshotCache: putSnapshot mRunningCache top= ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}, mTaskId=3250, snapshot=TaskSnapshot{ mId=1791286261732 mCaptureTime=3063089314556345 mTopActivityComponent=com.agent.code/.MainActivity mSnapshot=android.hardware.HardwareBuffer@d91cc40 (1272x2800) mColorSpace=Display P3 (id=7, model=RGB) mOrientation=1 mRotation=0 mTaskSize=Point(1272, 2800) mOplusCompatMode=false mTopActivityBounds=[0,0][1272,2800] mHasDimLayer=false mContentInsets=[0,141][0,56] mLetterboxInsets=[0,0][0,0] mIsLowResolution=false mIsRealSnapshot=true mWindowingMode=1 mAppearance=0 mIsTranslucent=false mHasImeSurface=false mInternalReferences=2 mUiMode=21 mSnapshotColor=0 mSnapshotBundle=Bundle[{}], mAppIdMap size= 7
+10-06 13:31:02.320  4042  9249 W WindowManager: captureTaskSnapshot mSnapshotMode= 0 source=Task{cc8010 #3250 type=standard A=10646:com.agent.code}
+10-06 13:31:02.327  4042  9249 D TaskSnapshotCache: putSnapshot mRunningCache top= ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}, mTaskId=3250, snapshot=TaskSnapshot{ mId=1791286262321 mCaptureTime=3063089903033845 mTopActivityComponent=com.agent.code/.MainActivity mSnapshot=android.hardware.HardwareBuffer@a18ff15 (1272x2800) mColorSpace=Display P3 (id=7, model=RGB) mOrientation=1 mRotation=0 mTaskSize=Point(1272, 2800) mOplusCompatMode=false mTopActivityBounds=[0,0][1272,2800] mHasDimLayer=false mContentInsets=[0,141][0,56] mLetterboxInsets=[0,0][0,0] mIsLowResolution=false mIsRealSnapshot=true mWindowingMode=1 mAppearance=0 mIsTranslucent=false mHasImeSurface=false mInternalReferences=2 mUiMode=21 mSnapshotColor=0 mSnapshotBundle=Bundle[{}], mAppIdMap size= 7
+10-06 13:31:02.352  4042  5789 D ActivityTaskManager: setAppVisibility(Token{2779709 ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}}, visible=false):  visible=true mVisibleRequested=true
+10-06 13:31:02.352  4042  5789 D ActivityTaskManager: setVisibility defer change visibility for:ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} visible:false
+10-06 13:31:02.352  4042  5789 D ActivityTaskManager: setVisibility(Token{2779709 ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}}, visible=false) defer commitVisibility for inFinishingTransition
+10-06 13:31:02.352  4042  5789 D Transition: finishTransition ar ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}, isVisibleRequested=false, state=RESUMED, visibleAtTransitionEndTokens={}, this=TransitionRecord{31f283b id=23459 track=0 type=TO_FRONT flags=0x80 state=2 c=[
+10-06 13:31:02.352  4042  5789 D Transition:    ChangeInfo{b284b58 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x4}
+10-06 13:31:02.352  4042  5789 D ActivityTaskManager: commitVisibility: ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}: visible=false visibleRequested=false, isInTransition=false 
+10-06 13:31:02.352  4042  5789 D Transition:    ChangeInfo{b284b58 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x4}
+10-06 13:31:02.353  4042  5789 D OplusTransitionController:    ChangeInfo{b284b58 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x4}
+10-06 13:31:02.353  4042  5789 D FlexibleTaskTransitionController:    ChangeInfo{b284b58 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x4}
+10-06 13:31:02.353  4042  5789 D OplusShortcutContinuesTransitionPolicy:    ChangeInfo{b284b58 container=Task{cc8010 #3250 type=standard A=10646:com.agent.code} flags=0x4}
+10-06 13:31:02.355  4042  5789 D ActivityTaskManager: setVisibility after transition for:ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250}
+10-06 13:31:02.365  4042  4305 I UserAwareMgr: handleAppChangedToBg, pkgName: com.agent.code, pid: 10220
+10-06 13:31:02.374  4042  5789 V WindowManager: Relayout Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity}: viewVisibility=4, oldvis=0, req=1272x2800 , apr = 0, 
+10-06 13:31:02.378  4042  5789 D WindowManager: NFW_setClientVisible:ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} clientVisible:false
+10-06 13:31:02.378  4042  5789 I WindowManager: Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} state from HAS_DRAWN to DRAW_PENDING; reason: resetDrawState
+10-06 13:31:02.378  4042  5789 I WindowManager: Window{d05c1fe u0 com.agent.code/com.agent.code.MainActivity} state from DRAW_PENDING to NO_SURFACE; reason: destroySurface
+10-06 13:31:02.378  4042  5789 D OplusStartingWindowManager: skip remove starting window for activity = ActivityRecord{114521794 u0 com.agent.code/.MainActivity t3250} ,ar != topActivityContainsStartingWindow on activityStopped
+10-06 13:31:03.331  4042  6497 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:19.625  4042  5809 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:19.625  4042  6696 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:22.118  4042  6696 D ActivityTaskManager: after skip size:8,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, org.mozilla.firefox 3242, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:22.128  4042 10335 D ActivityTaskManager: after skip size:7,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:22.228  4042  9252 D ActivityTaskManager: after skip size:7,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:22.883  4042  6696 D ActivityTaskManager: after skip size:7,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, com.reddit.frontpage 3237, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:22.999  4042  6642 D ActivityTaskManager: after skip size:6,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:23.001  4042  6642 D ActivityTaskManager: after skip size:6,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:23.770  4042  6696 D ActivityTaskManager: after skip size:6,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, nu.gpu.nagram 3246, com.twitter.android 3247]
+10-06 13:31:23.915  4042  6645 D ActivityTaskManager: after skip size:5,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, nu.gpu.nagram 3246]
+10-06 13:31:25.872  4042  6696 D ActivityTaskManager: after skip size:5,pre-Filtered:[com.hamondev.shevery 3232, com.m4coding.ide 3193, com.agent.code 3250, com.instagram.android 3238, nu.gpu.nagram 3246]
+10-06 13:31:27.928 24456  3678 I GameSpaceUI.COSASDKManager: getManagerInfoList_1791286287928 getPrintAppInfoString AppInfo{mPackageName='com.agent.code', mType=7, mUserMarkType=-1}
+10-06 13:31:27.930 24456  3678 I GameSpaceUI.COSASDKManager:  getPrintAppInfoString AppInfo{mPackageName='com.agent.code', mType=7, mUserMarkType=-1}

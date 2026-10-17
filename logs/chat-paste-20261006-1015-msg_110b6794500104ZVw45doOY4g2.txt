@@ -1,0 +1,93 @@
+OpenCode: Server failed to start: OpenCode exited during startup (signal 11)
+
+Log:
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006ec00a6158
+elfloader: mapped ld
+elfloader: window 0x0000000000200000-0x000000000b420000
+elfloader: evicted 02000000-12000000 rw-p 00000000 00:00 0                                  [anon:dalvik-main space]
+elfloader: mapped prog
+elfloader: altstack 0x0000007008c0b000
+elfloader: altstack ok (kernel)
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006ec00a6158
+elfloader: sbrk ok
+elfloader: tp ok
+elfloader: altstack probe ok
+elfloader: brk 0x0000005846268000
+elfloader: spawning: /data/user/0/com.agent.code/files/opencode/opencode serve --port 4096
+elfloader: jumping
+elfloader: maps begin
+00200000-020e9000 r--p 00000000 fe:4f 2962132                            /data/data/com.agent.code/files/opencode/opencode
+02370000-05ba7000 r-xp 01ef0000 fe:4f 2962132                            /data/data/com.agent.code/files/opencode/opencode
+05bb6000-0b420000 rw-p 05726000 fe:4f 2962132                            /data/data/com.agent.code/files/opencode/opencode
+5846264000-5846268000 rw-p 00000000 00:00 0                              [heap]
+6e25ff4000-6e25ff5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:7357]
+6e25ff5000-6e263fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:7357]
+6e2740e000-6e2740f000 ---p 00000000 00:00 0                              [anon:stack_and_tls:7351]
+6e2740f000-6e27816000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:7351]
+6e293f4000-6e293f5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:7290]
+6e293f5000-6e297fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:7290]
+6e2dcf0000-6e2ddec000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:7223]
+6e2ddf4000-6e2ddf5000 ---p 00000000 00:00 0                              [anon:stack_and_tls:7219]
+6e2ddf5000-6e2e1fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:7219]
+6e2f300000-6e2f3fc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:7172]
+6e32b00000-6e32bfc000 rw-p 00000000 00:00 0                              [anon:stack_and_tls:7167]
+…
+7016a53000-7016a55000 r-xp 00000000 00:00 0                              [vdso]
+7fea23d000-7feaa3c000 rw-p 00000000 00:00 0                              [stack]
+elfloader: maps end
+elfloader: handlers armed: bionic=ok kernel=ok on_crash=0x0000006ec00a6158
+elfloader: readback ret=0x0000000000000000 handler=0x0000006ec00a6158 expect=0x0000006ec00a6158 live
+elfloader: delivery self-test...
+elfloader: handler delivery ok (self-test)
+      8013:	
+      8013:	file=libc.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	find library=libc.so.6 [0]; searching
+      8013:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+      8013:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6
+      8013:	
+      8013:	file=libc.so.6 [0];  generating link map
+      8013:	  dynamic: 0x0000006f2d5efaf0  base: 0x0000006f2d440000   size: 0x00000000001bdf90
+      8013:	    entry: 0x0000006f2d4686f0  phdr: 0x0000006f2d440040  phnum:                 10
+      8013:	
+      8013:	
+      8013:	file=libpthread.so.0 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	find library=libpthread.so.0 [0]; searching
+      8013:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+      8013:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0
+      8013:	
+      8013:	file=libpthread.so.0 [0];  generating link map
+      8013:	  dynamic: 0x000000700568fda0  base: 0x0000007005670000   size: 0x0000000000020010
+      8013:	    entry: 0x0000007005670000  phdr: 0x0000007005670040  phnum:                  7
+      8013:	
+      8013:	
+      8013:	file=libdl.so.2 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	find library=libdl.so.2 [0]; searching
+      8013:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+      8013:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2
+      8013:	
+      8013:	file=libdl.so.2 [0];  generating link map
+      8013:	  dynamic: 0x000000700089fda0  base: 0x0000007000880000   size: 0x0000000000020010
+      8013:	    entry: 0x0000007000880000  phdr: 0x0000007000880040  phnum:                  7
+      8013:	
+      8013:	
+      8013:	file=libm.so.6 [0];  needed by /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	find library=libm.so.6 [0]; searching
+      8013:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+      8013:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+      8013:	
+      8013:	file=libm.so.6 [0];  generating link map
+      8013:	  dynamic: 0x0000006f2df0fd10  base: 0x0000006f2de70000   size: 0x00000000000a0018
+      8013:	    entry: 0x0000006f2de70000  phdr: 0x0000006f2de70040  phnum:                  7
+      8013:	
+      8013:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/opencode [0]
+      8013:	checking for version `GLIBC_PRIVATE' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+      8013:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+      8013:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0]
+      8013:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0]
+      8013:	checking for version `GLIBC_2.17' in file /lib/ld-linux-aarch64.so.1 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+      8013:	checking for version `GLIBC_PRIVATE' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+      8013:	checking for version `GLIBC_2.17' in file /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0] required by file /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]  adb logcat -d | grep "Fatal signal" [E] Command exited with code 1.

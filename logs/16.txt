@@ -1,0 +1,1435 @@
+goal=say hi taskRunning=true uiError=null
+state=Running(port=4096, pid=16619)
+port=4096 log=/data/user/0/com.agent.code/files/opencode/opencode.log at=1791713002488
+[... 307016 earlier chars trimmed ...]
+nt.code/files/opencode/opencode [0]
+     16619:	symbol=statx;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=statx;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `statx' [GLIBC_2.28]
+     16619:	symbol=getrandom;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getrandom;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getrandom;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getrandom' [GLIBC_2.25]
+     16619:	symbol=__cxa_thread_atexit_impl;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__cxa_thread_atexit_impl;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__cxa_thread_atexit_impl;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__cxa_thread_atexit_impl' [GLIBC_2.18]
+     16619:	symbol=pthread_setspecific;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_setspecific;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_setspecific;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_setspecific' [GLIBC_2.17]
+     16619:	symbol=pthread_key_create;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_key_create;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_key_create;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_key_create' [GLIBC_2.17]
+     16619:	symbol=pthread_key_delete;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_key_delete;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_key_delete;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_key_delete' [GLIBC_2.17]
+     16619:	symbol=pause;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pause;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pause;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pause' [GLIBC_2.17]
+     16619:	symbol=pthread_self;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_self;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_self;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_self' [GLIBC_2.17]
+     16619:	symbol=pthread_setname_np;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_setname_np;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_setname_np;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_setname_np' [GLIBC_2.17]
+     16619:	symbol=writev;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=writev;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=writev;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `writev' [GLIBC_2.17]
+     16619:	symbol=__xpg_strerror_r;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__xpg_strerror_r;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__xpg_strerror_r;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__xpg_strerror_r' [GLIBC_2.17]
+     16619:	symbol=readdir64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=readdir64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=readdir64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `readdir64' [GLIBC_2.17]
+     16619:	symbol=closedir;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=closedir;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=closedir;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `closedir' [GLIBC_2.17]
+     16619:	symbol=getauxval;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getauxval;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getauxval;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getauxval' [GLIBC_2.17]
+     16619:	symbol=strerror;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strerror;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strerror;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strerror' [GLIBC_2.17]
+     16619:	symbol=fdatasync;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fdatasync;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fdatasync;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fdatasync' [GLIBC_2.17]
+     16619:	symbol=msync;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=msync;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=msync;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `msync' [GLIBC_2.17]
+     16619:	symbol=fsync;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fsync;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fsync;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fsync' [GLIBC_2.17]
+     16619:	symbol=pthread_mutex_lock;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutex_lock;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutex_lock;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutex_lock' [GLIBC_2.17]
+     16619:	symbol=pthread_getspecific;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_getspecific;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_getspecific;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_getspecific' [GLIBC_2.17]
+     16619:	symbol=pthread_mutex_unlock;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutex_unlock;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutex_unlock;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutex_unlock' [GLIBC_2.17]
+     16619:	symbol=ftruncate;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=ftruncate;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=ftruncate;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `ftruncate' [GLIBC_2.17]
+     16619:	symbol=mmap;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=mmap;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=mmap;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `mmap' [GLIBC_2.17]
+     16619:	symbol=madvise;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=madvise;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=madvise;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `madvise' [GLIBC_2.17]
+     16619:	symbol=strdup;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strdup;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strdup;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strdup' [GLIBC_2.17]
+     16619:	symbol=strcpy;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strcpy;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strcpy;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strcpy' [GLIBC_2.17]
+     16619:	symbol=lseek;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=lseek;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=lseek;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `lseek' [GLIBC_2.17]
+     16619:	symbol=pthread_mutexattr_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutexattr_init;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutexattr_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutexattr_init' [GLIBC_2.17]
+     16619:	symbol=pthread_mutexattr_setpshared;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutexattr_setpshared;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutexattr_setpshared;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutexattr_setpshared' [GLIBC_2.17]
+     16619:	symbol=pthread_mutexattr_setrobust;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutexattr_setrobust;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutexattr_setrobust;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutexattr_setrobust' [GLIBC_2.17]
+     16619:	symbol=pthread_mutex_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutex_init;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutex_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutex_init' [GLIBC_2.17]
+     16619:	symbol=pthread_mutexattr_destroy;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutexattr_destroy;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutexattr_destroy;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutexattr_destroy' [GLIBC_2.17]
+     16619:	symbol=fstatfs;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fstatfs;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fstatfs;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fstatfs' [GLIBC_2.17]
+     16619:	symbol=uname;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=uname;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=uname;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `uname' [GLIBC_2.17]
+     16619:	symbol=strtol;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strtol;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strtol;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strtol' [GLIBC_2.17]
+     16619:	symbol=pthread_mutex_destroy;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutex_destroy;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutex_destroy;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutex_destroy' [GLIBC_2.17]
+     16619:	symbol=strncmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strncmp;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strncmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strncmp' [GLIBC_2.17]
+     16619:	symbol=pthread_mutex_consistent;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_mutex_consistent;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_mutex_consistent;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_mutex_consistent' [GLIBC_2.17]
+     16619:	symbol=pwrite;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pwrite;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pwrite;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pwrite' [GLIBC_2.17]
+     16619:	symbol=pread;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pread;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pread;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pread' [GLIBC_2.17]
+     16619:	symbol=malloc_usable_size;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=malloc_usable_size;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=malloc_usable_size;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `malloc_usable_size' [GLIBC_2.17]
+     16619:	symbol=getpwnam;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getpwnam;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getpwnam;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getpwnam' [GLIBC_2.17]
+     16619:	symbol=ioctl;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=ioctl;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=ioctl;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `ioctl' [GLIBC_2.17]
+     16619:	symbol=setsockopt;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=setsockopt;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=setsockopt;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `setsockopt' [GLIBC_2.17]
+     16619:	symbol=socket;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=socket;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=socket;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `socket' [GLIBC_2.17]
+     16619:	symbol=getsockname;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getsockname;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getsockname;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getsockname' [GLIBC_2.17]
+     16619:	symbol=socketpair;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=socketpair;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=socketpair;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `socketpair' [GLIBC_2.17]
+     16619:	symbol=clock_getres;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=clock_getres;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=clock_getres;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `clock_getres' [GLIBC_2.17]
+     16619:	symbol=kill;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=kill;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=kill;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `kill' [GLIBC_2.17]
+     16619:	symbol=wait4;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=wait4;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=wait4;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `wait4' [GLIBC_2.17]
+     16619:	symbol=pipe2;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pipe2;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pipe2;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pipe2' [GLIBC_2.17]
+     16619:	symbol=fork;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fork;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fork;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fork' [GLIBC_2.17]
+     16619:	symbol=setregid;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=setregid;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=setregid;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `setregid' [GLIBC_2.17]
+     16619:	symbol=setreuid;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=setreuid;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=setreuid;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `setreuid' [GLIBC_2.17]
+     16619:	symbol=setpgid;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=setpgid;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=setpgid;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `setpgid' [GLIBC_2.17]
+     16619:	symbol=chdir;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=chdir;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=chdir;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `chdir' [GLIBC_2.17]
+     16619:	symbol=execve;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=execve;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=execve;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `execve' [GLIBC_2.17]
+     16619:	symbol=fchdir;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fchdir;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fchdir;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fchdir' [GLIBC_2.17]
+     16619:	symbol=_exit;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=_exit;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=_exit;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `_exit' [GLIBC_2.17]
+     16619:	symbol=dup2;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=dup2;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=dup2;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `dup2' [GLIBC_2.17]
+     16619:	symbol=pwrite64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pwrite64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pwrite64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pwrite64' [GLIBC_2.17]
+     16619:	symbol=pread64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pread64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pread64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pread64' [GLIBC_2.17]
+     16619:	symbol=mremap;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=mremap;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=mremap;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `mremap' [GLIBC_2.17]
+     16619:	symbol=linkat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=linkat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=linkat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `linkat' [GLIBC_2.17]
+     16619:	symbol=flock;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=flock;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=flock;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `flock' [GLIBC_2.17]
+     16619:	symbol=futimens;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=futimens;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=futimens;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `futimens' [GLIBC_2.17]
+     16619:	symbol=fchmod;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fchmod;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fchmod;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fchmod' [GLIBC_2.17]
+     16619:	symbol=ftruncate64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=ftruncate64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=ftruncate64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `ftruncate64' [GLIBC_2.17]
+     16619:	symbol=fchown;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fchown;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fchown;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fchown' [GLIBC_2.17]
+     16619:	symbol=isatty;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=isatty;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=isatty;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `isatty' [GLIBC_2.17]
+     16619:	symbol=preadv64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=preadv64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=preadv64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `preadv64' [GLIBC_2.17]
+     16619:	symbol=copy_file_range;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=copy_file_range;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=copy_file_range;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `copy_file_range' [GLIBC_2.27]
+     16619:	symbol=sendfile64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=sendfile64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=sendfile64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `sendfile64' [GLIBC_2.17]
+     16619:	symbol=pwritev64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pwritev64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pwritev64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pwritev64' [GLIBC_2.17]
+     16619:	symbol=utimensat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=utimensat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=utimensat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `utimensat' [GLIBC_2.17]
+     16619:	symbol=fchmodat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fchmodat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fchmodat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fchmodat' [GLIBC_2.17]
+     16619:	symbol=chmod;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=chmod;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=chmod;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `chmod' [GLIBC_2.17]
+     16619:	symbol=readlinkat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=readlinkat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=readlinkat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `readlinkat' [GLIBC_2.17]
+     16619:	symbol=symlinkat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=symlinkat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=symlinkat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `symlinkat' [GLIBC_2.17]
+     16619:	symbol=renameat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=renameat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=renameat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `renameat' [GLIBC_2.17]
+     16619:	symbol=unlinkat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=unlinkat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=unlinkat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `unlinkat' [GLIBC_2.17]
+     16619:	symbol=openat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=openat64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=openat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `openat64' [GLIBC_2.17]
+     16619:	symbol=faccessat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=faccessat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=faccessat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `faccessat' [GLIBC_2.17]
+     16619:	symbol=mkdirat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=mkdirat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=mkdirat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `mkdirat' [GLIBC_2.17]
+     16619:	symbol=recvmsg;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=recvmsg;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=recvmsg;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `recvmsg' [GLIBC_2.17]
+     16619:	symbol=readv;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=readv;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=readv;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `readv' [GLIBC_2.17]
+     16619:	symbol=pthread_kill;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_kill;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_kill;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_kill' [GLIBC_2.17]
+     16619:	symbol=pthread_attr_setguardsize;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_attr_setguardsize;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_attr_setguardsize;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_attr_setguardsize' [GLIBC_2.17]
+     16619:	symbol=sendmmsg;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=sendmmsg;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=sendmmsg;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `sendmmsg' [GLIBC_2.17]
+     16619:	symbol=sendmsg;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=sendmsg;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=sendmsg;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `sendmsg' [GLIBC_2.17]
+     16619:	symbol=shutdown;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=shutdown;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=shutdown;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `shutdown' [GLIBC_2.17]
+     16619:	symbol=connect;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=connect;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=connect;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `connect' [GLIBC_2.17]
+     16619:	symbol=bind;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=bind;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=bind;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `bind' [GLIBC_2.17]
+     16619:	symbol=accept4;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=accept4;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=accept4;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `accept4' [GLIBC_2.17]
+     16619:	symbol=listen;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=listen;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=listen;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `listen' [GLIBC_2.17]
+     16619:	symbol=readdir;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=readdir;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=readdir;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `readdir' [GLIBC_2.17]
+     16619:	symbol=strrchr;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strrchr;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strrchr;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strrchr' [GLIBC_2.17]
+     16619:	symbol=memchr;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=memchr;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=memchr;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `memchr' [GLIBC_2.17]
+     16619:	symbol=snprintf;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=snprintf;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=snprintf;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `snprintf' [GLIBC_2.17]
+     16619:	symbol=strcmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strcmp;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strcmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strcmp' [GLIBC_2.17]
+     16619:	symbol=strcasecmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strcasecmp;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strcasecmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strcasecmp' [GLIBC_2.17]
+     16619:	symbol=strchr;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strchr;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strchr;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strchr' [GLIBC_2.17]
+     16619:	symbol=__ctype_b_loc;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__ctype_b_loc;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__ctype_b_loc;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__ctype_b_loc' [GLIBC_2.17]
+     16619:	symbol=__ctype_tolower_loc;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__ctype_tolower_loc;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__ctype_tolower_loc;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__ctype_tolower_loc' [GLIBC_2.17]
+     16619:	symbol=access;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=access;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=access;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `access' [GLIBC_2.17]
+     16619:	symbol=pthread_rwlock_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_rwlock_init;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_rwlock_init;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_rwlock_init' [GLIBC_2.17]
+     16619:	symbol=pthread_rwlock_wrlock;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_rwlock_wrlock;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_rwlock_wrlock;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_rwlock_wrlock' [GLIBC_2.17]
+     16619:	symbol=pthread_rwlock_unlock;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_rwlock_unlock;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_rwlock_unlock;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_rwlock_unlock' [GLIBC_2.17]
+     16619:	symbol=pthread_rwlock_destroy;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_rwlock_destroy;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_rwlock_destroy;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_rwlock_destroy' [GLIBC_2.17]
+     16619:	symbol=pthread_rwlock_rdlock;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_rwlock_rdlock;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_rwlock_rdlock;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_rwlock_rdlock' [GLIBC_2.17]
+     16619:	symbol=fwrite;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fwrite;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fwrite;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fwrite' [GLIBC_2.17]
+     16619:	symbol=strncasecmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strncasecmp;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strncasecmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strncasecmp' [GLIBC_2.17]
+     16619:	symbol=strnlen;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strnlen;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strnlen;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strnlen' [GLIBC_2.17]
+     16619:	symbol=time;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=time;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=time;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `time' [GLIBC_2.17]
+     16619:	symbol=strncpy;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=strncpy;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=strncpy;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `strncpy' [GLIBC_2.17]
+     16619:	symbol=gettimeofday;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=gettimeofday;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=gettimeofday;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `gettimeofday' [GLIBC_2.17]
+     16619:	symbol=geteuid;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=geteuid;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=geteuid;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `geteuid' [GLIBC_2.17]
+     16619:	symbol=__ctype_toupper_loc;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__ctype_toupper_loc;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__ctype_toupper_loc;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__ctype_toupper_loc' [GLIBC_2.17]
+     16619:	symbol=vsnprintf;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=vsnprintf;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=vsnprintf;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `vsnprintf' [GLIBC_2.17]
+     16619:	symbol=rmdir;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=rmdir;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=rmdir;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `rmdir' [GLIBC_2.17]
+     16619:	symbol=utimes;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=utimes;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=utimes;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `utimes' [GLIBC_2.17]
+     16619:	symbol=link;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=link;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=link;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `link' [GLIBC_2.17]
+     16619:	symbol=rename;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=rename;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=rename;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `rename' [GLIBC_2.17]
+     16619:	symbol=getppid;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getppid;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getppid;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getppid' [GLIBC_2.17]
+     16619:	symbol=getpgid;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getpgid;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getpgid;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getpgid' [GLIBC_2.17]
+     16619:	symbol=getsid;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getsid;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getsid;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getsid' [GLIBC_2.17]
+     16619:	symbol=getgid;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getgid;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getgid;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getgid' [GLIBC_2.17]
+     16619:	symbol=fprintf;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fprintf;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fprintf;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fprintf' [GLIBC_2.17]
+     16619:	symbol=fflush;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=fflush;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=fflush;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `fflush' [GLIBC_2.17]
+     16619:	symbol=dladdr;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=dladdr;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=dladdr;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `dladdr' [GLIBC_2.17]
+     16619:	symbol=__xstat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__xstat64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__xstat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__xstat64' [GLIBC_2.17]
+     16619:	symbol=__fxstat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__fxstat64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__fxstat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__fxstat64' [GLIBC_2.17]
+     16619:	symbol=__lxstat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__lxstat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__lxstat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__lxstat' [GLIBC_2.17]
+     16619:	symbol=__fxstat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__fxstat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__fxstat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__fxstat' [GLIBC_2.17]
+     16619:	symbol=__lxstat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__lxstat64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__lxstat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__lxstat64' [GLIBC_2.17]
+     16619:	symbol=__xstat;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__xstat;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__xstat;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__xstat' [GLIBC_2.17]
+     16619:	symbol=__fxstatat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__fxstatat64;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__fxstatat64;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__fxstatat64' [GLIBC_2.17]
+     16619:	object=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	 scope 0: /data/user/0/com.agent.code/files/opencode/opencode /data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 /lib/ld-linux-aarch64.so.1 /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+     16619:	 scope 1: /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 /lib/ld-linux-aarch64.so.1
+     16619:	
+     16619:	object=/data/user/0/com.agent.code/files/opencode/glibc/libm.so.6 [0]
+     16619:	 scope 0: /data/user/0/com.agent.code/files/opencode/opencode /data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 /lib/ld-linux-aarch64.so.1 /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+     16619:	
+     16619:	object=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	 scope 0: /data/user/0/com.agent.code/files/opencode/opencode /data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 /lib/ld-linux-aarch64.so.1 /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+     16619:	
+     16619:	object=/data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 [0]
+     16619:	 scope 0: /data/user/0/com.agent.code/files/opencode/opencode /data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 /lib/ld-linux-aarch64.so.1 /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+     16619:	
+     16619:	object=/data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 [0]
+     16619:	 scope 0: /data/user/0/com.agent.code/files/opencode/opencode /data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 /lib/ld-linux-aarch64.so.1 /data/user/0/com.agent.code/files/opencode/glibc/libpthread.so.0 /data/user/0/com.agent.code/files/opencode/glibc/libdl.so.2 /data/user/0/com.agent.code/files/opencode/glibc/libm.so.6
+     16619:	
+     16619:	object=/lib/ld-linux-aarch64.so.1 [0]
+     16619:	 no scope
+     16619:	
+     16619:	
+     16619:	calling init: /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so
+     16619:	
+     16619:	opening file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]; direct_opencount=1
+     16619:	
+     16619:	symbol=fff_create_instance2;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_create_instance2'
+     16619:	symbol=_setjmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=_setjmp;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=_setjmp;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `_setjmp' [GLIBC_2.17]
+     16619:	symbol=fff_create_instance_with;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_create_instance_with'
+     16619:	symbol=fff_destroy;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_destroy'
+     16619:	symbol=fff_search;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_search'
+     16619:	symbol=fff_glob;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_glob'
+     16619:	symbol=fff_search_directories;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_search_directories'
+     16619:	symbol=fff_search_mixed;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_search_mixed'
+     16619:	symbol=fff_live_grep;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_live_grep'
+     16619:	symbol=fff_multi_grep;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_multi_grep'
+     16619:	symbol=fff_scan_files;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_scan_files'
+     16619:	symbol=fff_is_scanning;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_is_scanning'
+     16619:	symbol=fff_get_base_path;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_get_base_path'
+     16619:	symbol=fff_get_scan_progress;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_get_scan_progress'
+     16619:	symbol=fff_wait_for_scan;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_wait_for_scan'
+     16619:	symbol=fff_restart_index;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_restart_index'
+     16619:	symbol=fff_refresh_git_status;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_refresh_git_status'
+     16619:	symbol=fff_track_query;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_track_query'
+     16619:	symbol=fff_get_historical_query;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_get_historical_query'
+     16619:	symbol=fff_health_check;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_health_check'
+     16619:	symbol=fff_free_search_result;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_free_search_result'
+     16619:	symbol=fff_search_result_get_item;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_search_result_get_item'
+     16619:	symbol=fff_search_result_get_score;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_search_result_get_score'
+     16619:	symbol=fff_free_dir_search_result;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_free_dir_search_result'
+     16619:	symbol=fff_dir_search_result_get_item;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_dir_search_result_get_item'
+     16619:	symbol=fff_dir_search_result_get_score;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_dir_search_result_get_score'
+     16619:	symbol=fff_free_mixed_search_result;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_free_mixed_search_result'
+     16619:	symbol=fff_mixed_search_result_get_item;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_mixed_search_result_get_item'
+     16619:	symbol=fff_mixed_search_result_get_score;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_mixed_search_result_get_score'
+     16619:	symbol=fff_free_grep_result;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_free_grep_result'
+     16619:	symbol=fff_grep_result_get_match;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_grep_result_get_match'
+     16619:	symbol=fff_free_result;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_free_result'
+     16619:	symbol=fff_free_string;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_free_string'
+     16619:	symbol=fff_free_scan_progress;  lookup in file=/data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0]: normal symbol `fff_free_scan_progress'
+     16619:	symbol=__pthread_get_minstack;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=__pthread_get_minstack;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=__pthread_get_minstack;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `__pthread_get_minstack'
+elfloader: drain ev tid=16619 st=0x3057f
+elfloader: drain ev tid=16851 st=0x137f
+elfloader: drain ev tid=16851 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16851 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16852 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16852 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16852 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16853 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16853 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16853 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16854 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16854 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16854 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16855 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16855 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16855 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16856 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16856 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16856 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16857 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16857 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16857 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16858 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16858 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16858 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16859 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16859 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16859 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16859 st=0x0
+elfloader: drain ev tid=16857 st=0x0
+elfloader: drain ev tid=16856 st=0x0
+elfloader: drain ev tid=16858 st=0x0
+     16619:	symbol=getrandom;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=getrandom;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=getrandom;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/cache/.3cdd7b7ebdf6ed5f-00000000.so [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `getrandom'
+elfloader: drain ev tid=16860 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16860 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16860 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16861 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16861 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16861 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16862 st=0x137f
+elfloader: drain ev tid=16851 st=0x3057f
+elfloader: drain ev tid=16862 st=0x1f7f
+elfloader: fault stop sig=31 code=1 tid=16862 spid=759977752 st=86 addr=0x6f2d4c5718 pc=0x6f2d4c5718 syscall=99 x8=0x63
+elfloader: TracerPid:	16618
+elfloader: SigBlk:	ffffffffbffbfeff
+elfloader: SigIgn:	0000000001001001
+elfloader: SigCgt:	0000106f200084f8
+elfloader: Seccomp:	2
+elfloader: Seccomp_filters:	1
+elfloader: drain ev tid=16851 st=0x0
+     16619:	
+     16619:	file=/data/user/0/com.agent.code/cache/.7dfffffe3bd568df-00000001.node [0];  dynamically loaded by /data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	file=/data/user/0/com.agent.code/cache/.7dfffffe3bd568df-00000001.node [0];  generating link map
+     16619:	  dynamic: 0x0000006f29fed978  base: 0x0000006f29f70000   size: 0x000000000007f4e0
+     16619:	    entry: 0x0000006f29f90820  phdr: 0x0000006f29f70040  phnum:                  7
+     16619:	
+     16619:	
+     16619:	file=libstdc++.so.6 [0];  needed by /data/user/0/com.agent.code/cache/.7dfffffe3bd568df-00000001.node [0]
+     16619:	find library=libstdc++.so.6 [0]; searching
+     16619:	 search path=/data/user/0/com.agent.code/files/opencode/glibc		(LD_LIBRARY_PATH)
+     16619:	  trying file=/data/user/0/com.agent.code/files/opencode/glibc/libstdc++.so.6
+     16619:	 search cache=/etc/ld.so.cache
+     16619:	 search path=/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu:/lib:/usr/lib		(system search path)
+     16619:	  trying file=/lib/aarch64-linux-gnu/libstdc++.so.6
+     16619:	  trying file=/usr/lib/aarch64-linux-gnu/libstdc++.so.6
+     16619:	  trying file=/lib/libstdc++.so.6
+     16619:	  trying file=/usr/lib/libstdc++.so.6
+     16619:	
+     16619:	
+     16619:	file=/data/user/0/com.agent.code/cache/.7dfffffe3bd568df-00000001.node [0];  destroying link map
+     16619:	symbol=dlerror;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=dlerror;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=dlerror;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `dlerror' [GLIBC_2.17]
+[dns-shim] getaddrinfo(opencode.ai, fam=0)
+[dns-shim] getaddrinfo ok
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=87 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=88 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=89 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=90 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=91 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=92 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=93 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=94 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=95 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=96 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=97 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=98 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=99 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=100 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=101 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=102 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=103 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=104 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=105 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=106 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=107 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=108 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=109 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=110 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=111 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=112 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=113 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=114 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=115 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=116 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=117 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=118 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=119 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=120 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=121 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=122 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=123 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=124 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=125 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=126 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=127 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=128 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=129 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=130 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=131 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=132 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: SIGPWR fast path st=132
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=133 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=134 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=135 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=136 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=137 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=138 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=139 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=140 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=141 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=142 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=143 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=144 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=145 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=146 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=147 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=148 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=149 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=150 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=151 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=152 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: hb state=R wchan=0
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=153 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=154 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=155 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=156 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=157 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=158 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=159 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=160 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=161 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=162 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=163 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=164 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=165 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=166 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=167 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=168 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=169 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=170 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=171 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=172 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=173 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=174 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=175 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=176 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=177 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=178 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=179 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=180 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=181 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=182 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=183 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=184 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=185 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=186 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=187 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=188 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=189 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=190 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=191 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=192 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=193 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=194 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=195 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=196 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: SIGPWR fast path st=196
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=197 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=198 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=199 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=200 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=201 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=202 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=203 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=204 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=205 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=206 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=207 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=208 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=209 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=210 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=211 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=212 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=213 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=214 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=215 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=216 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=217 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=218 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=219 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=220 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=221 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=222 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=223 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=224 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=225 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=226 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=227 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16633 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16633 spid=16619 st=228 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=229 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=230 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=231 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=232 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=233 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=234 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=235 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=236 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=237 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=238 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=239 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=240 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=241 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=242 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=243 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=244 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=245 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=246 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=247 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=248 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=249 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=250 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=251 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=252 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=253 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=254 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=255 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=256 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=257 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=258 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=259 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=260 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: SIGPWR fast path st=260
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=261 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=262 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=263 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16634 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16634 spid=16619 st=264 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=265 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16632 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16632 spid=16619 st=266 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=267 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=268 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=269 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=270 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=271 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=272 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=273 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=274 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=275 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=276 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=277 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=278 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=279 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=280 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=281 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=282 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=283 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=284 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=285 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=286 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=287 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=288 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: hb state=S wchan=do_epoll_wait
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=289 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=290 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=291 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=292 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=293 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=294 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=295 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=296 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=297 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=298 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=299 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=300 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=301 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=302 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=303 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=304 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=305 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=306 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=307 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=308 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=309 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=310 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=311 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=312 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=313 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=314 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=315 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=316 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=317 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=318 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=319 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=320 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=321 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=322 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=323 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=324 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: SIGPWR fast path st=324
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=325 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=326 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=327 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=328 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=329 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=330 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=331 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=332 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=333 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=334 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=335 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=336 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=337 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=338 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=339 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=340 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=341 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=342 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=343 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=344 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=345 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=346 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=347 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=348 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=349 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=350 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=351 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=352 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=353 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=354 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=355 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=356 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=357 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=358 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=359 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=360 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=361 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=362 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=363 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=364 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=365 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=366 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=367 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=368 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=369 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16625 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16625 spid=16619 st=370 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+     16619:	symbol=pthread_cond_destroy;  lookup in file=/data/user/0/com.agent.code/files/opencode/opencode [0]
+     16619:	symbol=pthread_cond_destroy;  lookup in file=/data/app/~~VO8wO43NFIGjF6zphMx-4w==/com.agent.code-fgje_2sUahEhNhtdOlbUwA==/lib/arm64/libdnsshim.so [0]
+     16619:	symbol=pthread_cond_destroy;  lookup in file=/data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]
+     16619:	binding file /data/user/0/com.agent.code/files/opencode/opencode [0] to /data/user/0/com.agent.code/files/opencode/glibc/libc.so.6 [0]: normal symbol `pthread_cond_destroy' [GLIBC_2.17]
+elfloader: drain ev tid=16632 st=0x0
+elfloader: drain ev tid=16634 st=0x0
+elfloader: drain ev tid=16633 st=0x0
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=371 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=372 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=373 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16631 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16631 spid=16619 st=374 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=375 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=376 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=377 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=378 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=379 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=380 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=381 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16628 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16628 spid=16619 st=382 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=383 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16630 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16630 spid=16619 st=384 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=385 addr=0x29ad000040eb pc=0x55e2a64 syscall=-1 x8=0x8000
+elfloader: drain ev tid=16629 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16629 spid=16619 st=386 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=387 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16626 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16626 spid=16619 st=388 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+elfloader: SIGPWR fast path st=388
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=389 addr=0x29ad000040eb pc=0x6f2d4c1ebc syscall=-1 x8=0x62
+elfloader: drain ev tid=16624 st=0x1e7f
+elfloader: fault stop sig=30 code=-6 tid=16624 spid=16619 st=390 addr=0x29ad000040eb pc=0x6f2d47ce48 syscall=-1 x8=0x85
+
+=== opencode server log (/data/user/0/com.agent.code/files/opencode/.local/share/opencode/log/opencode.log) ===
+timestamp=2026-10-11T10:02:53.279Z level=INFO run=3858d4b1 message=loading path=/data/user/0/com.agent.code/files/opencode/.config/opencode/config.json
+timestamp=2026-10-11T10:02:53.281Z level=INFO run=3858d4b1 message=loading path=/data/user/0/com.agent.code/files/opencode/.config/opencode/opencode.json
+timestamp=2026-10-11T10:02:53.281Z level=INFO run=3858d4b1 message=loading path=/data/user/0/com.agent.code/files/opencode/.config/opencode/opencode.jsonc
+timestamp=2026-10-11T10:02:58.990Z level=INFO run=3858d4b1 message="project copy refresh started" projectID=global
+timestamp=2026-10-11T10:02:58.991Z level=INFO run=3858d4b1 message="project copy refresh done" projectID=global updated=[] removed=[]
+timestamp=2026-10-11T10:02:59.023Z level=INFO run=3858d4b1 message="booting location services" directory=/data/data/com.agent.code/files workspaceID=undefined

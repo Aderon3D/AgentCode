@@ -19,9 +19,11 @@ import androidx.compose.ui.unit.sp
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.workspace.FileNode
 import com.agent.code.workspace.FileSystemProvider
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -50,7 +52,10 @@ fun FilesScreen(
     var changedNames by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     suspend fun refresh() {
-        fileSystem.walkTree(currentDir, maxDepth = 1, ignorePatterns = emptyList()).fold(
+        val walk = withContext(Dispatchers.IO) {
+            fileSystem.walkTree(currentDir, maxDepth = 1, ignorePatterns = emptyList())
+        }
+        walk.fold(
             onSuccess = { tree ->
                 nodes = tree.children
                 val mtimes = tree.children
@@ -179,18 +184,20 @@ private fun FileViewer(
 ) {
     // null = loading, sentinel = too large to load.
     var content by remember(file.path) { mutableStateOf<String?>(null) }
+    var readError by remember(file.path) { mutableStateOf<String?>(null) }
     var tooLarge by remember(file.path) { mutableStateOf(false) }
     var editing by remember(file.path) { mutableStateOf(false) }
     var draft by remember(file.path) { mutableStateOf("") }
     var opError by remember(file.path) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(file.path) {
-        if (file.sizeBytes > 2_000_000L) {
+        if (file.sizeBytes > VIEWER_MAX_BYTES) {
             tooLarge = true
         } else {
-            fileSystem.read(file.path).fold(
+            val result = withContext(Dispatchers.IO) { fileSystem.read(file.path) }
+            result.fold(
                 onSuccess = { content = it },
-                onFailure = { content = "read failed: ${it.message}" }
+                onFailure = { readError = it.message }
             )
         }
     }
@@ -206,7 +213,7 @@ private fun FileViewer(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (!tooLarge) {
+            if (!tooLarge && content != null) {
                 if (!editing) {
                     TextButton(onClick = {
                         draft = content.orEmpty()
@@ -217,7 +224,8 @@ private fun FileViewer(
                     val scope = androidx.compose.runtime.rememberCoroutineScope()
                     TextButton(onClick = {
                         scope.launch {
-                            fileSystem.write(file.path, draft).fold(
+                            val result = withContext(Dispatchers.IO) { fileSystem.write(file.path, draft) }
+                            result.fold(
                                 onSuccess = {
                                     content = draft
                                     editing = false
@@ -237,7 +245,12 @@ private fun FileViewer(
 
         when {
             tooLarge -> Text(
-                "File too large to view (${formatSize(file.sizeBytes)}); viewer capped at 2 MB.",
+                "File too large to view (${formatSize(file.sizeBytes)}); viewer capped at ${formatSize(VIEWER_MAX_BYTES)}.",
+                fontSize = 12.sp
+            )
+            readError != null -> Text(
+                "read failed: $readError",
+                color = MaterialTheme.colorScheme.error,
                 fontSize = 12.sp
             )
             content == null -> Text("Loading...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -298,10 +311,11 @@ private fun NewFileDialog(
                     trimmed.isEmpty() -> error = "Name is empty"
                     trimmed.contains('/') -> error = "Name must not contain /"
                     else -> scope.launch {
-                        if (exists(trimmed)) {
+                        val already = withContext(Dispatchers.IO) { exists(trimmed) }
+                        if (already) {
                             error = "Already exists"
                         } else {
-                            onCreate(trimmed)
+                            withContext(Dispatchers.IO) { onCreate(trimmed) }
                                 .onSuccess { onDismiss() }
                                 .onFailure { error = it.message ?: "Write failed" }
                         }
@@ -314,6 +328,8 @@ private fun NewFileDialog(
         }
     )
 }
+
+private const val VIEWER_MAX_BYTES = 512_000L
 
 private fun formatSize(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"

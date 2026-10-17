@@ -108,7 +108,7 @@ saga replaced.
 | Oct 10 | round 15 | server healthy but goal field does nothing | client called OpenAI-shaped `/api/chat*` which this server doesn't serve; unknown routes return the **SPA HTML with 200** → SSE parser emitted zero events → brain looped silently | rewired to the real session API (§5); always-available log export |
 | Oct 11 | round 24 (r24) | on-device agent: `prompt accepted`, **no SSE events ever stream**; the serve path also hits an ENOTDIR bug (default instance dir resolves to the binary path, `serve` has no `--dir`) | the serve+SSE design is a fragile on-device dependency: a long-lived `serve` under ptrace + a live global SSE stream that only delivers to current subscribers (no replay), so any startup/timing gap = silent hang with an empty feed | **pivot the agent to `opencode run --format json`**: one-shot subprocess, flat JSON events on stdout, transient in-process server that exits with the run, tools auto-approved via `--auto`. `serve` kept only for the browser web UI. New: `OpenCodeManager.runPrompt()`, `parseRunEvent()`, starter plugin-only `opencode.json` (§3.7) |
 | Oct 11 | round 25 (r24 log) | feed shows `run mimo-v2.6-flash-free ...` but **no `run --format json` spawn line ever appears**; the run subprocess never starts | **`stateMutex` deadlock**: `start()` holds the mutex for its entire duration (including `waitForServer`, up to 15s); `runPrompt` → `ensureInstalled()` tries to acquire the same mutex and blocks forever | `runPrompt` now does a non-blocking `fileSystem.exists(binary)` check instead of `ensureInstalled()`; added `runTimeoutMs` (120s) deadline to the offset-tail loop so a ptrace-stalled child can't hang the flow forever |
-| Oct 12 | round 26 (r25 log) | deadlock gone (`state=Running`) but the feed still stalls at `run <model> ...`; log looked perfectly healthy | **two blind spots**: (1) `logDump()` only ever read `opencode.log`, but the run subprocess's stdout (JSON events + elfloader forensics) lands in `run-<taskId>.events` — a file nothing read, so the stall was invisible; (2) the starter `opencode.json` names 3 npm plugins, and `run` resolves those through npm on device — a hang/failure there emits zero events | `logDump()` now appends `run-<taskId>.events` and names it in the header; the agent path adds `--pure` (documented `run` flag) so no external plugins are loaded at all — plugins stay an enhancement, not a dependency (§3.7) |
+| Oct 12 | round 26 (r25 log) | deadlock gone (`state=Running`) but the feed still stalls at `run <model> ...`; log looked perfectly healthy | **two blind spots**: (1) `logDump()` only ever read `opencode.log`, but the run subprocess's stdout (JSON events + elfloader forensics) lands in `run-<taskId>.events` — a file nothing read, so the stall was invisible; (2) the starter `opencode.json` then named 3 npm plugins, and `run` resolves those through npm on device — a hang/failure there emits zero events | `logDump()` now appends `run-<taskId>.events` and names it in the header; the agent path adds `--pure` (documented `run` flag) so no external plugins are loaded at all — plugins stay an enhancement, not a dependency (§3.7) |
 | Oct 13 | round 27 (r26 log) | `--pure` run **spawns** (deadlock gone, `run --format json --auto --pure` line present) but stalls at `GETSIGINFO errno=3` then infinite `hb state=t wchan=ptrace_stop` | **two concurrent spawns, two drain threads, both `waitpid(-1)`**: `start()` (serve, pid 30021) and `runPrompt()` (run, pid 30030) each fork a child via `nativeSpawn` → `spawn_server_thread` → `drain_loop`. `waitpid(-1)` is process-scoped, so the two threads steal each other's child-stop events. When the serve thread reaps a run-child stop, `ptrace` returns ESRCH (only the *forking* thread can ptrace its child — elfloader.c:1003, the r8-r11 single-tracer rule), `PTRACE_CONT` also fails, and the run child parks in `ptrace_stop` forever while its own drain thread blocks in `waitpid` | `runPrompt()` now calls `stop()` before spawning — kill the web-UI server, leave one live child, one drain thread. Run mode is self-contained (no port, no SSE). **Root-caused + reproduced natively** (§3.8): `waitpid(-1)` is per-process, so the two drains steal each other's events. Fix: serialize — `runPrompt()` stops the serve child before spawning, and the loader now enforces one drain at a time (single-spawn gate). **Ceiling**: true concurrent spawns (multi-agent) need per-tid tracking; the r28 `waitpid(-pgid)` attempt was a regression (the kernel reports no ptrace-stops through a process-group wait) and was reverted |
 
 Rounds through 12 were one problem (child survives and serves); rounds 13–15
@@ -269,37 +269,30 @@ by the shim). That hybrid would also delete the SIGPWR-storm class (no stops
 
 ---
 
-### 3.7 Starter plugin config (r24, run-mode path)
+### 3.7 Starter config: no plugins (r24 → r26, run-mode path)
 
 `opencode run` loads the same config/plugins as `serve`, so the workspace's
 `opencode.json` is where agent behavior gets tuned. On first run (if absent)
-`OpenCodeManager.ensureWorkspaceConfig()` writes a minimal file that opts into
-the three plugins we ship for the agent (each is a plain npm package opencode
-resolves at load; a missing/unreachable package is non-fatal, the run still
-works without it):
+`OpenCodeManager.ensureWorkspaceConfig()` writes a minimal anchor that lists
+**no** plugins:
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "@dietrichgebert/ponytail@4.9.0",
-    "opencode-bash-guard-plugin@1.0.5",
-    "opencode-redact"
-  ]
+  "$schema": "https://opencode.ai/config.json"
 }
 ```
 
-- **ponytail** — forces the laziest working solution (YAGNI / stdlib-first).
-- **bash-guard** — safety rail on the agent's shell tool.
-- **redact** — strips secrets from tool output before they hit the transcript.
+The three plugins we once shipped — **ponytail** (laziest working solution),
+**bash-guard** (shell-tool safety rail), **redact** (secret stripping) — are
+gone as of r26; they remain here only so the history below makes sense.
 
 **The agent path passes `--pure`**, so opencode loads *no* external plugins on
-device. But declaring them in the starter config is **not** harmless: opencode
-still runs its npm install path (arborist) at startup for the listed packages
+device. Declaring them in the starter config was **not** harmless: opencode
+still ran its npm install path (arborist) at startup for the listed packages
 even under `--pure` (opencode #31810/#37888). On device there is no npm cache and
-the dns-shim blocks resolving `registry.npmjs.org`, so the run stalls at
+the dns-shim blocks resolving `registry.npmjs.org`, so the run stalled at
 `run <model> ...` with a healthy-looking log (r25 log 27; compare r23 log 23,
-where the same lookup *succeeds* with network). Fix: the starter config now
+where the same lookup *succeeds* with network). Hence the starter config now
 lists **no** plugins — `--pure` would skip them anyway, so the list was pure
 downside. Plugins stay an enhancement, not a dependency. To use them offline,
 vendor them under the workspace's `.opencode/plugins/` and reference the local

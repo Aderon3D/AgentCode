@@ -95,8 +95,10 @@ class OpenCodeManager(
     private suspend fun ensureInstalledInternal(): OpenCodeState {
         val binaryPath = config.installDir.resolve(config.binaryName)
         val sentinelPath = config.installDir.resolve(".loader-v2")
-        val upToDate = fileSystem.exists(binaryPath) &&
-            fileSystem.read(sentinelPath).getOrNull()?.trim() == loaderSentinel
+        val upToDate = withContext(Dispatchers.IO) {
+            fileSystem.exists(binaryPath) &&
+                fileSystem.read(sentinelPath).getOrNull()?.trim() == loaderSentinel
+        }
         if (upToDate) {
             _state = OpenCodeState.Stopped
             return _state
@@ -171,10 +173,12 @@ class OpenCodeManager(
         // OC_RESOLV_CONF). ponytail: hardcoded public DNS — switch to
         // ConnectivityManager device DNS if a carrier blocks outbound :53
         // (shows up as EAI failures in the opencode server log we dump).
-        val resolv = fileSystem.write(
-            config.installDir.resolve("resolv.conf"),
-            "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
-        )
+        val resolv = withContext(Dispatchers.IO) {
+            fileSystem.write(
+                config.installDir.resolve("resolv.conf"),
+                "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
+            )
+        }
         if (resolv.isFailure) {
             _state = OpenCodeState.Error(
                 "resolv.conf write failed: ${resolv.exceptionOrNull()?.message}"
@@ -183,14 +187,16 @@ class OpenCodeManager(
         }
 
         val pid = try {
-            PlatformOps.spawnLdLinux(
-                loaderPath = "${config.nativeLibraryDir}/libld.so",
-                glibcDir = "$installDir/glibc",
-                binaryPath = "$installDir/${config.binaryName}",
-                workDir = projectDir.rawPath,
-                logPath = logFile.rawPath,
-                args = arrayOf("serve", "--port", port.toString())
-            )
+            withContext(Dispatchers.IO) {
+                PlatformOps.spawnLdLinux(
+                    loaderPath = "${config.nativeLibraryDir}/libld.so",
+                    glibcDir = "$installDir/glibc",
+                    binaryPath = "$installDir/${config.binaryName}",
+                    workDir = projectDir.rawPath,
+                    logPath = logFile.rawPath,
+                    args = arrayOf("serve", "--port", port.toString())
+                )
+            }
         } catch (e: Exception) {
             _state = OpenCodeState.Error("Spawn failed: ${e.message}")
             return@withLock _state
@@ -260,7 +266,7 @@ class OpenCodeManager(
         // run subprocess never spawned). A plain exists() is enough: start()
         // installs before serving, and a missing binary fails at spawn time.
         val binaryPath = config.installDir.resolve(config.binaryName)
-        if (!fileSystem.exists(binaryPath)) {
+        if (!withContext(Dispatchers.IO) { fileSystem.exists(binaryPath) }) {
             error("OpenCode not installed: $binaryPath missing")
         }
 
@@ -279,30 +285,41 @@ class OpenCodeManager(
 
         val installDir = config.installDir.rawPath
         val eventsFile = config.installDir.resolve("run-$taskId.events")
+        // Free the previous run's event file: it holds multi-MB loader forensics
+        // and only the latest is ever dumped, so per-task files grew /data
+        // unboundedly across repeated runs.
+        lastRunEventsPath?.let { prev ->
+            withContext(Dispatchers.IO) { runCatching { fileSystem.delete(VirtualPath.of(prev)) } }
+        }
         lastRunEventsPath = eventsFile.rawPath
-        // DNS shim for the child's getaddrinfo preload (same as start()).
-        fileSystem.write(
-            config.installDir.resolve("resolv.conf"),
-            "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
-        )
-        // Fail-fast npm (insurance): if opencode's startup install (bun/npm)
-        // still reaches for a registry package, point it at a dead loopback so
-        // it ECONNREFUSEs in milliseconds instead of blocking the dns-shim on
-        // registry.npmjs.org. HOME=installDir (set by the loader), so this
-        // .npmrc is read. A reachable package is an enhancement, not a
-        // dependency — the run proceeds with stock behavior (§3.7).
-        fileSystem.write(
-            config.installDir.resolve(".npmrc"),
-            "registry=http://127.0.0.1:1/\n"
-        )
-        // Starter workspace config so run-mode has a config anchor from cwd.
-        ensureWorkspaceConfig(workspace)
+        // Blocking FS writes + ensureWorkspaceConfig must leave the collector's
+        // thread — the UI collects this flow on Main.
+        withContext(Dispatchers.IO) {
+            // DNS shim for the child's getaddrinfo preload (same as start()) —
+            // genuinely required, so a failed write aborts the run loudly.
+            fileSystem.write(
+                config.installDir.resolve("resolv.conf"),
+                "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
+            ).getOrElse { error("resolv.conf write failed: ${it.message}") }
+            // Fail-fast npm (insurance): if opencode's startup install (bun/npm)
+            // still reaches for a registry package, point it at a dead loopback so
+            // it ECONNREFUSEs in milliseconds instead of blocking the dns-shim on
+            // registry.npmjs.org. HOME=installDir (set by the loader), so this
+            // .npmrc is read. Best-effort: a reachable package is an enhancement,
+            // not a dependency — the run proceeds with stock behavior (§3.7).
+            fileSystem.write(
+                config.installDir.resolve(".npmrc"),
+                "registry=http://127.0.0.1:1/\n"
+            )
+            // Starter workspace config so run-mode has a config anchor from cwd.
+            ensureWorkspaceConfig(workspace)
+        }
 
-        // --pure: skip external plugin loading. The starter opencode.json names
-        // three npm plugins; on device opencode resolves those through npm,
-        // which can hang or fail with no network/cache — a silent no-events
-        // stall. Plugins are an enhancement, not a dependency (§3.7), so the
-        // agent path runs pure and stays deterministic.
+        // --pure: skip external plugin loading. On device opencode resolves any
+        // config-named plugins through npm, which can hang or fail with no
+        // network/cache — a silent no-events stall. The starter config lists
+        // none, but --pure keeps the agent path deterministic even if a user
+        // adds one. Plugins are an enhancement, not a dependency (§3.7).
         val args = mutableListOf(
             "run", "--format", "json", "--auto", "--pure",
             "--dir", workspace.rawPath,
@@ -311,14 +328,16 @@ class OpenCodeManager(
         if (sessionId != null) args += listOf("-s", sessionId)
         args += prompt
 
-        val pid = PlatformOps.spawnLdLinux(
-            loaderPath = "${config.nativeLibraryDir}/libld.so",
-            glibcDir = "$installDir/glibc",
-            binaryPath = "$installDir/${config.binaryName}",
-            workDir = workspace.rawPath,
-            logPath = eventsFile.rawPath,
-            args = args.toTypedArray()
-        )
+        val pid = withContext(Dispatchers.IO) {
+            PlatformOps.spawnLdLinux(
+                loaderPath = "${config.nativeLibraryDir}/libld.so",
+                glibcDir = "$installDir/glibc",
+                binaryPath = "$installDir/${config.binaryName}",
+                workDir = workspace.rawPath,
+                logPath = eventsFile.rawPath,
+                args = args.toTypedArray()
+            )
+        }
         if (pid <= 0) {
             val snippet = readLogSnippet(eventsFile)
             error("run did not start (spawn=$pid)$snippet")
@@ -341,7 +360,9 @@ class OpenCodeManager(
         var drained = false
         try {
             while (true) {
-                val content = try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
+                val content = withContext(Dispatchers.IO) {
+                    try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
+                }
                 if (content.length > offset) {
                     // Only consume whole lines: a read can land mid-line for a
                     // large tool output; emitting the fragment (then advancing
@@ -365,11 +386,15 @@ class OpenCodeManager(
                 } else {
                     stablePolls++
                 }
-                val exit = try { PlatformOps.checkChild(pid) } catch (_: Exception) { 0 }
+                val exit = withContext(Dispatchers.IO) {
+                    try { PlatformOps.checkChild(pid) } catch (_: Exception) { 0 }
+                }
                 // Drained: child gone and no new bytes for a few consecutive polls.
                 if (exit != 0 && stablePolls >= 3) {
                     // Flush a final event that had no trailing newline.
-                    val content = try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
+                    val content = withContext(Dispatchers.IO) {
+                        try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
+                    }
                     val tail = content.substring(minOf(offset.toInt(), content.length)).trim()
                     if (tail.startsWith("{")) emit(tail)
                     drained = true
@@ -521,8 +546,9 @@ class OpenCodeManager(
                 processRunner.run(listOf("kill", "-9", pid.toString()))
             }
             delay(200)
-            // Reap the child so it does not linger as a zombie.
-            try { PlatformOps.checkChild(pid) } catch (_: Exception) {}
+            // Reap the child so it does not linger as a zombie (nativeCheck reads
+            // /proc and appends a heartbeat — keep it off the caller's thread).
+            try { withContext(Dispatchers.IO) { PlatformOps.checkChild(pid) } } catch (_: Exception) {}
         }
         activePid = 0
         _state = OpenCodeState.Stopped

@@ -37,7 +37,7 @@ class OpenCodeClient(
     // fix ships a stale tag and two different APKs read identically (log 20).
     // Bump APP_BUILD on every client-side change so a pasted dump names its APK.
     companion object {
-        const val APP_BUILD = "r26"
+        const val APP_BUILD = "r27"
     }
 
     // x-opencode-directory on every session request: the server's workspace

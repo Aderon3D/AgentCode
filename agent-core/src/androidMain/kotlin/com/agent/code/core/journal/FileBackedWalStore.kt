@@ -2,6 +2,7 @@ package com.agent.code.core.journal
 
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -42,7 +43,7 @@ class FileBackedWalStore(private val file: File) : WalStore {
                 }
                 tmp.delete()
             }
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             tmp.delete()
             throw e
         }

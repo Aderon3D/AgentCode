@@ -29,6 +29,8 @@ import kotlinx.coroutines.launch
  * write+commit in worktree → squash merge back → verify file in main.
  * Exercises libgit2 JNI end-to-end.
  */
+// Deliberate catch-all: probe failures are logged/surfaced, never crash the UI.
+@Suppress("TooGenericExceptionCaught")
 @Composable
 fun LibGit2Demo(baseDir: String) {
     val scope = rememberCoroutineScope()

@@ -80,7 +80,7 @@ class AgentOrchestrator(
             is AgentState.Planning -> processPlanningStep(taskId, currentState)
             is AgentState.ExecutingTool -> processToolExecutionStep(taskId, currentState)
             is AgentState.Verifying -> processVerificationStep(taskId)
-            is AgentState.Reflecting -> processReflectionStep(taskId, currentState)
+            is AgentState.Reflecting -> processReflectionStep(currentState)
             is AgentState.Idle -> StepResult.TaskFinished
         }
     }
@@ -92,12 +92,16 @@ class AgentOrchestrator(
      */
     suspend fun executeStepPaced(taskId: String): StepResult {
         val result = executeSingleStep(taskId)
-        when (governor.currentProfile.value) {
+        applyPacing(governor.currentProfile.value)
+        return result
+    }
+
+    private suspend fun applyPacing(profile: OperatingProfile) {
+        when (profile) {
             OperatingProfile.TURBO_PLUGGED -> { /* no delay */ }
             OperatingProfile.BALANCED_BATTERY -> delay(50L)
             OperatingProfile.ECO_PRESERVATION -> delay(500L)
         }
-        return result
     }
 
     suspend fun executeStepsUntilDone(
@@ -110,58 +114,89 @@ class AgentOrchestrator(
         while (steps < maxSteps) {
             val state = recover(taskId)
             val profile = governor.currentProfile.value
-            when (state) {
-                is AgentState.Success -> return StepResult.TaskFinished
-                is AgentState.Error -> return StepResult.FatalError(state.fatalCause)
-                is AgentState.Idle -> return StepResult.TaskFinished
-                is AgentState.Planning, is AgentState.ExecutingTool -> {
-                    if (toolIndex < toolCalls.size) {
-                        val targetPaths = pathFromArgs(toolCalls[toolIndex].argumentsJson)
-                            ?.let { setOf(it) } ?: emptySet()
-                        val permit = lockCoordinator?.acquireTaskExecutionPermit(
-                            taskId, "agent/task-$taskId",
-                            targetPaths, emptySet()
-                        )
-                        try {
-                            runTool(taskId, toolCalls[toolIndex])
-                            toolIndex++
-                        } finally {
-                            if (permit != null) lockCoordinator.releaseTaskExecutionPermit(taskId, emptySet())
-                        }
-                    } else if (state is AgentState.ExecutingTool) {
-                        return StepResult.FatalError("ExecutingTool persisted with no pending tool calls — unrecoverable state")
-                    } else {
-                        return StepResult.TaskFinished
-                    }
-                }
-                is AgentState.Verifying -> {
-                    val verification = funnel?.verifyBranchIntegration("agent/task-$taskId", emptyList())
-                    if (verification is SemanticVerificationResult.Failed) {
-                        return StepResult.FatalError(verification.reason)
-                    }
-                    succeed(taskId, "completed")
-                }
-                is AgentState.Reflecting -> {
-                    if (state.attempt >= state.maxAttempts) {
-                        return StepResult.FatalError("Max retry attempts (${state.maxAttempts}) exhausted: ${state.errorTrace}")
-                    }
-                }
-                is AgentState.AwaitingHumanApproval -> {
-                    return StepResult.BlockedOnApproval(state.toolCall.id)
-                }
+            when (val action = nextLoopAction(taskId, state, toolCalls, toolIndex)) {
+                is LoopStep.Done -> return action.result
+                is LoopStep.Continue -> toolIndex = action.toolIndex
             }
             steps++
-            when (profile) {
-                OperatingProfile.TURBO_PLUGGED -> { /* no delay */ }
-                OperatingProfile.BALANCED_BATTERY -> delay(50L)
-                OperatingProfile.ECO_PRESERVATION -> delay(500L)
-            }
+            applyPacing(profile)
         }
         return StepResult.FatalError("Max steps ($maxSteps) exhausted without completion")
     }
 
+    private sealed interface LoopStep {
+        data class Done(val result: StepResult) : LoopStep
+        data class Continue(val toolIndex: Int) : LoopStep
+    }
+
+    /**
+     * Resolve one loop iteration: either finish with a [StepResult] or report the
+     * advanced tool index to keep looping. Extracted from [executeStepsUntilDone]
+     * to keep its branch count manageable.
+     */
+    private suspend fun nextLoopAction(
+        taskId: String,
+        state: AgentState,
+        toolCalls: List<ToolCall>,
+        toolIndex: Int
+    ): LoopStep = when (state) {
+        is AgentState.Success, is AgentState.Idle -> LoopStep.Done(StepResult.TaskFinished)
+        is AgentState.Error -> LoopStep.Done(StepResult.FatalError(state.fatalCause))
+        is AgentState.Planning, is AgentState.ExecutingTool ->
+            planOrRunTool(taskId, state, toolCalls, toolIndex)
+        is AgentState.Verifying -> verifyStep(taskId, toolIndex)
+        is AgentState.Reflecting -> reflectStep(state, toolIndex)
+        is AgentState.AwaitingHumanApproval -> LoopStep.Done(StepResult.BlockedOnApproval(state.toolCall.id))
+    }
+
+    private suspend fun planOrRunTool(
+        taskId: String,
+        state: AgentState,
+        toolCalls: List<ToolCall>,
+        toolIndex: Int
+    ): LoopStep {
+        if (toolIndex >= toolCalls.size) {
+            return if (state is AgentState.ExecutingTool) {
+                LoopStep.Done(StepResult.FatalError("ExecutingTool persisted with no pending tool calls — unrecoverable state"))
+            } else {
+                LoopStep.Done(StepResult.TaskFinished)
+            }
+        }
+        val targetPaths = pathFromArgs(toolCalls[toolIndex].argumentsJson)
+            ?.let { setOf(it) } ?: emptySet()
+        val permit = lockCoordinator?.acquireTaskExecutionPermit(
+            taskId, "agent/task-$taskId",
+            targetPaths, emptySet()
+        )
+        try {
+            runTool(taskId, toolCalls[toolIndex])
+        } finally {
+            if (permit != null) lockCoordinator.releaseTaskExecutionPermit(taskId, emptySet())
+        }
+        return LoopStep.Continue(toolIndex + 1)
+    }
+
+    private suspend fun verifyStep(taskId: String, toolIndex: Int): LoopStep {
+        val verification = funnel?.verifyBranchIntegration("agent/task-$taskId", emptyList())
+        return if (verification is SemanticVerificationResult.Failed) {
+            LoopStep.Done(StepResult.FatalError(verification.reason))
+        } else {
+            succeed(taskId, "completed")
+            LoopStep.Continue(toolIndex)
+        }
+    }
+
+    private fun reflectStep(state: AgentState.Reflecting, toolIndex: Int): LoopStep =
+        if (state.attempt >= state.maxAttempts) {
+            LoopStep.Done(StepResult.FatalError("Max retry attempts (${state.maxAttempts}) exhausted: ${state.errorTrace}"))
+        } else {
+            LoopStep.Continue(toolIndex)
+        }
+
     // --- Private step handlers ---
 
+    // Params kept as the deferred LLM planning hook: it will read taskId + planning state.
+    @Suppress("UnusedParameter")
     private fun processPlanningStep(taskId: String, state: AgentState.Planning): StepResult {
         // DEFERRED: LLM integration will generate tool calls here.
         return StepResult.StepCompletedMoreWorkPending
@@ -187,7 +222,7 @@ class AgentOrchestrator(
         }
     }
 
-    private fun processReflectionStep(taskId: String, state: AgentState.Reflecting): StepResult {
+    private fun processReflectionStep(state: AgentState.Reflecting): StepResult {
         return if (state.attempt >= state.maxAttempts) {
             StepResult.FatalError("Max retry attempts (${state.maxAttempts}) exhausted: ${state.errorTrace}")
         } else {

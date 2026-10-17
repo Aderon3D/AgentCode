@@ -18,6 +18,7 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
         return Result.success(File(canonical))
     }
 
+    @Suppress("TooGenericExceptionCaught") // FS boundary: unexpected runtime faults map to FileError.IOError
     override suspend fun read(path: VirtualPath): Result<String> = confinedFile(path).fold(
         onSuccess = { file ->
             try {
@@ -29,7 +30,7 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
             } catch (e: SecurityException) {
                 Result.failure(FileError.PermissionDenied(path, e.message ?: "read denied"))
             } catch (e: FileNotFoundException) {
-                Result.failure(FileError.NotFound(path, "file not found"))
+                Result.failure(FileError.NotFound(path, e.message ?: "file not found"))
             } catch (e: Exception) {
                 Result.failure(FileError.IOError(path, e.message ?: "read failed", e))
             }
@@ -37,6 +38,7 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
         onFailure = { Result.failure(it) }
     )
 
+    @Suppress("TooGenericExceptionCaught") // FS boundary: unexpected runtime faults map to FileError.IOError
     override suspend fun write(path: VirtualPath, content: String): Result<Unit> = confinedFile(path).fold(
         onSuccess = { target ->
             try {
@@ -70,6 +72,7 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
     override suspend fun exists(path: VirtualPath): Boolean =
         confinedFile(path).fold({ it.exists() }, { false })
 
+    @Suppress("TooGenericExceptionCaught") // FS boundary: unexpected runtime faults map to FileError.IOError
     override suspend fun delete(path: VirtualPath): Result<Unit> = confinedFile(path).fold(
         onSuccess = { file ->
             try {

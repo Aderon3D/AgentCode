@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
 class ResilientSseClient(private val maxRetries: Int = 5) {
+    // Retry boundary: any provider failure before the first emit is retried.
+    @Suppress("TooGenericExceptionCaught")
     fun streamWithRetry(provider: LlmProvider, request: LlmRequest): Flow<LlmEvent> = flow {
         var attempt = 0
         var backoffMs = 1000L

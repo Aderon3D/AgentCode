@@ -17,31 +17,33 @@ object GitGuard {
     fun isAllowed(subcommand: String, args: String): GitDecision {
         val normalized = "$subcommand $args".trim().lowercase()
 
-        for (blocked in blockedSubcommands) {
-            if (normalized == blocked || normalized.startsWith("$blocked ") || normalized.startsWith("$blocked=")) {
-                return GitDecision.Blocked("subcommand blocked: $blocked")
+        val blocked = blockedSubcommands.firstOrNull {
+            normalized == it || normalized.startsWith("$it ") || normalized.startsWith("$it=")
+        }
+        if (blocked != null) return GitDecision.Blocked("subcommand blocked: $blocked")
+
+        return when (subcommand) {
+            "push" -> {
+                val targetBranch = extractPushTarget(args)
+                if (targetBranch != null && targetBranch in protectedBranches) {
+                    GitDecision.Blocked("push to protected branch '$targetBranch' denied")
+                } else {
+                    GitDecision.Allowed
+                }
             }
-        }
-
-        if (subcommand == "push") {
-            val targetBranch = extractPushTarget(args)
-            if (targetBranch != null && targetBranch in protectedBranches) {
-                return GitDecision.Blocked("push to protected branch '$targetBranch' denied")
+            "checkout", "switch" -> {
+                val target = extractCheckoutTarget(args)
+                if (target != null && target in protectedBranches) {
+                    GitDecision.Blocked("checkout of protected branch '$target' denied")
+                } else {
+                    GitDecision.Allowed
+                }
             }
-        }
-
-        if (subcommand == "checkout" || subcommand == "switch") {
-            val target = extractCheckoutTarget(args)
-            if (target != null && target in protectedBranches) {
-                return GitDecision.Blocked("checkout of protected branch '$target' denied")
+            "branch" -> {
+                if (args.contains("-D")) GitDecision.Blocked("force-delete branch denied") else GitDecision.Allowed
             }
+            else -> GitDecision.Allowed
         }
-
-        if (subcommand == "branch" && args.contains("-D")) {
-            return GitDecision.Blocked("force-delete branch denied")
-        }
-
-        return GitDecision.Allowed
     }
 
     private fun extractPushTarget(args: String): String? {

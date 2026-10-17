@@ -51,10 +51,9 @@ object CommandAllowlist {
     fun isAllowed(command: String): Boolean {
         val normalized = command.trim().lowercase()
         val firstToken = normalized.split("\\s+".toRegex()).firstOrNull() ?: return false
-        if (firstToken in interpreterPrefixes) return false
-        if (blockedCommands.any { normalized.startsWith(it) }) return false
-        if (blockedPatterns.any { it.containsMatchIn(normalized) }) return false
-        return true
+        return firstToken !in interpreterPrefixes &&
+            blockedCommands.none { normalized.startsWith(it) } &&
+            blockedPatterns.none { it.containsMatchIn(normalized) }
     }
 
     fun reason(command: String): String? {
@@ -62,9 +61,11 @@ object CommandAllowlist {
         val firstToken = normalized.split("\\s+".toRegex()).firstOrNull() ?: return null
         if (firstToken in interpreterPrefixes) return "blocked interpreter: $firstToken"
         val blocked = blockedCommands.firstOrNull { normalized.startsWith(it) }
-        if (blocked != null) return "blocked command: $blocked"
         val pattern = blockedPatterns.firstOrNull { it.containsMatchIn(normalized) }
-        if (pattern != null) return "blocked pattern: $pattern"
-        return null
+        return when {
+            blocked != null -> "blocked command: $blocked"
+            pattern != null -> "blocked pattern: $pattern"
+            else -> null
+        }
     }
 }

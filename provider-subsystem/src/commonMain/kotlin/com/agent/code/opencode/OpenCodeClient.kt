@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -48,6 +49,7 @@ class OpenCodeClient(
         val dir = manager.workspaceDir
         if (dir.isNotBlank()) header("x-opencode-directory", dir)
     }
+    @Suppress("TooGenericExceptionCaught") // HTTP boundary: any failure maps to Result.failure
     override suspend fun healthCheck(): Result<String> {
         return try {
             val response = httpClient.get("${manager.baseUrl()}/api/health")
@@ -155,39 +157,42 @@ class OpenCodeClient(
 
     private fun parseChunk(data: String): List<LlmEvent> {
         return try {
-            val json = Json.parseToJsonElement(data).jsonObject
-            val choices = json["choices"]?.jsonArray ?: return emptyList()
-            if (choices.isEmpty()) return emptyList()
-            val delta = choices[0].jsonObject["delta"]?.jsonObject ?: return emptyList()
-
-            val content = delta["content"]?.jsonPrimitive?.contentOrNull
-            if (content != null) return listOf(LlmEvent.ContentChunk(content))
-
-            val toolCalls = delta["tool_calls"]?.jsonArray
-            if (toolCalls != null) {
-                val events = mutableListOf<LlmEvent>()
-                for (tc in toolCalls) {
-                    val tcObj = tc.jsonObject
-                    val fn = tcObj["function"]?.jsonObject ?: continue
-                    val name = fn["name"]?.jsonPrimitive?.contentOrNull ?: continue
-                    val args = fn["arguments"]?.jsonPrimitive?.contentOrNull ?: ""
-                    val id = tcObj["id"]?.jsonPrimitive?.contentOrNull ?: "tc-${System.nanoTime()}"
-                    events.add(LlmEvent.ToolCallChunk(id, name, args))
-                }
-                if (events.isNotEmpty()) return events
-            }
-
-            val usage = json["usage"]?.jsonObject
-            if (usage != null) {
-                val prompt = usage["prompt_tokens"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-                val completion = usage["completion_tokens"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-                return listOf(LlmEvent.UsageReport(prompt, completion))
-            }
-
-            emptyList()
+            parseChunkObject(Json.parseToJsonElement(data).jsonObject)
         } catch (_: Exception) {
             emptyList()
         }
+    }
+
+    private fun parseChunkObject(json: JsonObject): List<LlmEvent> {
+        val choices = json["choices"]?.jsonArray
+        if (choices == null || choices.isEmpty()) return emptyList()
+        val delta = choices[0].jsonObject["delta"]?.jsonObject ?: return emptyList()
+
+        val content = delta["content"]?.jsonPrimitive?.contentOrNull
+        if (content != null) return listOf(LlmEvent.ContentChunk(content))
+
+        return parseToolCallChunks(delta).ifEmpty { parseUsage(json) }
+    }
+
+    private fun parseToolCallChunks(delta: JsonObject): List<LlmEvent> {
+        val toolCalls = delta["tool_calls"]?.jsonArray ?: return emptyList()
+        val events = mutableListOf<LlmEvent>()
+        for (tc in toolCalls) {
+            val tcObj = tc.jsonObject
+            val fn = tcObj["function"]?.jsonObject ?: continue
+            val name = fn["name"]?.jsonPrimitive?.contentOrNull ?: continue
+            val args = fn["arguments"]?.jsonPrimitive?.contentOrNull ?: ""
+            val id = tcObj["id"]?.jsonPrimitive?.contentOrNull ?: "tc-${System.nanoTime()}"
+            events.add(LlmEvent.ToolCallChunk(id, name, args))
+        }
+        return events
+    }
+
+    private fun parseUsage(json: JsonObject): List<LlmEvent> {
+        val usage = json["usage"]?.jsonObject ?: return emptyList()
+        val prompt = usage["prompt_tokens"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val completion = usage["completion_tokens"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        return listOf(LlmEvent.UsageReport(prompt, completion))
     }
 
     // ---- Native session API (the real opencode agent) ----
@@ -350,48 +355,79 @@ internal fun parseSessionEventJson(payload: String): SessionEvent? {
     return try {
         val root = Json.parseToJsonElement(payload).jsonObject
         val (type, data) = unwrapEventEnvelope(root) ?: return null
-        fun str(k: String) = data[k]?.jsonPrimitive?.contentOrNull
-        when (type) {
-            "session.next.prompt.admitted" -> SessionEvent.PromptAdmitted(
-                str("messageID") ?: "?", str("delivery") ?: "?"
-            )
-            // Observed on 1.18.31 right after admitted; we don't act on it,
-            // but naming it stops it from falling into the unknown bucket.
-            "session.next.prompted" -> SessionEvent.PromptAdmitted(
-                str("messageID") ?: "?", str("delivery") ?: "?"
-            )
-            "session.next.step.started" -> SessionEvent.StepStarted(
-                data["model"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull ?: "?",
-                str("agent") ?: "?"
-            )
-            "session.next.text.delta" -> SessionEvent.TextDelta(str("text") ?: "")
-            "session.next.text.ended" -> SessionEvent.TextEnded(str("text") ?: "")
-            "session.next.tool.called" -> SessionEvent.ToolCalled(str("tool") ?: "?")
-            "session.next.tool.input.ended" -> SessionEvent.ToolInput(str("command") ?: str("filePath") ?: "")
-            "session.next.tool.success" -> SessionEvent.ToolFinished(str("callID") ?: "?", true)
-            "session.next.tool.error" -> SessionEvent.ToolFinished(str("callID") ?: "?", false)
-            "session.next.step.ended" -> SessionEvent.StepEnded(str("finish") ?: "unknown")
-            // Both v1 and v2 land here; the request id is the only
-            // field that survives the version rename (v1 uses "id",
-            // v2 uses "requestID"). Auto-replied in AgentBrain.
-            "permission.asked", "permission.v2.asked" -> SessionEvent.PermissionAsked(
-                str("requestID") ?: str("id") ?: "?",
-                str("permission") ?: str("title") ?: "permission"
-            )
-            "question.asked", "question.v2.asked" -> SessionEvent.QuestionAsked(
-                str("requestID") ?: str("id") ?: "?"
-            )
-            "session.next.step.failed" -> {
-                val err = data["error"]?.jsonObject
-                SessionEvent.Failed(
-                    "${err?.get("type")?.jsonPrimitive?.contentOrNull ?: "error"}: " +
-                        "${err?.get("message")?.jsonPrimitive?.contentOrNull ?: "step failed"}"
-                )
-            }
-            else -> null
-        }
+        SessionEventParsers.dispatch(type, data)
     } catch (_: Exception) {
         null
+    }
+}
+
+// Per-type session-event extractors, grouped in one object so the file stays
+// within its function budget (TooManyFunctions counts file-level functions).
+private object SessionEventParsers {
+    fun dispatch(type: String?, data: JsonObject): SessionEvent? = when (type) {
+        "session.next.prompt.admitted" -> promptAdmitted(data)
+        // Observed on 1.18.31 right after admitted; we don't act on it,
+        // but naming it stops it from falling into the unknown bucket.
+        "session.next.prompted" -> promptAdmitted(data)
+        "session.next.step.started" -> stepStarted(data)
+        "session.next.text.delta" -> textDelta(data)
+        "session.next.text.ended" -> textEnded(data)
+        "session.next.tool.called" -> toolCalled(data)
+        "session.next.tool.input.ended" -> toolInputEnded(data)
+        "session.next.tool.success" -> toolFinished(data, true)
+        "session.next.tool.error" -> toolFinished(data, false)
+        "session.next.step.ended" -> stepEnded(data)
+        // Both v1 and v2 land here; the request id is the only
+        // field that survives the version rename (v1 uses "id",
+        // v2 uses "requestID"). Auto-replied in AgentBrain.
+        "permission.asked", "permission.v2.asked" -> permissionAsked(data)
+        "question.asked", "question.v2.asked" -> questionAsked(data)
+        "session.next.step.failed" -> stepFailed(data)
+        else -> null
+    }
+
+    // Field lookup shared by the per-event extractors; null when absent.
+    private fun str(data: JsonObject, key: String): String? =
+        data[key]?.jsonPrimitive?.contentOrNull
+
+    private fun promptAdmitted(data: JsonObject) = SessionEvent.PromptAdmitted(
+        str(data, "messageID") ?: "?", str(data, "delivery") ?: "?"
+    )
+
+    private fun stepStarted(data: JsonObject) = SessionEvent.StepStarted(
+        data["model"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull ?: "?",
+        str(data, "agent") ?: "?"
+    )
+
+    private fun textDelta(data: JsonObject) = SessionEvent.TextDelta(str(data, "text") ?: "")
+
+    private fun textEnded(data: JsonObject) = SessionEvent.TextEnded(str(data, "text") ?: "")
+
+    private fun toolCalled(data: JsonObject) = SessionEvent.ToolCalled(str(data, "tool") ?: "?")
+
+    private fun toolInputEnded(data: JsonObject) =
+        SessionEvent.ToolInput(str(data, "command") ?: str(data, "filePath") ?: "")
+
+    private fun toolFinished(data: JsonObject, ok: Boolean) =
+        SessionEvent.ToolFinished(str(data, "callID") ?: "?", ok)
+
+    private fun stepEnded(data: JsonObject) = SessionEvent.StepEnded(str(data, "finish") ?: "unknown")
+
+    private fun permissionAsked(data: JsonObject) = SessionEvent.PermissionAsked(
+        str(data, "requestID") ?: str(data, "id") ?: "?",
+        str(data, "permission") ?: str(data, "title") ?: "permission"
+    )
+
+    private fun questionAsked(data: JsonObject) = SessionEvent.QuestionAsked(
+        str(data, "requestID") ?: str(data, "id") ?: "?"
+    )
+
+    private fun stepFailed(data: JsonObject): SessionEvent.Failed {
+        val err = data["error"]?.jsonObject
+        return SessionEvent.Failed(
+            "${err?.get("type")?.jsonPrimitive?.contentOrNull ?: "error"}: " +
+                "${err?.get("message")?.jsonPrimitive?.contentOrNull ?: "step failed"}"
+        )
     }
 }
 
@@ -420,42 +456,56 @@ internal fun parseRunEvent(payload: String): List<SessionEvent> {
     return try {
         val root = Json.parseToJsonElement(payload).jsonObject
         val type = root["type"]?.jsonPrimitive?.contentOrNull ?: return emptyList()
-        val part = root["part"]?.jsonObject
-        fun partStr(k: String) = part?.get(k)?.jsonPrimitive?.contentOrNull
-        when (type) {
-            "step_start" -> listOf(SessionEvent.StepStarted(partStr("model") ?: "?", "build"))
-            "text" -> {
-                val t = partStr("text") ?: ""
-                if (t.isEmpty()) emptyList() else listOf(SessionEvent.TextEnded(t))
-            }
-            "tool_use" -> {
-                val tool = partStr("tool") ?: "?"
-                val callID = partStr("callID") ?: "?"
-                val state = part?.get("state")?.jsonObject
-                val status = state?.get("status")?.jsonPrimitive?.contentOrNull
-                // Surface the tool input so the feed shows the args
-                // (what the agent ran), not just the bare tool name.
-                val inputObj = state?.get("input")?.jsonObject
-                val input = if (inputObj != null && inputObj.isNotEmpty()) inputObj.toString() else ""
-                val start = if (input.isEmpty()) listOf(SessionEvent.ToolCalled(tool))
-                            else listOf(SessionEvent.ToolCalled(tool), SessionEvent.ToolInput(input))
-                when (status) {
-                    "completed" -> start + SessionEvent.ToolFinished(callID, true)
-                    "error", "failed" -> start + SessionEvent.ToolFinished(callID, false)
-                    else -> start
-                }
-            }
-            "step_finish" -> listOf(SessionEvent.StepEnded(partStr("reason") ?: "unknown"))
-            "error" -> {
-                val err = root["error"]?.jsonObject
-                val msg = err?.get("data")?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
-                    ?: err?.get("message")?.jsonPrimitive?.contentOrNull
-                    ?: "run failed"
-                listOf(SessionEvent.Failed(msg))
-            }
-            else -> emptyList()
-        }
+        RunEventParsers.dispatch(type, root)
     } catch (_: Exception) {
         emptyList()
+    }
+}
+
+// `run --format json` per-type extractors, grouped like SessionEventParsers.
+private object RunEventParsers {
+    fun dispatch(type: String, root: JsonObject): List<SessionEvent> {
+        val part = root["part"]?.jsonObject
+        return when (type) {
+            "step_start" -> listOf(SessionEvent.StepStarted(str(part, "model") ?: "?", "build"))
+            "text" -> text(part)
+            "tool_use" -> toolUse(part)
+            "step_finish" -> listOf(SessionEvent.StepEnded(str(part, "reason") ?: "unknown"))
+            "error" -> listOf(SessionEvent.Failed(errorMessage(root)))
+            else -> emptyList()
+        }
+    }
+
+    private fun str(part: JsonObject?, key: String): String? =
+        part?.get(key)?.jsonPrimitive?.contentOrNull
+
+    private fun text(part: JsonObject?): List<SessionEvent> {
+        val t = str(part, "text") ?: ""
+        return if (t.isEmpty()) emptyList() else listOf(SessionEvent.TextEnded(t))
+    }
+
+    private fun toolUse(part: JsonObject?): List<SessionEvent> {
+        val tool = str(part, "tool") ?: "?"
+        val callID = str(part, "callID") ?: "?"
+        val state = part?.get("state")?.jsonObject
+        val status = state?.get("status")?.jsonPrimitive?.contentOrNull
+        // Surface the tool input so the feed shows the args (what the agent
+        // ran), not just the bare tool name.
+        val inputObj = state?.get("input")?.jsonObject
+        val input = if (inputObj != null && inputObj.isNotEmpty()) inputObj.toString() else ""
+        val start = if (input.isEmpty()) listOf(SessionEvent.ToolCalled(tool))
+                    else listOf(SessionEvent.ToolCalled(tool), SessionEvent.ToolInput(input))
+        return when (status) {
+            "completed" -> start + SessionEvent.ToolFinished(callID, true)
+            "error", "failed" -> start + SessionEvent.ToolFinished(callID, false)
+            else -> start
+        }
+    }
+
+    private fun errorMessage(root: JsonObject): String {
+        val err = root["error"]?.jsonObject
+        return err?.get("data")?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
+            ?: err?.get("message")?.jsonPrimitive?.contentOrNull
+            ?: "run failed"
     }
 }

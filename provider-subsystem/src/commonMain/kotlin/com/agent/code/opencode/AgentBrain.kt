@@ -36,6 +36,7 @@ class AgentBrain(
     private suspend fun nextId(): Long = seqMutex.withLock { ++seq }
     private fun now(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
 
+@Suppress("TooGenericExceptionCaught") // boundary: any runPrompt failure falls through to the next model
 fun executeTask(
         taskId: String,
         goal: String,
@@ -58,11 +59,7 @@ fun executeTask(
                 // log dump (empty feed after "goal:" = run never spawned; after
                 // "run <model>" = the subprocess is starting up).
                 send(BrainEvent.Thinking("run $model ..."))
-                val transcript = StringBuilder()
-                var currentTool = ""
-                var steps = 0
-                var failure: String? = null
-                var finished = false
+                val run = RunAccumulator()
 
                 // runPrompt spawns the subprocess and yields raw JSON lines;
                 // parseRunEvent maps each to SessionEvent(s). A completed tool
@@ -76,62 +73,18 @@ fun executeTask(
                     workspace = workspaceRoot
                 ).collect { line ->
                     for (ev in parseRunEvent(line)) {
-                        when (ev) {
-                            is SessionEvent.StepStarted -> {
-                                steps++
-                                send(BrainEvent.Thinking("step $steps · $model"))
-                            }
-                            is SessionEvent.ToolCalled -> {
-                                currentTool = ev.tool
-                                send(BrainEvent.ToolCallStarted(ev.tool, ""))
-                            }
-                            is SessionEvent.ToolFinished ->
-                                send(BrainEvent.ToolCallFinished(currentTool, ev.ok))
-                            is SessionEvent.ToolInput -> {
-                                // Surface the tool args (the feed's whole point:
-                                // what the agent ran when a run stalls).
-                                if (ev.detail.isNotBlank()) {
-                                    send(BrainEvent.Thinking("run: ${ev.detail.take(200)}"))
-                                }
-                            }
-                            is SessionEvent.TextEnded -> {
-                                val t = ev.text.trim()
-                                if (t.isNotEmpty()) {
-                                    transcript.append(t).append("\n\n")
-                                    send(BrainEvent.Thinking(t))
-                                }
-                            }
-                            is SessionEvent.StepEnded -> {
-                                when (ev.finish) {
-                                    // still working
-                                    "tool-calls" -> {}
-                                    // only "stop" is a successful terminal step
-                                    "stop" -> finished = true
-                                    // "length"/truncated, "content-filter",
-                                    // "error": NOT a completed run (else a
-                                    // truncated step records a false success
-                                    // and the model loop stops on a bad model).
-                                    else -> failure = "run ended: ${ev.finish}"
-                                }
-                                send(BrainEvent.IterationComplete(steps))
-                            }
-                            is SessionEvent.Failed -> failure = ev.message
-                            // run mode auto-approves (--auto) and has no SSE, so
-                            // permission/question events never arrive; stream
-                            // info / deltas / admits are not emitted by `run`.
-                            else -> {}
-                        }
+                        run.onEvent(ev, model)?.let { send(it) }
                     }
                 }
 
-                if (finished && failure == null) {
-                    val summary = transcript.toString().trim().ifBlank { "done (no text output)" }
+                if (run.finished && run.failure == null) {
+                    val summary = run.transcript.toString().trim().ifBlank { "done (no text output)" }
                     send(BrainEvent.TaskComplete(summary))
                     val completeId = nextId()
                     journal.append(AgentEvent.TaskSucceeded(completeId, taskId, now(), summary))
                     return@channelFlow
                 }
-                lastError = failure ?: "run ended before a final step"
+                lastError = run.failure ?: "run ended before a final step"
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -145,5 +98,62 @@ fun executeTask(
         // journal reader scanning for failures would never see this line.
         journal.append(AgentEvent.TaskFailed(failId, taskId, now(), lastError))
         send(BrainEvent.TaskFailed(lastError))
+    }
+}
+
+// Mutable per-model run state for one `run` invocation. Maps each streamed
+// SessionEvent to the BrainEvent executeTask should emit (or null for events
+// with no visible effect), keeping the streaming loop small.
+private class RunAccumulator {
+    val transcript = StringBuilder()
+    var currentTool = ""
+    var steps = 0
+    var failure: String? = null
+    var finished = false
+
+    fun onEvent(ev: SessionEvent, model: String): BrainEvent? = when (ev) {
+        is SessionEvent.StepStarted -> {
+            steps++
+            BrainEvent.Thinking("step $steps · $model")
+        }
+        is SessionEvent.ToolCalled -> {
+            currentTool = ev.tool
+            BrainEvent.ToolCallStarted(ev.tool, "")
+        }
+        is SessionEvent.ToolFinished -> BrainEvent.ToolCallFinished(currentTool, ev.ok)
+        // Surface the tool args (the feed's whole point: what the agent ran
+        // when a run stalls).
+        is SessionEvent.ToolInput ->
+            if (ev.detail.isNotBlank()) BrainEvent.Thinking("run: ${ev.detail.take(200)}") else null
+        is SessionEvent.TextEnded -> {
+            val t = ev.text.trim()
+            if (t.isEmpty()) {
+                null
+            } else {
+                transcript.append(t).append("\n\n")
+                BrainEvent.Thinking(t)
+            }
+        }
+        is SessionEvent.StepEnded -> {
+            when (ev.finish) {
+                // still working
+                "tool-calls" -> {}
+                // only "stop" is a successful terminal step
+                "stop" -> finished = true
+                // "length"/truncated, "content-filter", "error": NOT a
+                // completed run (else a truncated step records a false success
+                // and the model loop stops on a bad model).
+                else -> failure = "run ended: ${ev.finish}"
+            }
+            BrainEvent.IterationComplete(steps)
+        }
+        is SessionEvent.Failed -> {
+            failure = ev.message
+            null
+        }
+        // run mode auto-approves (--auto) and has no SSE, so permission/question
+        // events never arrive; stream info / deltas / admits are not emitted by
+        // `run`.
+        else -> null
     }
 }

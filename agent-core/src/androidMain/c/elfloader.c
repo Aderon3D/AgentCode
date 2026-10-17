@@ -812,11 +812,12 @@ struct spawn {
     struct spawn *next;        /* registry linkage */
 };
 
-/* Registry so nativeCheck(pid) finds the right spawn. Fixed cap: the app has
- * at most a handful of live spawns (serve + a few agent runs). Guarded by a
- * mutex because nativeCheck runs on Kotlin's poll thread while drain threads
- * insert/remove. */
-#define SPAWN_MAX 16
+/* Registry so nativeCheck(pid) finds the right spawn. The single-spawn gate
+ * means at most one is live at a time, but entries are never removed (see
+ * drain_loop): nativeCheck must keep answering for a pid after exit, and the
+ * structs are leaked by design. Guarded by a mutex because nativeCheck runs on
+ * Kotlin's poll thread while spawn threads insert. Newest entry wins a lookup
+ * (prepend), so a reused pid resolves to the current spawn. */
 static struct spawn *g_spawns;
 static pthread_mutex_t g_spawn_mu = PTHREAD_MUTEX_INITIALIZER;
 
@@ -826,17 +827,8 @@ static void spawn_register(struct spawn *sp) {
     g_spawns = sp;
     pthread_mutex_unlock(&g_spawn_mu);
 }
-static void spawn_unregister(struct spawn *sp) {
-    pthread_mutex_lock(&g_spawn_mu);
-    struct spawn **pp = &g_spawns;
-    while (*pp && *pp != sp) pp = &(*pp)->next;
-    if (*pp) *pp = sp->next;
-    pthread_mutex_unlock(&g_spawn_mu);
-}
-/* Lookup by pid. Returns sp with ref held via registry walk under lock; caller
- * only reads immutable (log, pid) + atomic exit_code + its own hb_n. For
- * simplicity we return the pointer and keep the spawn alive until drain_loop
- * unregisters it (nativeCheck never dereferences after a null return). */
+/* Lookup by pid. Spawns are never unregistered, so the returned pointer stays
+ * valid for the process lifetime (nativeCheck never dereferences after NULL). */
 static struct spawn *spawn_find(pid_t pid) {
     struct spawn *found = NULL;
     pthread_mutex_lock(&g_spawn_mu);
@@ -888,7 +880,6 @@ static void spawn_gate_release(void) {
  * handler reports the CRASH line; tracing continues either way.
  * Returns 1 = child resumed. */
 static int handle_fault_stop(struct spawn *sp, pid_t pid, int logfd) {
-    (void)sp; /* used for per-spawn counters below */
     siginfo_t si;
     struct user_pt_regs regs;
     memset(&si, 0, sizeof si);
@@ -1029,7 +1020,7 @@ static int handle_fault_stop(struct spawn *sp, pid_t pid, int logfd) {
             if (sscanf(s, "%lx-%lx", &lo, &hi) == 2 &&
                 (unsigned long long)regs.pc >= lo && (unsigned long long)regs.pc < hi) {
                 char *eol = strchr(s, '\n');
-                size_t ln = eol ? eol - s : c_len(s);
+                size_t ln = eol ? (size_t)(eol - s) : c_len(s);
                 if (ln > 400) ln = 400;
                 k_write(logfd, "elfloader: pc region ", 21);
                 k_write(logfd, s, ln);
@@ -1248,8 +1239,8 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
     pid_t got = __atomic_load_n(&sp->pid, __ATOMIC_ACQUIRE);
     if (got == 0) return -ETIMEDOUT;
     if (got < 0) return got; /* -errno from fork() */
-    /* Register only after pid is known so nativeCheck(pid) can find it.
-     * The drain thread unregisters on leader exit. */
+    /* Register once the pid is known so nativeCheck(pid) can find it. Entries
+     * are never removed — see drain_loop. */
     spawn_register(sp);
     return (jint)got;
 }
@@ -1346,11 +1337,11 @@ static void *drain_loop(void *arg) {
         k_write(logfd, "elfloader: drain thread exit\n", 29);
         close(logfd);
     }
-    /* Remove from the pid-keyed registry so nativeCheck stops finding it. The
-     * spawn struct itself stays allocated for the lifetime of the process —
-     * a late nativeCheck could still hold the pointer, and freeing it would
-     * race (ponytail: leak one small struct per spawn; heap reclaims at exit). */
-    spawn_unregister(sp);
+    /* Deliberately NOT unregistered: nativeCheck(pid) must keep returning the
+     * exit code after the leader is gone (the pre-r28 global did, and Kotlin's
+     * waitForServer relies on it to notice an early death). The struct is
+     * leaked by design — a late nativeCheck could still hold the pointer, so
+     * freeing it would race (ponytail: one small struct per spawn). */
     return NULL;
 }
 

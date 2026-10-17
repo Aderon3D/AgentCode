@@ -24,6 +24,13 @@ sealed interface FileNode {
 
 interface FileSystemProvider {
     suspend fun read(path: VirtualPath): Result<String>
+    /**
+     * Read at most the last [maxChars] characters of [path] (UTF-8). Default
+     * reads the whole file and slices; implementations backed by a real file
+     * should override to seek (#201: log tails can be multi-MB).
+     */
+    suspend fun readTail(path: VirtualPath, maxChars: Int): Result<String> =
+        read(path).map { if (it.length <= maxChars) it else it.takeLast(maxChars) }
     suspend fun write(path: VirtualPath, content: String): Result<Unit>
     suspend fun exists(path: VirtualPath): Boolean
     suspend fun delete(path: VirtualPath): Result<Unit>

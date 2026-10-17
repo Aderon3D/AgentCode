@@ -466,14 +466,14 @@ class OpenCodeManager(
         val loaderBudget = maxChars / 2
         val serverBudget = maxChars - loaderBudget - runBudget
         val body = try {
-            fileSystem.read(logFile).getOrNull().orEmpty()
+            fileSystem.readTail(logFile, loaderBudget + 1).getOrNull().orEmpty()
         } catch (e: Exception) {
             "(log read failed: ${e.message})"
         }
         val truncated = body.length > loaderBudget
         val tail = if (truncated) body.takeLast(loaderBudget) else body
         val serverBody = try {
-            fileSystem.read(serverLog).getOrNull().orEmpty()
+            fileSystem.readTail(serverLog, serverBudget + 1).getOrNull().orEmpty()
         } catch (e: Exception) {
             "(server log read failed: ${e.message})"
         }
@@ -494,11 +494,11 @@ class OpenCodeManager(
         }
         return buildString {
             append(header)
-            if (truncated) appendLine("[... ${body.length - loaderBudget} earlier chars trimmed ...]")
+            if (truncated) appendLine("[... earlier log trimmed ...]")
             append(tail.ifBlank { "(log empty)" })
             appendLine()
             appendLine("=== opencode server log (${serverLog.rawPath}) ===")
-            if (serverTruncated) appendLine("[... ${serverBody.length - serverBudget} earlier chars trimmed ...]")
+            if (serverTruncated) appendLine("[... earlier server log trimmed ...]")
             append(serverTail.ifBlank { "(server log empty)" })
             appendLine()
             appendLine("=== run events (${lastRunEventsPath ?: "never spawned"}) ===")

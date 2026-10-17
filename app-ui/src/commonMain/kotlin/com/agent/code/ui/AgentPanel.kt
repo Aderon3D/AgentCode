@@ -109,7 +109,13 @@ internal fun ProcessStatusHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val (label, color) = when (processState) {
+            // A run is a one-shot child of its own; the serve process it kills
+            // during prepareRun leaves processState=Stopped, which used to read
+            // as "the app died". While a task is in flight, that is not the
+            // server's state to report.
+            val (label, color) = if (isRunning) {
+                "Running (task)" to MaterialTheme.colorScheme.tertiary
+            } else when (processState) {
                 is OpenCodeState.NotInstalled -> "Not installed" to MaterialTheme.colorScheme.error
                 is OpenCodeState.Installing -> "Installing ${(processState.progress * 100).toInt()}% — ${processState.message}" to MaterialTheme.colorScheme.primary
                 is OpenCodeState.Starting -> "Starting..." to MaterialTheme.colorScheme.primary

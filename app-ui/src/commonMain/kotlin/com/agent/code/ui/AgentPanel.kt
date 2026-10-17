@@ -51,7 +51,7 @@ fun AgentPanel(
                 onValueChange = { inputText = it },
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Agent goal...") },
-                enabled = !state.isRunning && state.processState is OpenCodeState.Running,
+                enabled = !state.isRunning && state.processState !is OpenCodeState.NotInstalled,
                 singleLine = true
             )
             Spacer(Modifier.width(8.dp))
@@ -61,7 +61,7 @@ fun AgentPanel(
                     inputText = ""
                 },
                 enabled = !state.isRunning && inputText.isNotBlank()
-                        && state.processState is OpenCodeState.Running
+                        && state.processState !is OpenCodeState.NotInstalled
             ) { Text("Run") }
             if (state.isRunning) {
                 Spacer(Modifier.width(4.dp))
@@ -124,10 +124,12 @@ internal fun ProcessStatusHeader(
                 }
             }
             Row {
-                if (processState is OpenCodeState.NotInstalled
-                    || processState is OpenCodeState.Error
-                    || processState is OpenCodeState.Stopped
-                ) {
+                // Don't offer Start while a run is in flight: spawning `serve`
+                // beside a live run child collides on the process-scoped
+                // waitpid(-1) drain (elfloader single-spawn gate).
+                if (!isRunning && (processState is OpenCodeState.NotInstalled
+                        || processState is OpenCodeState.Error
+                        || processState is OpenCodeState.Stopped)) {
                     TextButton(onClick = onStart) { Text("Start") }
                 }
                 if (processState is OpenCodeState.Running) {

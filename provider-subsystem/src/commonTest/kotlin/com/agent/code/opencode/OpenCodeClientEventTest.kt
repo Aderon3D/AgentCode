@@ -111,10 +111,13 @@ class OpenCodeClientEventTest {
         val evs = parseRunEvent(
             """{"type":"tool_use","timestamp":1,"sessionID":"ses_x","part":{"type":"tool","tool":"read","callID":"call_abc","state":{"status":"completed","input":{"filePath":"/x"},"output":"...","title":"file.txt"},"id":"prt_1","sessionID":"ses_x","messageID":"msg_1"}}"""
         )
-        assertEquals(2, evs.size)
+        assertEquals(3, evs.size)
         assertIs<SessionEvent.ToolCalled>(evs[0])
         assertEquals("read", (evs[0] as SessionEvent.ToolCalled).tool)
-        val fin = evs[1]
+        val inp = evs[1]
+        assertIs<SessionEvent.ToolInput>(inp)
+        assertEquals("""{"filePath":"/x"}""", inp.detail)
+        val fin = evs[2]
         assertIs<SessionEvent.ToolFinished>(fin)
         assertEquals("call_abc", fin.callID)
         assertEquals(true, fin.ok)

@@ -233,8 +233,10 @@ class OpenCodeClient(
             contentType(ContentType.Application.Json)
             setBody(body.toString())
         }
+        // Always drain the body so the connection returns to the pool.
+        val bodyText = resp.bodyAsText()
         if (resp.status.value >= 400) {
-            error("sendPrompt: ${resp.status} ${resp.bodyAsText().take(300)}")
+            error("sendPrompt: ${resp.status} ${bodyText.take(300)}")
         }
     }
 
@@ -368,7 +370,7 @@ internal fun parseSessionEventJson(payload: String): SessionEvent? {
             "session.next.tool.input.ended" -> SessionEvent.ToolInput(str("command") ?: str("filePath") ?: "")
             "session.next.tool.success" -> SessionEvent.ToolFinished(str("callID") ?: "?", true)
             "session.next.tool.error" -> SessionEvent.ToolFinished(str("callID") ?: "?", false)
-            "session.next.step.ended" -> SessionEvent.StepEnded(str("finish") ?: "stop")
+            "session.next.step.ended" -> SessionEvent.StepEnded(str("finish") ?: "unknown")
             // Both v1 and v2 land here; the request id is the only
             // field that survives the version rename (v1 uses "id",
             // v2 uses "requestID"). Auto-replied in AgentBrain.
@@ -429,15 +431,21 @@ internal fun parseRunEvent(payload: String): List<SessionEvent> {
             "tool_use" -> {
                 val tool = partStr("tool") ?: "?"
                 val callID = partStr("callID") ?: "?"
-                val status = part?.get("state")?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
-                val start = SessionEvent.ToolCalled(tool)
+                val state = part?.get("state")?.jsonObject
+                val status = state?.get("status")?.jsonPrimitive?.contentOrNull
+                // Surface the tool input so the feed shows the args
+                // (what the agent ran), not just the bare tool name.
+                val inputObj = state?.get("input")?.jsonObject
+                val input = if (inputObj != null && inputObj.isNotEmpty()) inputObj.toString() else ""
+                val start = if (input.isEmpty()) listOf(SessionEvent.ToolCalled(tool))
+                            else listOf(SessionEvent.ToolCalled(tool), SessionEvent.ToolInput(input))
                 when (status) {
-                    "completed" -> listOf(start, SessionEvent.ToolFinished(callID, true))
-                    "error", "failed" -> listOf(start, SessionEvent.ToolFinished(callID, false))
-                    else -> listOf(start)
+                    "completed" -> start + SessionEvent.ToolFinished(callID, true)
+                    "error", "failed" -> start + SessionEvent.ToolFinished(callID, false)
+                    else -> start
                 }
             }
-            "step_finish" -> listOf(SessionEvent.StepEnded(partStr("reason") ?: "stop"))
+            "step_finish" -> listOf(SessionEvent.StepEnded(partStr("reason") ?: "unknown"))
             "error" -> {
                 val err = root["error"]?.jsonObject
                 val msg = err?.get("data")?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull

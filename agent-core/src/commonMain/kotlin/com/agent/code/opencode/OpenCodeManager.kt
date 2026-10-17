@@ -323,36 +323,81 @@ class OpenCodeManager(
             val snippet = readLogSnippet(eventsFile)
             error("run did not start (spawn=$pid)$snippet")
         }
+        // Record the pid so stop() and the cleanup below can reap this child.
+        // start() only records activePid for the serve child; without this a
+        // timed-out/cancelled run leaks a ptrace-traced child, and the next
+        // spawn hits the process-scoped waitpid(-1) collision (r26).
+        activePid = pid
 
         // Offset-tail the events file. checkChild returns 0 while the child is
         // alive and non-zero once it exits (1=exit 0, 2=fail, >=100=signal).
-        // A deadline guards against a child that never exits (ptrace stall) —
-        // without it the flow hangs forever and the brain never falls through
-        // to the next model (the r15 silent-hang class).
-        val deadline = PlatformOps.currentTimeMs() + config.runTimeoutMs
+        // The deadline is an IDLE deadline: refreshed on every emitted JSON
+        // line, so a healthy multi-step run (tools + retries, minutes long) is
+        // not killed, while a child that stops producing events (ptrace stall)
+        // still trips it (the r15 silent-hang class).
+        var deadline = PlatformOps.currentTimeMs() + config.runTimeoutMs
         var offset = 0L
         var stablePolls = 0
-        while (true) {
-            val content = try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
-            if (content.length > offset) {
-                val chunk = content.substring(offset.toInt())
-                offset = content.length.toLong()
-                stablePolls = 0
-                for (line in chunk.lineSequence()) {
-                    val trimmed = line.trim()
-                    if (trimmed.startsWith("{")) emit(trimmed)
+        var drained = false
+        try {
+            while (true) {
+                val content = try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
+                if (content.length > offset) {
+                    // Only consume whole lines: a read can land mid-line for a
+                    // large tool output; emitting the fragment (then advancing
+                    // past it) would silently lose the event.
+                    val chunk = content.substring(offset.toInt())
+                    val nl = chunk.lastIndexOf('\n')
+                    if (nl >= 0) {
+                        val complete = chunk.substring(0, nl)
+                        offset += nl + 1
+                        stablePolls = 0
+                        for (line in complete.lineSequence()) {
+                            val trimmed = line.trim()
+                            if (trimmed.startsWith("{")) {
+                                emit(trimmed)
+                                deadline = PlatformOps.currentTimeMs() + config.runTimeoutMs
+                            }
+                        }
+                    } else {
+                        stablePolls++
+                    }
+                } else {
+                    stablePolls++
                 }
-            } else {
-                stablePolls++
+                val exit = try { PlatformOps.checkChild(pid) } catch (_: Exception) { 0 }
+                // Drained: child gone and no new bytes for a few consecutive polls.
+                if (exit != 0 && stablePolls >= 3) {
+                    // Flush a final event that had no trailing newline.
+                    val content = try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
+                    val tail = content.substring(minOf(offset.toInt(), content.length)).trim()
+                    if (tail.startsWith("{")) emit(tail)
+                    drained = true
+                    break
+                }
+                if (PlatformOps.currentTimeMs() >= deadline) {
+                    val snippet = readLogSnippet(eventsFile)
+                    error("run timed out after ${config.runTimeoutMs}ms (exit=$exit)$snippet")
+                }
+                delay(150)
             }
-            val exit = try { PlatformOps.checkChild(pid) } catch (_: Exception) { 0 }
-            // Drained: child gone and no new bytes for a few consecutive polls.
-            if (exit != 0 && stablePolls >= 3) break
-            if (PlatformOps.currentTimeMs() >= deadline) {
-                val snippet = readLogSnippet(eventsFile)
-                error("run timed out after ${config.runTimeoutMs}ms (exit=$exit)$snippet")
+        } finally {
+            // Any exit that did not drain normally (timeout, collector
+            // cancellation, spawn error) must kill the child under
+            // NonCancellable — on the cancellation path the job is already
+            // cancelled and the kill would be skipped otherwise (same reason
+            // start() does this). Else the traced child lingers and collides
+            // with the next spawn.
+            if (!drained) {
+                withContext(NonCancellable) {
+                    try {
+                        processRunner.run(listOf("kill", "-9", pid.toString()))
+                        delay(200)
+                        PlatformOps.checkChild(pid)
+                    } catch (_: Exception) {}
+                }
             }
-            delay(150)
+            activePid = 0
         }
     }
 
@@ -390,8 +435,11 @@ class OpenCodeManager(
             appendLine("port=$serverPort log=${logFile.rawPath} at=${PlatformOps.currentTimeMs()}")
             appendLine("runEvents=${lastRunEventsPath ?: "none"}")
         }
-        val loaderBudget = maxChars * 3 / 4
-        val serverBudget = maxChars - loaderBudget
+        // Split the budget across the three sections so the combined dump
+        // (auto-copied to the clipboard) stays within maxChars.
+        val runBudget = maxChars / 4
+        val loaderBudget = maxChars / 2
+        val serverBudget = maxChars - loaderBudget - runBudget
         val body = try {
             fileSystem.read(logFile).getOrNull().orEmpty()
         } catch (e: Exception) {
@@ -410,11 +458,14 @@ class OpenCodeManager(
         // forensics to run-<taskId>.events, NOT opencode.log. Without this the
         // agent feed could stall with a log that looked perfectly healthy.
         val runBody = lastRunEventsPath?.let { path ->
-            try {
+            val raw = try {
                 fileSystem.read(VirtualPath.of(path)).getOrNull().orEmpty()
             } catch (e: Exception) {
                 "(run events read failed: ${e.message})"
             }
+            if (raw.length > runBudget) {
+                "[... ${raw.length - runBudget} earlier chars trimmed ...]\n" + raw.takeLast(runBudget)
+            } else raw
         }
         return buildString {
             append(header)

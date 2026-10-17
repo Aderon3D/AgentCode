@@ -160,10 +160,7 @@ fun FilesScreen(
         if (showNewDialog) {
             NewFileDialog(
                 onDismiss = { showNewDialog = false },
-                onCreate = { name ->
-                    fileSystem.write(currentDir.resolve(name), "")
-                    showNewDialog = false
-                },
+                onCreate = { name -> fileSystem.write(currentDir.resolve(name), "") },
                 exists = { name ->
                     // Suspend-free probe: the dialog body is not a suspend scope.
                     fileSystem.exists(currentDir.resolve(name))
@@ -271,7 +268,7 @@ private fun FileViewer(
 @Composable
 private fun NewFileDialog(
     onDismiss: () -> Unit,
-    onCreate: suspend (String) -> Unit,
+    onCreate: suspend (String) -> Result<Unit>,
     exists: suspend (String) -> Boolean
 ) {
     var name by remember { mutableStateOf("") }
@@ -305,6 +302,8 @@ private fun NewFileDialog(
                             error = "Already exists"
                         } else {
                             onCreate(trimmed)
+                                .onSuccess { onDismiss() }
+                                .onFailure { error = it.message ?: "Write failed" }
                         }
                     }
                 }

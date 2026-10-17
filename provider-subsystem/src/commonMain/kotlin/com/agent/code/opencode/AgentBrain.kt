@@ -87,6 +87,13 @@ fun executeTask(
                             }
                             is SessionEvent.ToolFinished ->
                                 send(BrainEvent.ToolCallFinished(currentTool, ev.ok))
+                            is SessionEvent.ToolInput -> {
+                                // Surface the tool args (the feed's whole point:
+                                // what the agent ran when a run stalls).
+                                if (ev.detail.isNotBlank()) {
+                                    send(BrainEvent.Thinking("run: ${ev.detail.take(200)}"))
+                                }
+                            }
                             is SessionEvent.TextEnded -> {
                                 val t = ev.text.trim()
                                 if (t.isNotEmpty()) {
@@ -95,7 +102,17 @@ fun executeTask(
                                 }
                             }
                             is SessionEvent.StepEnded -> {
-                                if (ev.finish != "tool-calls") finished = true
+                                when (ev.finish) {
+                                    // still working
+                                    "tool-calls" -> {}
+                                    // only "stop" is a successful terminal step
+                                    "stop" -> finished = true
+                                    // "length"/truncated, "content-filter",
+                                    // "error": NOT a completed run (else a
+                                    // truncated step records a false success
+                                    // and the model loop stops on a bad model).
+                                    else -> failure = "run ended: ${ev.finish}"
+                                }
                                 send(BrainEvent.IterationComplete(steps))
                             }
                             is SessionEvent.Failed -> failure = ev.message

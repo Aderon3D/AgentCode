@@ -55,3 +55,7 @@ ANDROIDIDE_BUILD_NOTES.md
 shared/src/androidMain/kotlin/com/agent/code/ui/LibGit2Demo.kt
 shared/src/androidMain/kotlin/com/agent/code/ui/ShizukuStatusDemo.kt
 .opencode/
+
+# fossil MCP caches / scratch
+.fossil/
+/file.txt

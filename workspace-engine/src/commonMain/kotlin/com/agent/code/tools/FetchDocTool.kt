@@ -16,6 +16,7 @@ class FetchDocTool : AgentTool {
         "Fetches latest library docs or README markdown from GitHub/web to verify API signatures."
     override val riskLevel = RiskLevel.READ_ONLY
 
+    @Suppress("TooGenericExceptionCaught") // network boundary: any fetch failure becomes a ToolResult error
     override suspend fun execute(
         argumentsJson: String,
         fileSystem: FileSystemProvider,

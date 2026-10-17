@@ -31,6 +31,8 @@ import kotlinx.coroutines.launch
  * it onto a [KanbanBoard], proving the orchestrator spine end-to-end in UI.
  * ponytail: one button runs the whole lifecycle; reset not needed for demo.
  */
+// Deliberate catch-all: the lifecycle run surfaces failures as UI error text.
+@Suppress("TooGenericExceptionCaught")
 @Composable
 fun MissionControlPanel() {
     val scope = rememberCoroutineScope()

@@ -1,0 +1,48 @@
+# detekt config for AgentCode (Kotlin Multiplatform + Compose).
+# Merged on top of detekt's built-in defaults (buildUponDefaultConfig = true),
+# so only deviations from the stock ruleset are listed here.
+# Property names are detekt 2.x (allowedLines / allowedComplexity / allowedDepth /
+# allowedFunctionsPer*); rule locations follow the 2.x ruleset split.
+
+complexity:
+  # Default 60 is too strict for this codebase's long parser/state-machine functions.
+  LongMethod:
+    allowedLines: 100
+  # Default 11/class is noisy on Android/KMP classes; 20 still flags real god-objects.
+  TooManyFunctions:
+    allowedFunctionsPerFile: 20
+    allowedFunctionsPerClass: 20
+    allowedFunctionsPerInterface: 20
+    allowedFunctionsPerObject: 20
+    allowedFunctionsPerEnum: 20
+  # Default 14; 15 drops borderline cases, keeps genuine hotspots (e.g. the 40-complexity parser).
+  CyclomaticComplexMethod:
+    allowedComplexity: 15
+  NestedBlockDepth:
+    allowedDepth: 5
+
+naming:
+  # @Composable functions are PascalCase by convention; detekt 2.x has no
+  # ignoreAnnotated here, so allow leading uppercase to silence the false positives.
+  FunctionNaming:
+    functionPattern: '[a-zA-Z][a-zA-Z0-9]*'
+
+style:
+  # Magic numbers are pervasive and mostly harmless here (timeouts, buffer sizes).
+  MagicNumber:
+    active: false
+  # Wildcard imports are idiomatic Kotlin.
+  WildcardImport:
+    active: false
+  # Guard-clause style; the 2-return default is unrealistic.
+  ReturnCount:
+    max: 4
+  # Kotlin style guide is 120, but this repo has long KDoc/compose lines; 140 is the pragmatic ceiling.
+  MaxLineLength:
+    maxLineLength: 140
+  # Loop-control noise (break/continue count) — not a real defect signal.
+  LoopWithTooManyJumpStatements:
+    active: false
+  # 3 throws in one function is acceptable for validation-heavy entry points.
+  ThrowsCount:
+    max: 3

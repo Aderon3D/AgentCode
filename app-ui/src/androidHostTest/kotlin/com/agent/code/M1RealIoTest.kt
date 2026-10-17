@@ -145,6 +145,20 @@ class M1RealIoTest {
     }
 
     @Test
+    fun realFileSystemReadFromSeeksByteOffset() = runBlocking {
+        val dir = createTempDirectory("m1-fs-from").toFile()
+        val fs = RealFileSystem(VirtualPath.of(dir.absolutePath))
+        val path = VirtualPath.of("${dir.absolutePath}/events.log")
+        // "é" is 2 UTF-8 bytes but 1 char, so a byte offset must not be a char count.
+        val first = "é1\n"
+        fs.write(path, "$first{\"a\":1}\n").getOrThrow()
+
+        assertEquals("$first{\"a\":1}\n", fs.readFrom(path, 0L).getOrThrow())
+        assertEquals("{\"a\":1}\n", fs.readFrom(path, first.toByteArray().size.toLong()).getOrThrow())
+        assertEquals("", fs.readFrom(path, 9999L).getOrThrow(), "offset past EOF yields empty")
+    }
+
+    @Test
     fun fileBackedWalSelfHealsCorruptLine() {
         val file = createTempDirectory("m1-wal-heal").resolve("wal.log").toFile()
         val good = eventJson.encodeToString(AgentEvent.TaskStarted(1, "t", 0L, "goal"))

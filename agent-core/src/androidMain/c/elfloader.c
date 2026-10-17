@@ -40,8 +40,13 @@ extern char **environ;
 /* Build stamp: round tag + compile time, printed as the first log line of
  * every spawn so a pasted device log self-identifies its build. Bump the
  * round tag when shipping; __DATE__/__TIME__ make it drift-proof. */
-#define ELFLOADER_ROUND "r17"
+#define ELFLOADER_ROUND "r28"
 #define ELFLOADER_BUILD ELFLOADER_ROUND " " __DATE__ " " __TIME__
+
+/* Delivery self-test (deliberate fault at 0x10 + the canary in on_crash that
+ * skips it). Off in production; build with -DELFLOADER_SELFTEST to exercise it.
+ * #204: keep the deliberate-fault path out of shipped binaries. */
+/* #define ELFLOADER_SELFTEST 1 */
 
 typedef struct {
     uintptr_t bias;
@@ -124,13 +129,15 @@ static void on_crash(int sig, siginfo_t *si, void *uc) {
         ((ucontext_t *)uc)->uc_mcontext.regs[0] = (uint64_t)(int64_t)(-ENOSYS);
         return;
     }
+#ifdef ELFLOADER_SELFTEST
     /* ponytail: canary fault from the delivery self-test — skip the store
-     * (aarch64 STR is 4 bytes) and continue. Remove with the self-test. */
+     * (aarch64 STR is 4 bytes) and continue. */
     if (si && si->si_addr == (void *)0x10) {
         w_all(2, "elfloader: handler delivery ok (self-test)\n");
         ((ucontext_t *)uc)->uc_mcontext.pc += 4;
         return;
     }
+#endif
     w_all(2, "\nelfloader: CRASH sig=");
     char nb[16];
     int n = sig, i = 0;
@@ -753,11 +760,12 @@ static void child_main(const char *loader, const char *glibc, const char *binary
         w_hex((uint64_t)(uintptr_t)cur.handler);
         w_all(2, cur.handler == (void *)on_crash ? " live\n" : " GONE\n");
     }
+#ifdef ELFLOADER_SELFTEST
     /* ponytail: delivery self-test — if the kernel can't reach on_crash even
-     * with the slot verified live, we die here instead of inside rtld.
-     * Remove once device delivery is confirmed. */
+     * with the slot verified live, we die here instead of inside rtld. */
     w_all(2, "elfloader: delivery self-test...\n");
     *(volatile int *)0x10 = 0;
+#endif
     /* ponytail: fault-PC capture — kernel STOPS us on the faulting signal so
      * nativeCheck can log si_addr/code/pc, then detaches (signal discarded)
      * and we refault into normal handler delivery. */
@@ -775,27 +783,124 @@ static void child_main(const char *loader, const char *glibc, const char *binary
     die("enter returned", 0);
 }
 
-/* child log path saved for nativeCheck's fault-stop entries (parent side) */
-static char g_child_log[4096];
-static int g_child_log_set;
-/* SIGPWR stop count for the current spawn — the device storm is SIGPWR (30),
- * NOT SIGABRT (6): Bun/opencode's scheduler wake-loop tkill()s workers while
- * each ptrace stop parks a receiver until the next checkChild drain. Breaker
- * logic in handle_fault_stop: fast re-delivery from stop 4, kill on a high
- * RATE (never on a total count — see the rate gate there). */
-static int g_pwr_stops;
-/* Rate window for the SIGPWR gate: stops counted within one wall-clock
- * second. Benign healthy-server wakes run ~9/s forever; a wedged/re-injecting
- * loop runs in the thousands/s, so 2000/s separates them by two orders of
- * magnitude either way (knob: lower only if a real wedge is ever measured
- * slower, raise if a legit workload is ever measured faster). */
-static time_t g_rate_sec;
-static int g_rate_n;
-/* Drain-thread state: leader pid, atomic exit code (0 = running), loop
- * forward-declared for nativeSpawn. */
-static pid_t g_child_pid;
-static volatile int g_child_exit;
+/* ---- per-spawn state (r28) ----------------------------------------------
+ * Every drain-side variable used to be a process-global static, so two
+ * concurrent spawns (serve + run, or multi-agent) corrupted each other: the
+ * second nativeSpawn overwrote g_child_log / g_child_pid / g_pwr_stops /
+ * g_rate_* mid-flight, and the static counters inside service_one /
+ * handle_fault_stop / nativeCheck were shared. Each spawn now owns a
+ * struct spawn, and nativeCheck(pid) looks it up in the registry below.
+ *
+ * The drain still waits on waitpid(-1): the kernel does NOT report a
+ * tracee's ptrace-stops through a process-group selection — waitpid(-pgid)
+ * returns nothing for a stopped tracee (verified on this kernel with a
+ * minimal repro) — and waitpid(leader_pid) misses the clone-thread stops
+ * that PTRACE_O_TRACECLONE produces (they carry a fresh tid). Only
+ * waitpid(-1) sees the whole tracee thread group, so it is process-wide and
+ * only one drain may run at a time: enforced by the single-spawn gate in
+ * nativeSpawn/drain_loop. True concurrency needs per-tid tracking (#200). */
+#define TID_MAX 512
+struct spawn {
+    pid_t pid;                 /* leader pid; negative = fork -errno */
+    char  log[4160];
+    int   log_set;
+    volatile int exit_code;    /* 0 = running; else childStatus code (atomic) */
+    /* SIGPWR storm gate (was g_pwr_stops / g_rate_sec / g_rate_n). The device
+     * storm is SIGPWR (30), not SIGABRT (6): Bun/opencode's scheduler wake-
+     * loop tkill()s workers. Breaker in handle_fault_stop: fast re-delivery
+     * from stop 4, kill on a high RATE (never a total count). 2000/s separates
+     * benign ~9/s wakes from a wedged thousands/s loop. */
+    int     pwr_stops;
+    time_t  rate_sec;
+    int     rate_n;
+    /* forensics counters (were function-local statics, shared across spawns) */
+    unsigned ev_n;             /* service_one drain-event counter */
+    int     seccomp_stops;     /* handle_fault_stop SIGSYS counter */
+    int     sys_fault_dumped;  /* handle_fault_stop /proc/status dump budget */
+    int     hb_n;              /* nativeCheck heartbeat divider */
+    struct spawn *next;        /* registry linkage */
+
+    /* #200 forensics: the tracee's leader + TRACECLONE/FORK tids, learned from
+     * PTRACE_GETEVENTMSG. Lets the drain classify a reaped pid as tracee vs
+     * FOREIGN (an app child it must never reap). Observation only — does not
+     * change the waitpid selection. */
+    pid_t   tids[TID_MAX];
+    int     ntids;
+    int     foreign_reaps;     /* must stay 0; >0 means an app child was stolen */
+};
+
+/* Registry so nativeCheck(pid) finds the right spawn. The single-spawn gate
+ * means at most one is live at a time, but entries are never removed (see
+ * drain_loop): nativeCheck must keep answering for a pid after exit, and the
+ * structs are leaked by design. Guarded by a mutex because nativeCheck runs on
+ * Kotlin's poll thread while spawn threads insert. Newest entry wins a lookup
+ * (prepend), so a reused pid resolves to the current spawn. */
+static struct spawn *g_spawns;
+static pthread_mutex_t g_spawn_mu = PTHREAD_MUTEX_INITIALIZER;
+
+static void spawn_register(struct spawn *sp) {
+    pthread_mutex_lock(&g_spawn_mu);
+    sp->next = g_spawns;
+    g_spawns = sp;
+    pthread_mutex_unlock(&g_spawn_mu);
+}
+/* Lookup by pid. Spawns are never unregistered, so the returned pointer stays
+ * valid for the process lifetime (nativeCheck never dereferences after NULL). */
+static struct spawn *spawn_find(pid_t pid) {
+    struct spawn *found = NULL;
+    pthread_mutex_lock(&g_spawn_mu);
+    for (struct spawn *s = g_spawns; s; s = s->next)
+        if (s->pid == pid) { found = s; break; }
+    pthread_mutex_unlock(&g_spawn_mu);
+    return found;
+}
+
 static void *drain_loop(void *arg);
+
+/* #200 forensics: the set of tracee tids (leader + auto-attached TRACECLONE/
+ * FORK). Only the (single) drain thread mutates it, so no lock is needed. */
+static void tid_add(struct spawn *sp, pid_t t) {
+    if (t <= 0) return;
+    for (int i = 0; i < sp->ntids; i++) if (sp->tids[i] == t) return;
+    if (sp->ntids < TID_MAX) sp->tids[sp->ntids++] = t;
+}
+static int tid_remove(struct spawn *sp, pid_t t) {
+    for (int i = 0; i < sp->ntids; i++)
+        if (sp->tids[i] == t) { sp->tids[i] = sp->tids[--sp->ntids]; return 1; }
+    return 0;
+}
+
+/* Single-spawn gate: waitpid(-1) is process-wide, so only one drain may run.
+ * nativeSpawn waits a short grace period for a prior drain (whose child the
+ * caller just stopped) to finish, then refuses with -EBUSY rather than let a
+ * second drain steal the first child's stop events. The spawn thread clears
+ * the gate when drain_loop returns. */
+static pthread_mutex_t g_gate_mu = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  g_gate_cv = PTHREAD_COND_INITIALIZER;
+static int g_gate_active;
+
+static int spawn_gate_acquire(void) {
+    struct timespec dl;
+    clock_gettime(CLOCK_REALTIME, &dl);
+    dl.tv_sec += 3;
+    pthread_mutex_lock(&g_gate_mu);
+    while (g_gate_active) {
+        if (pthread_cond_timedwait(&g_gate_cv, &g_gate_mu, &dl) == ETIMEDOUT) {
+            pthread_mutex_unlock(&g_gate_mu);
+            return -1;
+        }
+    }
+    g_gate_active = 1;
+    pthread_mutex_unlock(&g_gate_mu);
+    return 0;
+}
+static void spawn_gate_release(void) {
+    pthread_mutex_lock(&g_gate_mu);
+    g_gate_active = 0;
+    pthread_cond_signal(&g_gate_cv);
+    pthread_mutex_unlock(&g_gate_mu);
+}
+
 
 /* Parent-side handling of a traced child stop: forensics into logfd
  * (si_syscall, x8, the maps line owning pc, Seccomp status) plus recovery —
@@ -804,7 +909,7 @@ static void *drain_loop(void *arg);
  * child). Real faults are re-delivered with PTRACE_CONT so the child's own
  * handler reports the CRASH line; tracing continues either way.
  * Returns 1 = child resumed. */
-static int handle_fault_stop(pid_t pid, int logfd) {
+static int handle_fault_stop(struct spawn *sp, pid_t pid, int logfd) {
     siginfo_t si;
     struct user_pt_regs regs;
     memset(&si, 0, sizeof si);
@@ -825,44 +930,60 @@ static int handle_fault_stop(pid_t pid, int logfd) {
     /* tid = the stopped thread; spid = si_pid, the tkill sender (SI_TKILL) —
      * identifies the loop's sender vs receiver threads.
      * st = SIGPWR stop counter for this spawn (fast path / cap below). */
-    if (si.si_signo == SIGPWR) g_pwr_stops++;
-    char b[320];
-    int n = snprintf(b, sizeof b,
-                     "elfloader: fault stop sig=%d code=%d tid=%d spid=%ld st=%d addr=0x%llx pc=0x%llx syscall=%d x8=0x%llx\n",
-                     si.si_signo, si.si_code,
-                     (int)pid, (long)si.si_pid, g_pwr_stops,
-                     (unsigned long long)si.si_addr, (unsigned long long)regs.pc,
-                     si.si_code == SYS_SECCOMP ? si.si_syscall : -1,
-                     (unsigned long long)regs.regs[8]);
-    if (logfd >= 0 && n > 0) k_write(logfd, b, (size_t)n);
-    if (gr < 0 && logfd >= 0) {
-        n = snprintf(b, sizeof b, "elfloader: GETSIGINFO errno=%d\n", gerrno);
-        if (n > 0) k_write(logfd, b, (size_t)n);
-    }
-
-    /* SIGPWR (30) storm fast path — checked BEFORE any /proc forensics: the
-     * device storm is Bun/opencode's scheduler wake-loop tkill()s SIGPWR at
-     * its workers (spid = main thread); stops 1-3 keep the full forensics
-     * block below, stop 4+ only re-deliver. Kill on RATE, not total count: a
-     * healthy server logs benign wakes forever at ~9/s, so the old absolute
-     * cap (500) killed every run that lived ~50s (r14 log: server healthy,
-     * then "storm stop>500, killing child"). A wedged loop is thousands/s. */
-    if (si.si_signo == SIGPWR && g_pwr_stops > 3) {
+    if (si.si_signo == SIGPWR) sp->pwr_stops++;
+    /* SIGPWR storm fast path — checked BEFORE any logging or /proc
+     * forensics: the device storm is Bun/opencode's scheduler wake-loop
+     * tkill()ing SIGPWR at its workers (spid = main thread); stops 1-3 keep
+     * the full forensics below, stop 4+ re-deliver silently except the
+     * every-64th heartbeat line. Kill on RATE, not total count: a healthy
+     * server logs benign wakes forever at ~9/s, so the old absolute cap
+     * (500) killed every run that lived ~50s (r14). A wedged loop is
+     * thousands/s. */
+    if (si.si_signo == SIGPWR && sp->pwr_stops > 3) {
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
-        if (now.tv_sec != g_rate_sec) { g_rate_sec = now.tv_sec; g_rate_n = 0; }
-        if (++g_rate_n > 2000) {
+        if (now.tv_sec != sp->rate_sec) { sp->rate_sec = now.tv_sec; sp->rate_n = 0; }
+        if (++sp->rate_n > 2000) {
             if (logfd >= 0)
                 k_write(logfd, "elfloader: SIGPWR rate>2000/s, killing child\n", 45);
             ptrace(PTRACE_KILL, pid, 0, 0);
             return 1;
         }
-        if (logfd >= 0 && (g_pwr_stops & 63) == 4) {
-            n = snprintf(b, sizeof b, "elfloader: SIGPWR fast path st=%d\n", g_pwr_stops);
-            if (n > 0) k_write(logfd, b, (size_t)n);
+        if (logfd >= 0 && (sp->pwr_stops & 63) == 4) {
+            char hb[80];
+            int hn = snprintf(hb, sizeof hb, "elfloader: SIGPWR fast path st=%d\n", sp->pwr_stops);
+            if (hn > 0) k_write(logfd, hb, (size_t)hn);
         }
         ptrace(PTRACE_CONT, pid, 0, (void *)(long)si.si_signo);
         return 1;
+    }
+    /* forensics budget: the fault-stop line + GETSIGINFO echo are ~150 B each;
+     * seccomp SIGSYS churn (one per denied syscall, thousands/second) alone
+     * grows the log ~1 KB/s. Print the first 4 seccomp stops in full (they're
+     * the interesting onset), then only every 64th as a heartbeat, plus any
+     * non-seccomp fault (real crash) which is rare and always worth a line.
+     * Only the log writes below are gated — the ENOSYS register fix-up that
+     * intercepts the syscall must still run on every stop. */
+    /* (r28) per-spawn counters — was function-local statics, shared across
+     * concurrent spawns. */
+    int seccomp = (si.si_code == SYS_SECCOMP);
+    if (seccomp) sp->seccomp_stops++;
+    int quiet = seccomp && sp->seccomp_stops > 4 && (sp->seccomp_stops & 63) != 0;
+    char b[320];
+    int n;
+    if (!quiet) {
+        n = snprintf(b, sizeof b,
+                         "elfloader: fault stop sig=%d code=%d tid=%d spid=%ld st=%d addr=0x%llx pc=0x%llx syscall=%d x8=0x%llx\n",
+                         si.si_signo, si.si_code,
+                         (int)pid, (long)si.si_pid, sp->pwr_stops,
+                         (unsigned long long)si.si_addr, (unsigned long long)regs.pc,
+                         si.si_code == SYS_SECCOMP ? si.si_syscall : -1,
+                         (unsigned long long)regs.regs[8]);
+        if (logfd >= 0 && n > 0) k_write(logfd, b, (size_t)n);
+        if (gr < 0 && logfd >= 0) {
+            n = snprintf(b, sizeof b, "elfloader: GETSIGINFO errno=%d\n", gerrno);
+            if (n > 0) k_write(logfd, b, (size_t)n);
+        }
     }
 
     /* maps/status buffers — maps read moved below: only the first SIGPWR
@@ -870,33 +991,38 @@ static int handle_fault_stop(pid_t pid, int logfd) {
     static char big[262144]; /* /proc/<pid>/maps outgrows any stack buffer */
     int fd;
 
-    /* Seccomp: / Seccomp_filters: from /proc/<pid>/status */
-    snprintf(b, sizeof b, "/proc/%d/status", pid);
-    fd = open(b, O_RDONLY);
-    if (fd >= 0) {
-        if (logfd >= 0) {
-            ssize_t got = read(fd, big, sizeof big - 1);
-            if (got > 0) {
-                big[got] = 0;
-                for (char *s = big; s && *s; ) {
-                    char *eol = strchr(s, '\n');
-                    if (eol) *eol = 0;
-                    if (strncmp(s, "Seccomp", 7) == 0 ||
-                        strncmp(s, "TracerPid", 9) == 0 ||
-                        strncmp(s, "SigBlk", 6) == 0 ||
-                        strncmp(s, "SigIgn", 6) == 0 ||
-                        strncmp(s, "SigCgt", 6) == 0) {
-                        /* Sig* masks: SigCgt bit 0x20 = SIGABRT disposition
-                         * caught; SigIgn 0x20 = ignored; else SIG_DFL. */
-                        k_write(logfd, "elfloader: ", 11);
-                        k_write(logfd, s, c_len(s));
-                        k_write(logfd, "\n", 1);
+    /* Seccomp: / Seccomp_filters: from /proc/<pid>/status — first 4 faults
+     * only; the rest are the identical select() SIGSYS storm (one dump per
+     * worker thread ate the whole log budget at r17). */
+    if (si.si_code != SYS_SECCOMP || sp->sys_fault_dumped < 4) {
+        if (si.si_code == SYS_SECCOMP) sp->sys_fault_dumped++;
+        snprintf(b, sizeof b, "/proc/%d/status", pid);
+        fd = open(b, O_RDONLY);
+        if (fd >= 0) {
+            if (logfd >= 0) {
+                ssize_t got = read(fd, big, sizeof big - 1);
+                if (got > 0) {
+                    big[got] = 0;
+                    for (char *s = big; s && *s; ) {
+                        char *eol = strchr(s, '\n');
+                        if (eol) *eol = 0;
+                        if (strncmp(s, "Seccomp", 7) == 0 ||
+                            strncmp(s, "TracerPid", 9) == 0 ||
+                            strncmp(s, "SigBlk", 6) == 0 ||
+                            strncmp(s, "SigIgn", 6) == 0 ||
+                            strncmp(s, "SigCgt", 6) == 0) {
+                            /* Sig* masks: SigCgt bit 0x20 = SIGABRT disposition
+                             * caught; SigIgn 0x20 = ignored; else SIG_DFL. */
+                            k_write(logfd, "elfloader: ", 11);
+                            k_write(logfd, s, c_len(s));
+                            k_write(logfd, "\n", 1);
+                        }
+                        s = eol ? eol + 1 : 0;
                     }
-                    s = eol ? eol + 1 : 0;
                 }
             }
+            close(fd);
         }
-        close(fd);
     }
 
     if (si.si_code == SYS_SECCOMP) {
@@ -924,7 +1050,7 @@ static int handle_fault_stop(pid_t pid, int logfd) {
             if (sscanf(s, "%lx-%lx", &lo, &hi) == 2 &&
                 (unsigned long long)regs.pc >= lo && (unsigned long long)regs.pc < hi) {
                 char *eol = strchr(s, '\n');
-                size_t ln = eol ? eol - s : c_len(s);
+                size_t ln = eol ? (size_t)(eol - s) : c_len(s);
                 if (ln > 400) ln = 400;
                 k_write(logfd, "elfloader: pc region ", 21);
                 k_write(logfd, s, ln);
@@ -987,6 +1113,7 @@ struct spawn_req {
     const char *args[LD_MAX_ARGS];
     char argbuf[LD_MAX_ARGS][512];
     int nargs;
+    struct spawn *sp; /* per-spawn drain context (r28) */
 };
 
 /* The spawning thread IS the tracer: kernel ptrace_check_attach() accepts a
@@ -995,22 +1122,32 @@ struct spawn_req {
  * r8-r11 forked on the JNI thread and serviced stops from a second pthread:
  * waitpid worked (process-scoped) but every ptrace got ESRCH, the child
  * parked at its first seccomp trap and Kotlin's 15s timeout killed it. */
-static void *spawn_server_thread(void *arg) {
+static void *spawn_server_body(void *arg) {
     struct spawn_req *r = arg;
+    struct spawn *sp = r->sp;
     pid_t pid = fork();
     if (pid == 0) {
         child_main(r->loader, r->glibc, r->binary, r->work, r->log,
                    r->args, r->nargs);
         _exit(127);
     }
+    free(r); /* child owns its post-fork copy; parent no longer needs it */
     if (pid < 0) {
-        g_child_pid = -errno;
-        free(r);
+        __atomic_store_n(&sp->pid, (pid_t)-errno, __ATOMIC_RELEASE);
+        __atomic_store_n(&sp->exit_code, -errno, __ATOMIC_RELEASE);
         return NULL;
     }
-    g_child_pid = pid;
-    free(r); /* child owns its post-fork copy */
-    drain_loop(NULL);
+    __atomic_store_n(&sp->pid, pid, __ATOMIC_RELEASE);
+    drain_loop(sp);
+    return NULL;
+}
+
+/* Thread entry: spawn+drain, then release the single-spawn gate so a later
+ * nativeSpawn (e.g. a run after the serve was stopped) can proceed. Releases
+ * on the fork-failure path too, which never reaches drain_loop. */
+static void *spawn_server_thread(void *arg) {
+    spawn_server_body(arg);
+    spawn_gate_release();
     return NULL;
 }
 
@@ -1034,25 +1171,9 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
         if (loader) (*env)->ReleaseStringUTFChars(env, jLoader, loader);
         return -EINVAL;
     }
-    snprintf(g_child_log, sizeof g_child_log, "%s", logp);
-    g_child_log_set = 1;
     /* Resolve libdnsshim.so's directory here, in the parent: child_main runs
      * post-fork, where a non-async-signal-safe call like dladdr can deadlock
      * if another thread held the dynamic-loader lock at fork() time. */
-    g_dnsshim_preload[0] = 0;
-    {
-        Dl_info di;
-        if (dladdr((void *)w_all, &di) && di.dli_fname && di.dli_fname[0] == '/') {
-            const char *slash = strrchr(di.dli_fname, '/');
-            size_t dl = slash ? (size_t)(slash - di.dli_fname) : 0;
-            static const char rel[] = "/libdnsshim.so";
-            if (dl > 0 && 11 + dl + sizeof rel <= sizeof g_dnsshim_preload) {
-                memcpy(g_dnsshim_preload, "LD_PRELOAD=", 11);
-                memcpy(g_dnsshim_preload + 11, di.dli_fname, dl);
-                memcpy(g_dnsshim_preload + 11 + dl, rel, sizeof rel);
-            }
-        }
-    }
     jsize n = (*env)->GetArrayLength(env, jArgs);
     if (n < 0 || n > LD_MAX_ARGS) {
         (*env)->ReleaseStringUTFChars(env, jLog, logp);
@@ -1110,42 +1231,87 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
     (*env)->ReleaseStringUTFChars(env, jGlibc, glibc);
     (*env)->ReleaseStringUTFChars(env, jLoader, loader);
 
-    g_pwr_stops = 0;
-    g_rate_sec = 0;
-    g_rate_n = 0;
-    g_child_pid = 0; /* sentinel: fork not done yet; spawn thread sets it */
-    __atomic_store_n(&g_child_exit, 0, __ATOMIC_RELEASE);
+    /* r28: per-spawn drain context so nativeCheck(pid) finds the right one. */
+    struct spawn *sp = calloc(1, sizeof *sp);
+    if (!sp) { free(req); return -ENOMEM; }
+    snprintf(sp->log, sizeof sp->log, "%s", req->log);
+    sp->log_set = 1;
+    sp->pid = 0;       /* sentinel: fork not done yet; spawn thread sets it */
+    __atomic_store_n(&sp->exit_code, 0, __ATOMIC_RELEASE);
+    req->sp = sp;
     /* Truncate the log HERE, before fork — the child only appends now, so
      * the spawn thread's lines can never be erased by the child's open. */
     int tfd = open(req->log, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (tfd >= 0) close(tfd);
 
+    /* Single-spawn gate: waitpid(-1) is process-wide, so a second live drain
+     * would steal this child's stop events. Wait briefly for a prior drain
+     * (whose child the caller just stopped) to finish, else refuse. */
+    if (spawn_gate_acquire() != 0) {
+        free(sp);
+        free(req);
+        return -EBUSY;
+    }
+
     pthread_t th;
     int pe = pthread_create(&th, NULL, spawn_server_thread, req);
     if (pe != 0) {
+        spawn_gate_release();
+        free(sp);
         free(req);
         return -pe;
     }
     pthread_detach(th);
-    for (int i = 0; i < 500 && g_child_pid == 0; i++) usleep(1000);
-    if (g_child_pid == 0) return -ETIMEDOUT;
-    if (g_child_pid < 0) return g_child_pid; /* -errno from fork() */
-    return (jint)g_child_pid;
+    /* Wait for the fork to publish sp->pid (NOT g_child_pid — concurrent
+     * spawns would collide on a shared global). */
+    for (int i = 0; i < 500 && __atomic_load_n(&sp->pid, __ATOMIC_ACQUIRE) == 0; i++)
+        usleep(1000);
+    pid_t got = __atomic_load_n(&sp->pid, __ATOMIC_ACQUIRE);
+    if (got == 0) return -ETIMEDOUT;
+    if (got < 0) return got; /* -errno from fork() */
+    /* Register once the pid is known so nativeCheck(pid) can find it. Entries
+     * are never removed — see drain_loop. */
+    spawn_register(sp);
+    return (jint)got;
 }
 
 /* One waitpid+handle iteration, run on spawn_server_thread — the child's
  * parent task, the only task allowed to ptrace it (kernel requires
  * child->parent == current). Returns: 1 = event handled, 0 = no event
- * pending (WNOHANG), -1 = waitpid error (errno), 2 = leader exit recorded. */
-static int service_one(int blocking, int *opts_set, int logfd) {
+ * pending (WNOHANG), -1 = waitpid error (errno), 2 = leader exit recorded.
+ * waitpid(-1) is the only selection that reports both the leader's stops and
+ * the clone threads' stops; the single-spawn gate keeps other drains out. */
+static int service_one(struct spawn *sp, int blocking, int *opts_set, int logfd) {
     int status = 0;
+    /* -1 (any child): waitpid(leader_pid) drops the PTRACE_O_TRACECLONE
+     * worker stops and waitpid(-pgid) reports no ptrace-stops at all. A tracer's
+     * waitpid(-1, __WALL) only returns its own tracee's events (verified: with a
+     * tracee present another thread's child is NOT reaped; without one it is), so
+     * the app's ProcessBuilder children (git, kill probes) are never stolen. */
     pid_t t = waitpid(-1, &status, __WALL | (blocking ? 0 : WNOHANG));
+    /* Diagnostics (ELFLOADER_TRACE=1): log every waitpid result. Reveals whether
+     * a hang is ECHILD, a stuck 0, or an unhandled stop. */
+    static int trace_inited;
+    if (!trace_inited) { trace_inited = getenv("ELFLOADER_TRACE") != NULL; }
+    if (trace_inited) {
+        int e = (t < 0) ? errno : 0;
+        char tb[160];
+        int tn = snprintf(tb, sizeof tb,
+                          "elfloader: TRACE wp(-1,blk=%d,__WALL%s) ret=%d err=%d st=0x%x\n",
+                          blocking, blocking ? "" : "|WNOHANG",
+                          (int)t, e, (unsigned)status);
+        if (tn > 0) k_write(2, tb, (size_t)tn);
+    }
     if (t == 0) return 0;
     if (t < 0) return -1;
-    if (logfd >= 0) {
+    /* Quiet by default: first 40 events full, then every 256th. Bun's worker
+     * churn produces thousands of clone/exit stops; logging each one drowned
+     * the server-log tail out of the dump budget (r18). */
+    sp->ev_n++;
+    if (logfd >= 0 && (sp->ev_n <= 40 || (sp->ev_n & 0xff) == 0)) {
         char db[96];
-        int dn = snprintf(db, sizeof db, "elfloader: drain ev tid=%d st=0x%x\n",
-                          (int)t, (unsigned)status);
+        int dn = snprintf(db, sizeof db, "elfloader: drain ev tid=%d st=0x%x n=%u\n",
+                          (int)t, (unsigned)status, sp->ev_n);
         if (dn > 0) k_write(logfd, db, (size_t)dn);
     }
     if (WIFSTOPPED(status)) {
@@ -1159,34 +1325,56 @@ static int service_one(int blocking, int *opts_set, int logfd) {
                    (void *)(long)(PTRACE_O_TRACECLONE | PTRACE_O_EXITKILL)) == 0)
             *opts_set = 1;
         if (WSTOPSIG(status) == SIGTRAP && (status >> 16) != 0) {
+            /* #200: remember the auto-attached task's tid so a later exit of it
+             * classifies as tracee (not FOREIGN). */
+            unsigned long em = 0;
+            if (ptrace(PTRACE_GETEVENTMSG, t, 0, &em) == 0 && em > 1)
+                tid_add(sp, (pid_t)em);
             ptrace(PTRACE_CONT, t, 0, 0); /* clone/event stop */
             return 1;
         }
-        handle_fault_stop(t, logfd);
+        handle_fault_stop(sp, t, logfd);
         return 1;
     }
-    if (t != g_child_pid) return 1; /* worker thread ended */
+    if (t != sp->pid) {
+        /* Not the leader: normally one of the tracee's threads/forks (expected).
+         * If it is NOT in our tid set the drain reaped an app child — a bug
+         * (#200); the JVM's Process.waitFor() then gets ECHILD. Count + log. */
+        if (!tid_remove(sp, t)) {
+            sp->foreign_reaps++;
+            if (logfd >= 0 && sp->foreign_reaps <= 8) {
+                char fb[64];
+                int fn = snprintf(fb, sizeof fb,
+                                  "elfloader: FOREIGN reap pid=%d tids=%d\n",
+                                  (int)t, sp->ntids);
+                if (fn > 0) k_write(logfd, fb, (size_t)fn);
+            }
+        }
+        return 1; /* worker thread ended */
+    }
     if (WIFEXITED(status))
-        __atomic_store_n(&g_child_exit,
+        __atomic_store_n(&sp->exit_code,
                          WEXITSTATUS(status) == 0 ? 1 : 2, __ATOMIC_RELEASE);
     else if (WIFSIGNALED(status))
-        __atomic_store_n(&g_child_exit, 100 + WTERMSIG(status), __ATOMIC_RELEASE);
+        __atomic_store_n(&sp->exit_code, 100 + WTERMSIG(status), __ATOMIC_RELEASE);
     else
-        __atomic_store_n(&g_child_exit, 3, __ATOMIC_RELEASE);
+        __atomic_store_n(&sp->exit_code, 3, __ATOMIC_RELEASE);
     return 2;
 }
 
 /* Forensics thread: blocking waitpid, µs stop-to-resume latency. Every event
  * and error is logged (drain ev / drain err lines) so a device log shows
- * exactly what it saw and when. */
+ * exactly what it saw and when. r28: takes the per-spawn context so a
+ * concurrent spawn can't clobber the log path or counters. */
 static void *drain_loop(void *arg) {
-    (void)arg;
+    struct spawn *sp = arg;
     int opts_set = 0;
-    int logfd = g_child_log_set ? open(g_child_log, O_WRONLY | O_APPEND) : -1;
+    int logfd = sp->log_set ? open(sp->log, O_WRONLY | O_APPEND) : -1;
+    tid_add(sp, sp->pid); /* leader; TRACECLONE tasks are added as they appear */
     if (logfd >= 0)
         k_write(logfd, "elfloader: drain thread up\n", 27);
     for (;;) {
-        int r = service_one(1, &opts_set, logfd);
+        int r = service_one(sp, 1, &opts_set, logfd);
         if (r == 2) break;
         if (r < 0) {
             if (errno == EINTR) continue;
@@ -1200,34 +1388,46 @@ static void *drain_loop(void *arg) {
         }
     }
     if (logfd >= 0) {
+        char sb[96];
+        int sn = snprintf(sb, sizeof sb,
+                          "elfloader: drain summary foreign_reaps=%d tids_left=%d\n",
+                          sp->foreign_reaps, sp->ntids);
+        if (sn > 0) k_write(logfd, sb, (size_t)sn);
         k_write(logfd, "elfloader: drain thread exit\n", 29);
         close(logfd);
     }
+    /* Deliberately NOT unregistered: nativeCheck(pid) must keep returning the
+     * exit code after the leader is gone (the pre-r28 global did, and Kotlin's
+     * waitForServer relies on it to notice an early death). The struct is
+     * leaked by design — a late nativeCheck could still hold the pointer, so
+     * freeing it would race (ponytail: one small struct per spawn). */
     return NULL;
 }
 
 JNIEXPORT jint JNICALL
 Java_com_agent_code_opencode_ElfLoader_nativeCheck(JNIEnv *env, jobject thiz, jint pid) {
-    (void)env; (void)thiz; (void)pid;
+    (void)env; (void)thiz;
     /* NO ptrace from here: the spawn thread owns the tracee (kernel requires
      * child->parent == current) and services stops itself; a second waiter
-     * would race it for the same event. Heartbeat only. */
-    static int hb_n;
-    int exit_now = __atomic_load_n(&g_child_exit, __ATOMIC_ACQUIRE);
+     * would race it for the same event. Heartbeat only.
+     * r28: look up the spawn by pid (concurrent spawns each have their own). */
+    struct spawn *sp = spawn_find((pid_t)pid);
+    if (!sp) return 0; /* unknown / already reaped */
+    int exit_now = __atomic_load_n(&sp->exit_code, __ATOMIC_ACQUIRE);
     /* Don't open the log on every 100ms poll: only the ~2s heartbeat writes,
      * and a dead child needs no I/O to report. Avoids Main-thread file I/O. */
     if (exit_now) return exit_now;
-    if (g_child_pid <= 0 || ++hb_n < 20) return 0;
-    hb_n = 0;
+    if (sp->pid <= 0 || ++sp->hb_n < 20) return 0;
+    sp->hb_n = 0;
     /* ~2s child-state heartbeat (Kotlin polls this every 100ms): leader
      * state letter + wchan + kernel stack — names "traced-parked",
      * "blocked-in-syscall-X" or "running" in the next pasted log. */
-    int logfd = g_child_log_set ? open(g_child_log, O_WRONLY | O_APPEND) : -1;
+    int logfd = sp->log_set ? open(sp->log, O_WRONLY | O_APPEND) : -1;
     {
         char hb[1024];
         char state[2] = "?", wchan[48] = "0";
         char path[64];
-        snprintf(path, sizeof path, "/proc/%d/status", g_child_pid);
+        snprintf(path, sizeof path, "/proc/%d/status", sp->pid);
         int fd = open(path, O_RDONLY);
         if (fd >= 0) {
             char buf[2048];
@@ -1243,7 +1443,7 @@ Java_com_agent_code_opencode_ElfLoader_nativeCheck(JNIEnv *env, jobject thiz, ji
                 }
             }
         }
-        snprintf(path, sizeof path, "/proc/%d/wchan", g_child_pid);
+        snprintf(path, sizeof path, "/proc/%d/wchan", sp->pid);
         fd = open(path, O_RDONLY);
         if (fd >= 0) {
             ssize_t got = read(fd, wchan, sizeof wchan - 1);
@@ -1252,7 +1452,7 @@ Java_com_agent_code_opencode_ElfLoader_nativeCheck(JNIEnv *env, jobject thiz, ji
         }
         int hn = snprintf(hb, sizeof hb, "elfloader: hb state=%s wchan=%s",
                           state, wchan);
-        snprintf(path, sizeof path, "/proc/%d/stack", g_child_pid);
+        snprintf(path, sizeof path, "/proc/%d/stack", sp->pid);
         fd = open(path, O_RDONLY);
         if (fd >= 0 && hn > 0 && hn < (int)sizeof hb - 8) {
             ssize_t got = read(fd, hb + hn, sizeof hb - 1 - (size_t)hn - 1);

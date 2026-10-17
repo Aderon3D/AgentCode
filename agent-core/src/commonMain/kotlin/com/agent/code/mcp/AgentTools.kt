@@ -43,6 +43,15 @@ class ApplyPatchTool(private val fileSystem: FileSystemProvider) : AgentTool {
         val path = obj["path"]?.jsonPrimitive?.contentOrNull ?: return ToolResult(name, false, "missing path", 0L)
         val search = obj["search"]?.jsonPrimitive?.contentOrNull ?: return ToolResult(name, false, "missing search", 0L)
         val replace = obj["replace"]?.jsonPrimitive?.contentOrNull ?: ""
+        return applyPatch(fileSystem, path, search, replace)
+    }
+
+    private suspend fun applyPatch(
+        fileSystem: FileSystemProvider,
+        path: String,
+        search: String,
+        replace: String
+    ): ToolResult {
         val vp = VirtualPath.of(path)
         val original = fileSystem.read(vp).getOrElse {
             return ToolResult(name, false, it.message ?: "read failed", 0L)

@@ -1,37 +1,42 @@
 package com.agent.code
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.agent.code.bootstrap.MissionControlBootstrap
 import com.agent.code.bootstrap.Timeline
 import com.agent.code.core.journal.LogEntry
 import com.agent.code.core.journal.TelemetryEngine
+import com.agent.code.core.path.VirtualPath
 import com.agent.code.core.power.PowerGovernor
 import com.agent.code.core.power.StubPowerGovernor
 import com.agent.code.provider.HierarchicalModelRouter
 import com.agent.code.ui.AgentPanel
 import com.agent.code.ui.AgentViewModel
-import com.agent.code.ui.DashboardScreen
+import com.agent.code.ui.DebugScreen
+import com.agent.code.ui.FilesScreen
 import com.agent.code.ui.demoModelRouter
+import com.agent.code.workspace.FileSystemProvider
 import kotlinx.coroutines.launch
 
 @Composable
@@ -40,43 +45,67 @@ fun App(
     probeDashboard: @Composable (() -> Unit)? = null,
     governor: PowerGovernor = StubPowerGovernor(),
     agentViewModel: AgentViewModel? = null,
+    fileSystem: FileSystemProvider? = null,
+    workspaceRoot: VirtualPath? = null,
 ) {
     MaterialTheme {
-        var showSpine by remember { mutableStateOf(false) }
-        var showDash by remember { mutableStateOf(false) }
-        var showAgent by remember { mutableStateOf(agentViewModel != null) }
+        var tab by remember { mutableStateOf(0) }
         val telemetry = remember { TelemetryEngine() }
         val router: HierarchicalModelRouter = remember { demoModelRouter() }
 
         Column(
             modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
+                .background(MaterialTheme.colorScheme.surface)
                 .safeContentPadding()
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .fillMaxSize(),
         ) {
-            if (agentViewModel != null) {
-                Button(onClick = { showAgent = !showAgent }) {
-                    Text("M6 Agent")
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) {
+                when (tab) {
+                    0 -> if (agentViewModel != null) {
+                        AgentPanel(viewModel = agentViewModel, modifier = Modifier.fillMaxSize())
+                    } else {
+                        Text("Agent unavailable", modifier = Modifier.padding(16.dp))
+                    }
+                    1 -> if (fileSystem != null && workspaceRoot != null) {
+                        FilesScreen(fileSystem = fileSystem, root = workspaceRoot, modifier = Modifier.fillMaxSize())
+                    } else {
+                        Text("Files unavailable", modifier = Modifier.padding(16.dp))
+                    }
+                    else -> DebugScreen(
+                        viewModel = agentViewModel,
+                        governor = governor,
+                        telemetry = telemetry,
+                        router = router,
+                        probeDashboard = probeDashboard,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
-                AnimatedVisibility(showAgent) {
-                    AgentPanel(viewModel = agentViewModel)
-                }
             }
-            Button(onClick = { showSpine = !showSpine }) {
-                Text("M0.5 Spine Demo")
+            TabBar(selected = tab, onSelect = { tab = it })
+        }
+    }
+}
+
+/** Minimal text-only bottom tab bar — no icons, no NavigationBar dependency. */
+@Composable
+private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(4.dp)
+    ) {
+        listOf("Agent", "Files", "Debug").forEachIndexed { i, name ->
+            val on = i == selected
+            TextButton(onClick = { onSelect(i) }, modifier = Modifier.weight(1f)) {
+                Text(
+                    name,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                    color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            AnimatedVisibility(showSpine) {
-                M05SpineDemo()
-            }
-            Button(onClick = { showDash = !showDash }) {
-                Text("M3 Live Dashboard")
-            }
-            AnimatedVisibility(showDash) {
-                DashboardScreen(telemetry = telemetry, governor = governor, router = router)
-            }
-            probeDashboard?.invoke()
         }
     }
 }
@@ -88,6 +117,7 @@ fun App(
  * Stubbed subsystems (LLM/MCP/process) are not exercised here.
  */
 @Composable
+@Suppress("TooGenericExceptionCaught") // demo boundary: any failure is surfaced in the UI
 fun M05SpineDemo() {
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()

@@ -28,7 +28,7 @@ data class AuditEntry(
 
 object AuditLog {
     private val entries = mutableListOf<AuditEntry>()
-    private val maxEntries = 1000
+    private const val maxEntries = 1000
     private val json = Json { ignoreUnknownKeys = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val fileMutex = Mutex()

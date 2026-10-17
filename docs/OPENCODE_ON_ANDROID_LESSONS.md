@@ -106,11 +106,17 @@ saga replaced.
 | Oct 10 | round 13 (r12 log) | r12 works! Server `listening`, health still times out | `rememberCoroutineScope()` = **Main dispatcher** → `HttpURLConnection` on UI thread → `NetworkOnMainThreadException` on every attempt, swallowed by `catch {}` | `withContext(Dispatchers.IO)` + surface `last health: <real error>` into the timeout message |
 | Oct 10 | round 14 (r13 log) | `Cleartext HTTP traffic to 127.0.0.1 not permitted` | targetSdk 36 Network Security Config blocks cleartext — **loopback is not exempt** | `android:usesCleartextTraffic="true"` on `<application>` |
 | Oct 10 | round 15 | server healthy but goal field does nothing | client called OpenAI-shaped `/api/chat*` which this server doesn't serve; unknown routes return the **SPA HTML with 200** → SSE parser emitted zero events → brain looped silently | rewired to the real session API (§5); always-available log export |
+| Oct 11 | round 24 (r24) | on-device agent: `prompt accepted`, **no SSE events ever stream**; the serve path also hits an ENOTDIR bug (default instance dir resolves to the binary path, `serve` has no `--dir`) | the serve+SSE design is a fragile on-device dependency: a long-lived `serve` under ptrace + a live global SSE stream that only delivers to current subscribers (no replay), so any startup/timing gap = silent hang with an empty feed | **pivot the agent to `opencode run --format json`**: one-shot subprocess, flat JSON events on stdout, transient in-process server that exits with the run, tools auto-approved via `--auto`. `serve` kept only for the browser web UI. New: `OpenCodeManager.runPrompt()`, `parseRunEvent()`, starter plugin-only `opencode.json` (§3.7) |
+| Oct 11 | round 25 (r24 log) | feed shows `run mimo-v2.6-flash-free ...` but **no `run --format json` spawn line ever appears**; the run subprocess never starts | **`stateMutex` deadlock**: `start()` holds the mutex for its entire duration (including `waitForServer`, up to 15s); `runPrompt` → `ensureInstalled()` tries to acquire the same mutex and blocks forever | `runPrompt` now does a non-blocking `fileSystem.exists(binary)` check instead of `ensureInstalled()`; added `runTimeoutMs` (120s) deadline to the offset-tail loop so a ptrace-stalled child can't hang the flow forever |
+| Oct 12 | round 26 (r25 log) | deadlock gone (`state=Running`) but the feed still stalls at `run <model> ...`; log looked perfectly healthy | **two blind spots**: (1) `logDump()` only ever read `opencode.log`, but the run subprocess's stdout (JSON events + elfloader forensics) lands in `run-<taskId>.events` — a file nothing read, so the stall was invisible; (2) the starter `opencode.json` then named 3 npm plugins, and `run` resolves those through npm on device — a hang/failure there emits zero events | `logDump()` now appends `run-<taskId>.events` and names it in the header; the agent path adds `--pure` (documented `run` flag) so no external plugins are loaded at all — plugins stay an enhancement, not a dependency (§3.7) |
+| Oct 13 | round 27 (r26 log) | `--pure` run **spawns** (deadlock gone, `run --format json --auto --pure` line present) but stalls at `GETSIGINFO errno=3` then infinite `hb state=t wchan=ptrace_stop` | **two concurrent spawns, two drain threads, both `waitpid(-1)`**: `start()` (serve, pid 30021) and `runPrompt()` (run, pid 30030) each fork a child via `nativeSpawn` → `spawn_server_thread` → `drain_loop`. `waitpid(-1)` is process-scoped, so the two threads steal each other's child-stop events. When the serve thread reaps a run-child stop, `ptrace` returns ESRCH (only the *forking* thread can ptrace its child — elfloader.c:1003, the r8-r11 single-tracer rule), `PTRACE_CONT` also fails, and the run child parks in `ptrace_stop` forever while its own drain thread blocks in `waitpid` | `runPrompt()` now calls `stop()` before spawning — kill the web-UI server, leave one live child, one drain thread. Run mode is self-contained (no port, no SSE). **Root-caused + reproduced natively** (§3.8): `waitpid(-1)` is per-process, so the two drains steal each other's events. Fix: serialize — `runPrompt()` stops the serve child before spawning, and the loader now enforces one drain at a time (single-spawn gate). **Ceiling**: true concurrent spawns (multi-agent) need per-tid tracking; the r28 `waitpid(-pgid)` attempt was a regression (the kernel reports no ptrace-stops through a process-group wait) and was reverted |
 
 Rounds through 12 were one problem (child survives and serves); rounds 13–15
 were three different, increasingly boring client-side problems. Pattern:
 **each layer only fails after the previous one is proven** — and each was
-named in one run once the error surfaced instead of being swallowed.
+named in one run once the error surfaced instead of being swallowed. Round 24
+was not a bug but a pivot: once the serve+SSE stack proved more moving parts
+than the job needed, the agent dropped to the CLI the CI already trusts.
 
 ---
 
@@ -164,6 +170,12 @@ The single most expensive lesson (bug introduced at round 8, cost rounds 9–11,
 - **Single-waiter principle:** only one thread may consume events. Two
   waiters race for the same stop; `nativeCheck` must never `waitpid` alongside
   the drain (keep it a read of an atomic).
+- **Which `waitpid` selection even sees a tracee** (r28): a ptrace-stop is
+  delivered only to the tracer and is **not** visible through a process-group
+  wait. Against a traced child, `waitpid(-pgid, __WALL[|WUNTRACED])` returns
+  **nothing** (no stop, no exit), `waitpid(tid)` sees one thread, and
+  `waitpid(-1)` sees the whole tracee thread group (leader + `TRACECLONE`
+  workers). Use `waitpid(-1)`.
 - `PTRACE_O_TRACECLONE` must be set **before the first clone** (the first
   stop is the main thread's pre-clone pthread-init trap, so it lands in time).
   Without it, worker threads run untraced and their SIGSYS hits disposition.
@@ -257,6 +269,98 @@ by the shim). That hybrid would also delete the SIGPWR-storm class (no stops
 
 ---
 
+### 3.7 Starter config: no plugins (r24 → r26, run-mode path)
+
+`opencode run` loads the same config/plugins as `serve`, so the workspace's
+`opencode.json` is where agent behavior gets tuned. On first run (if absent)
+`OpenCodeManager.ensureWorkspaceConfig()` writes a minimal anchor that lists
+**no** plugins:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json"
+}
+```
+
+The three plugins we once shipped — **ponytail** (laziest working solution),
+**bash-guard** (shell-tool safety rail), **redact** (secret stripping) — are
+gone as of r26; they remain here only so the history below makes sense.
+
+**The agent path passes `--pure`**, so opencode loads *no* external plugins on
+device. Declaring them in the starter config was **not** harmless: opencode
+still ran its npm install path (arborist) at startup for the listed packages
+even under `--pure` (opencode #31810/#37888). On device there is no npm cache and
+the dns-shim blocks resolving `registry.npmjs.org`, so the run stalled at
+`run <model> ...` with a healthy-looking log (r25 log 27; compare r23 log 23,
+where the same lookup *succeeds* with network). Hence the starter config now
+lists **no** plugins — `--pure` would skip them anyway, so the list was pure
+downside. Plugins stay an enhancement, not a dependency. To use them offline,
+vendor them under the workspace's `.opencode/plugins/` and reference the local
+paths.
+
+### 3.8 Native harness: debug the elfloader drain loop without a device (round 27)
+
+The sandbox this repo is developed in runs **on an Android kernel**
+(`6.12.38-android16-5`, root, aarch64) but as a PID-namespaced container with
+**no `/dev/kvm`** (mknod silently denied) and **no emulator package** — a full
+AVD is structurally unavailable. But the host is aarch64 glibc with `gcc`, and
+the **real `elfloader.c` compiles natively** against a ~25-line `jni.h` stub
+(only `GetStringUTFChars`/`GetArrayLength`/`GetObjectArrayElement`/
+`DeleteLocalRef`/`ReleaseStringUTFChars` are used, plus `JNIEXPORT`/`jint`/
+`jstring`/`jobjectArray` typedefs). That turns the drain loop — the source of
+every r8–r11 / r24 / r27 stall — into a **seconds-per-iteration native test**,
+no device, no APK install, no log copy-paste.
+
+The harness (`#include "elfloader.c"` so it links the *static* `drain_loop`,
+`service_one`, `handle_fault_stop` and the process-globals — not a
+reimplementation) must respect one rule to be faithful: **each spawner thread
+forks its own child AND drains in that same thread** (the parent==drainer
+invariant, elfloader.c:1003). Forking both children in `main` and draining in
+separate pthreads makes `main` the parent and hides the bug entirely.
+
+Result (r27/r28, scenarios against the real code):
+
+| Scenario | Outcome |
+|---|---|
+| A: 1 spawn baseline | clean — child parked, drain joins after kill |
+| B: 2 concurrent spawns | **both drain threads HUNG** — the r27 bug, reproduced |
+| C: 2 concurrent + scoped `waitpid(-own_pgid)` | **NOT a fix** — see below |
+
+**The scoped-wait idea is wrong** (r28, proven with a minimal repro): the
+kernel does **not** report a tracee's ptrace-stops through a process-group
+selection. Against a stopped tracee, `waitpid(-pgid, __WALL[|WUNTRACED])`
+returns **0 events**, while `waitpid(tid)` and `waitpid(-1)` both see the stop
+immediately; `waitpid(leader_pid)` sees the leader's stops but **drops the
+`PTRACE_O_TRACECLONE` worker-thread stops** (they carry a fresh tid). So r28's
+own "fix" (`waitpid(-sp->pgid)`) was itself a regression — the drain never
+observed the child, so even scenario A hung. The drain is back to
+`waitpid(-1)` (the only selection that sees the whole tracee thread group),
+and because that is process-wide, only **one** drain may run at a time —
+enforced by a single-spawn gate in `nativeSpawn` (a second concurrent
+`nativeSpawn` waits a short grace period, then returns `-EBUSY`).
+
+The **shared-state isolation** half of r28 stands, and is the part worth
+keeping: `struct spawn` now owns the log path, exit code, SIGPWR/rate
+counters and forensics counters, and `nativeCheck(pid)` finds its spawn in a
+pid-keyed registry — a second spawn can no longer overwrite the first's log
+path or leader-pid mid-flight.
+
+**Ceiling**: true concurrent spawns (multi-agent) remain unsupported — that
+needs per-tid tracking (a per-spawn set of tracee tids, waited individually)
+and is deferred (issue #200). The app runs a single child
+(`maxConcurrent = 1`; `runPrompt` stops the serve child first).
+
+**Reusable for any future ptrace/drain bug**: the harness `#include`s the
+real `elfloader.c` and asserts (1) `drain_loop` observes a tracee's stops and
+returns on its exit, and (2) the single-spawn gate refuses a concurrent spawn,
+then re-acquires after release. A standalone minimal repro of the kernel
+`waitpid` selection semantics lives beside it. The opencode CLI itself was
+also verified natively: two concurrent `opencode run` processes in the same
+workspace both complete (3 JSON events each) — the collision is purely our
+drain loop, not opencode.
+
+---
+
 ## 4. Kotlin / Android app-layer pitfalls
 
 - **Coroutines inherit the dispatcher that launched them.**
@@ -309,12 +413,35 @@ Get the authoritative spec from the running server: `GET /doc` (OpenAPI
   never trust the status code alone; check that the body is JSON. This
   single trap made the OpenAI-shaped `/api/chat*`, `/api/sessions`,
   `/api/models` calls look "fine" while returning markup.
-- Real agent pipeline (round 15):
+- Real agent pipeline (round 15, SSE corrected r23; **agent path pivoted to
+  `run` in r24**):
   ```
+  # r24 — the agent's primary path (one-shot, no server to babysit):
+  opencode run --format json --auto --dir <ws> -m <provider>/<model> "<prompt>"
+    # flat JSON events on stdout, one per line, top-level snake_case `type` +
+    # a `part` object; no {payload/properties} envelope. A completed tool_use
+    # carries BOTH start+finish in one line. Transient in-process server
+    # starts, feeds the run, and exits with it — no long-lived serve.
+    # `-s <sessionID>` continues an existing session; tools auto-approve
+    # (run is non-interactive). Parsed by `parseRunEvent()` in OpenCodeClient.kt.
+
+  # serve + SSE path below — now only for the browser web UI, not the agent.
   POST /api/session               {model:{providerID:"opencode", id}} -> {data:{id}}
   POST /api/session/{id}/prompt   {prompt:{text}}                     -> {data:{admittedSeq,...}}
-  GET  /api/session/{id}/event    SSE (replays the whole run if you subscribe after prompting)
+  GET  /api/event                 SSE global stream — filter by sessionID client-side
   ```
+  **Do not use `GET /api/session/{id}/event` on device.** It sits behind the
+  workspace-routing middleware that waits on the location boot, which never
+  resolves (`workspaceID=undefined`, logs 21/22 — the SSE GET connects at
+  TCP but the server never writes headers). The global `/api/event` is
+  outside that middleware; both reference clients (oc-remote, P4OC) use it
+  and filter by `properties.sessionID` client-side. Send
+  `x-opencode-directory: <workspace root>` on every session request — the
+  server resolves directory from `?directory=`, then that header, then cwd;
+  cwd alone left `workspaceID=undefined` on device. The global stream
+  wraps events as `{directory, payload:{type, properties}}` (the per-session
+  form is flat `{type, data}`); `unwrapEventEnvelope` in `OpenCodeClient.kt`
+  handles both. Live-only — no replay — so subscribe before prompting.
 - **Termination rule (observed):** `session.next.step.ended` with
   `finish:"tool-calls"` = agent continues; `finish:"stop"` (or `"error"`/
   `"length"`) = run finished. `session.next.step.failed` carries
@@ -447,19 +574,28 @@ Get the authoritative spec from the running server: `GET /doc` (OpenAPI
    shim or resolv.conf drop-in (§3.5).
 2. **`ServeError`** from opencode itself — seen once (Oct 8), never since;
    root cause unknown.
-3. **Permission prompts** (`/api/permission/request`, `/api/question/*`) —
-   if the build agent asks mid-run, nothing answers it yet → possible stall.
-   Rejection/timeout endpoints exist; wire an auto-reply when we hit it.
-4. **Log growth** — forensics at ~1 KB/s for a long session; gate
-   `LD_DEBUG`/forensics for release (stamp + fast-path caps already bound the
-   worst case).
+3. ~~**Permission prompts**~~ — **fixed in r21** (serve path); **moot on the
+   agent path in r24**: `opencode run` runs non-interactively and auto-approves
+   tools via `--auto`, so permission/question events never reach the app. The
+   r21 auto-reply (`replyPermission` once / `questionReject`) is kept in
+   `OpenCodeClient` for the serve/web-UI path only. Test:
+   `OpenCodeClientEventTest` (parse both v1/v2 shapes).
+4. ~~**Log growth**~~ — **fixed in loader r20**: the per-stop fault line +
+   GETSIGINFO echo (~150 B each, ~1 KB/s under seccomp SIGSYS churn) now
+   print the first 4 seccomp stops in full, then only every 64th as a
+   heartbeat; non-seccomp (real) faults always print. The ENOSYS register
+   fix-up runs on every stop — only the log writes are gated. LD_DEBUG was
+   already dropped at r18.
 5. **Fallback options if ptrace ever has to go** (ponytail order): (b)
    SIGSYS-shim + `PTRACE_DETACH` hybrid (§3.6), (c) official **musl** build
    (musl doesn't use `set_robust_list`/rseq → possibly zero traps).
-6. **Dead code now:** the OpenAI-shaped client methods
-   (`sendChat`/`streamChat`/`listSessions`/`listModels`), `MockOpenCodeClient`,
-   `MultiAgentOrchestrator`, and `McpHost` wiring are unreferenced after the
-   session-API rewiring — delete candidates when someone next touches that
+6. **Dead code now:** after the r24 pivot the serve-path client methods
+   (`createSession`/`sendPrompt`/`sessionEvents`/`replyPermission`/
+   `questionReject`, `parseSessionEventJson`) have **no production caller** —
+   only tests reference them (kept as the not-yet-wired web-UI client). Also
+   unreferenced: the OpenAI-shaped methods (`sendChat`/`streamChat`/
+   `listSessions`/`listModels`), `MockOpenCodeClient`, `MultiAgentOrchestrator`,
+   and `McpHost` wiring — delete candidates when someone next touches that
    file.
 7. **GitHub release dependency:** install downloads the binary + glibc libs
    from `github.com/Aderon3D/AgentCode/releases/download/opencode-binary`
@@ -473,11 +609,11 @@ Get the authoritative spec from the running server: `GET /doc` (OpenAPI
 
 | Path | What |
 |---|---|
-| `agent-core/src/androidMain/c/elfloader.c` | the loader + drain + ptrace machinery (r12 shape: `spawn_server_thread`, `service_one`, `handle_fault_stop`, `child_main` HOME/env injection, build stamp) |
+| `agent-core/src/androidMain/c/elfloader.c` | the loader + drain + ptrace machinery (r28 shape: `spawn_server_thread`/`spawn_server_body`, `service_one` on `waitpid(-1)`, `handle_fault_stop`, `child_main` HOME/env injection, per-spawn `struct spawn` + pid-keyed registry, single-spawn gate, build stamp) |
 | `scripts/build-elfloader.sh` | NDK build → `androidApp/src/main/jniLibs/arm64-v8a/libelfloader.so` |
-| `agent-core/.../opencode/OpenCodeManager.kt` | install/start/stop, `waitForServer` (IO dispatcher + `last health`), `logDump()` |
+| `agent-core/.../opencode/OpenCodeManager.kt` | install/start/stop, `waitForServer` (IO dispatcher + `last health`), `logDump()`, **`runPrompt()`** (r24: spawn `run --format json` + offset-tail) and `ensureWorkspaceConfig()` (starter plugin `opencode.json`) |
 | `agent-core/.../opencode/PlatformOps.android.kt` | `httpGet`, `spawnLdLinux`, `checkChild` |
-| `provider-subsystem/.../opencode/OpenCodeClient.kt` | health + session API (`createSession`/`sendPrompt`/`sessionEvents`, `SessionEvent`) |
+| `provider-subsystem/.../opencode/OpenCodeClient.kt` | health + serve-path session API (`createSession`/`sendPrompt`/`sessionEvents`, `SessionEvent`); **`parseRunEvent()`** (r24: flat `run` events → `SessionEvent`) |
 | `provider-subsystem/.../opencode/AgentBrain.kt` | drives one prompt per model, maps events → `BrainEvent`; models in `AgentConfig` |
 | `app-ui/.../ui/AgentViewModel.kt` / `AgentPanel.kt` | state, `fetchLog()`, Copy Logs |
 | `androidApp/src/main/AndroidManifest.xml` | `usesCleartextTraffic="true"` |

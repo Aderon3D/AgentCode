@@ -24,7 +24,14 @@ class MainActivity : ComponentActivity() {
         val governor = AndroidPowerGovernor(applicationContext)
         ResilientAgentForegroundService.start(this)
 
-        val workspaceRoot = VirtualPath.of(filesDir.absolutePath)
+        // Install/runtime FS: opencode binary + loader sentinel + .local log all
+        // live under files/opencode — outside the workspace, so the manager needs
+        // a root at filesDir or install checks read "path escapes workspace root".
+        val runtimeFs = RealFileSystem(VirtualPath.of(filesDir.absolutePath))
+        // Agent workspace is a clean subdir so the Files tab and opencode sessions
+        // don't see the opencode install dir (binary, glibc, .local).
+        val workspaceDir = java.io.File(filesDir, "workspace").apply { mkdirs() }
+        val workspaceRoot = VirtualPath.of(workspaceDir.absolutePath)
         val fileSystem = RealFileSystem(workspaceRoot)
         AuditLog.init(fileSystem, workspaceRoot)
 
@@ -33,7 +40,7 @@ class MainActivity : ComponentActivity() {
             val viewModel = remember {
                 AgentViewModel.create(
                     scope = scope,
-                    fileSystem = fileSystem,
+                    fileSystem = runtimeFs,
                     processRunner = GitProcessRunner(),
                     workspaceRoot = workspaceRoot,
                     nativeLibraryDir = applicationInfo.nativeLibraryDir
@@ -48,6 +55,8 @@ class MainActivity : ComponentActivity() {
             App(
                 agentViewModel = viewModel,
                 governor = governor,
+                fileSystem = fileSystem,
+                workspaceRoot = workspaceRoot,
             )
         }
     }

@@ -27,6 +27,8 @@ class SemanticConflictFunnel(
     /**
      * Tier 1: Check for pre-write collisions against active locks.
      */
+    // taskId reserved for per-task collision attribution; the lock manager scores globally today.
+    @Suppress("UnusedParameter")
     suspend fun checkPreWriteCollision(taskId: String, requestedSymbols: Set<String>): ConflictRisk {
         return lockManager.evaluateCollisionRisk(
             proposedFiles = emptySet(),
@@ -105,6 +107,8 @@ class SemanticConflictFunnel(
      * Tier 3: Run `gradle test` on changed files. If no test runner injected, passes.
      * Tier 4: Targeted test selection via symbol index.
      */
+    // branchName is part of the public verification contract; slicing/tests key off changed files.
+    @Suppress("UnusedParameter")
     suspend fun verifyBranchIntegration(
         branchName: String,
         changedFiles: List<VirtualPath>,

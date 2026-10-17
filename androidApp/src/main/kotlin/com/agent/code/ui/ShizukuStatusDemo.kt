@@ -26,7 +26,7 @@ import rikka.shizuku.Shizuku
  * granted, and binder reachable. No write ops — read-only status check.
  */
 @Composable
-fun ShizukuStatusDemo(baseDir: String) {
+fun ShizukuStatusDemo() {
     var status by remember { mutableStateOf<String?>(null) }
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),

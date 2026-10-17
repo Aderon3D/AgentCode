@@ -15,6 +15,8 @@ class WriteFileTool : AgentTool {
     override val description = "Create or overwrite a file with given content"
     override val riskLevel = RiskLevel.WRITE
 
+    // Boundary catch-all: wrap the filesystem write and surface any failure as a ToolResult.
+    @Suppress("TooGenericExceptionCaught")
     override suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult {
         val obj = try {
             Json.parseToJsonElement(argumentsJson).jsonObject

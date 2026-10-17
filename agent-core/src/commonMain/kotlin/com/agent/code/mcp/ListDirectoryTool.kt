@@ -16,6 +16,8 @@ class ListDirectoryTool : AgentTool {
     override val description = "List files and subdirectories in a directory"
     override val riskLevel = RiskLevel.READ_ONLY
 
+    // Boundary catch-all: wrap the filesystem walk and surface any failure as a ToolResult.
+    @Suppress("TooGenericExceptionCaught")
     override suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult {
         val obj = try {
             Json.parseToJsonElement(argumentsJson).jsonObject

@@ -43,6 +43,11 @@ extern char **environ;
 #define ELFLOADER_ROUND "r28"
 #define ELFLOADER_BUILD ELFLOADER_ROUND " " __DATE__ " " __TIME__
 
+/* Delivery self-test (deliberate fault at 0x10 + the canary in on_crash that
+ * skips it). Off in production; build with -DELFLOADER_SELFTEST to exercise it.
+ * #204: keep the deliberate-fault path out of shipped binaries. */
+/* #define ELFLOADER_SELFTEST 1 */
+
 typedef struct {
     uintptr_t bias;
     uintptr_t phdr;
@@ -124,13 +129,15 @@ static void on_crash(int sig, siginfo_t *si, void *uc) {
         ((ucontext_t *)uc)->uc_mcontext.regs[0] = (uint64_t)(int64_t)(-ENOSYS);
         return;
     }
+#ifdef ELFLOADER_SELFTEST
     /* ponytail: canary fault from the delivery self-test — skip the store
-     * (aarch64 STR is 4 bytes) and continue. Remove with the self-test. */
+     * (aarch64 STR is 4 bytes) and continue. */
     if (si && si->si_addr == (void *)0x10) {
         w_all(2, "elfloader: handler delivery ok (self-test)\n");
         ((ucontext_t *)uc)->uc_mcontext.pc += 4;
         return;
     }
+#endif
     w_all(2, "\nelfloader: CRASH sig=");
     char nb[16];
     int n = sig, i = 0;
@@ -753,11 +760,12 @@ static void child_main(const char *loader, const char *glibc, const char *binary
         w_hex((uint64_t)(uintptr_t)cur.handler);
         w_all(2, cur.handler == (void *)on_crash ? " live\n" : " GONE\n");
     }
+#ifdef ELFLOADER_SELFTEST
     /* ponytail: delivery self-test — if the kernel can't reach on_crash even
-     * with the slot verified live, we die here instead of inside rtld.
-     * Remove once device delivery is confirmed. */
+     * with the slot verified live, we die here instead of inside rtld. */
     w_all(2, "elfloader: delivery self-test...\n");
     *(volatile int *)0x10 = 0;
+#endif
     /* ponytail: fault-PC capture — kernel STOPS us on the faulting signal so
      * nativeCheck can log si_addr/code/pc, then detaches (signal discarded)
      * and we refault into normal handler delivery. */
@@ -791,6 +799,7 @@ static void child_main(const char *loader, const char *glibc, const char *binary
  * waitpid(-1) sees the whole tracee thread group, so it is process-wide and
  * only one drain may run at a time: enforced by the single-spawn gate in
  * nativeSpawn/drain_loop. True concurrency needs per-tid tracking (#200). */
+#define TID_MAX 512
 struct spawn {
     pid_t pid;                 /* leader pid; negative = fork -errno */
     char  log[4160];
@@ -810,6 +819,14 @@ struct spawn {
     int     sys_fault_dumped;  /* handle_fault_stop /proc/status dump budget */
     int     hb_n;              /* nativeCheck heartbeat divider */
     struct spawn *next;        /* registry linkage */
+
+    /* #200 forensics: the tracee's leader + TRACECLONE/FORK tids, learned from
+     * PTRACE_GETEVENTMSG. Lets the drain classify a reaped pid as tracee vs
+     * FOREIGN (an app child it must never reap). Observation only — does not
+     * change the waitpid selection. */
+    pid_t   tids[TID_MAX];
+    int     ntids;
+    int     foreign_reaps;     /* must stay 0; >0 means an app child was stolen */
 };
 
 /* Registry so nativeCheck(pid) finds the right spawn. The single-spawn gate
@@ -839,6 +856,19 @@ static struct spawn *spawn_find(pid_t pid) {
 }
 
 static void *drain_loop(void *arg);
+
+/* #200 forensics: the set of tracee tids (leader + auto-attached TRACECLONE/
+ * FORK). Only the (single) drain thread mutates it, so no lock is needed. */
+static void tid_add(struct spawn *sp, pid_t t) {
+    if (t <= 0) return;
+    for (int i = 0; i < sp->ntids; i++) if (sp->tids[i] == t) return;
+    if (sp->ntids < TID_MAX) sp->tids[sp->ntids++] = t;
+}
+static int tid_remove(struct spawn *sp, pid_t t) {
+    for (int i = 0; i < sp->ntids; i++)
+        if (sp->tids[i] == t) { sp->tids[i] = sp->tids[--sp->ntids]; return 1; }
+    return 0;
+}
 
 /* Single-spawn gate: waitpid(-1) is process-wide, so only one drain may run.
  * nativeSpawn waits a short grace period for a prior drain (whose child the
@@ -1254,7 +1284,10 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
 static int service_one(struct spawn *sp, int blocking, int *opts_set, int logfd) {
     int status = 0;
     /* -1 (any child): waitpid(leader_pid) drops the PTRACE_O_TRACECLONE
-     * worker stops and waitpid(-pgid) reports no ptrace-stops at all. */
+     * worker stops and waitpid(-pgid) reports no ptrace-stops at all. A tracer's
+     * waitpid(-1, __WALL) only returns its own tracee's events (verified: with a
+     * tracee present another thread's child is NOT reaped; without one it is), so
+     * the app's ProcessBuilder children (git, kill probes) are never stolen. */
     pid_t t = waitpid(-1, &status, __WALL | (blocking ? 0 : WNOHANG));
     /* Diagnostics (ELFLOADER_TRACE=1): log every waitpid result. Reveals whether
      * a hang is ECHILD, a stuck 0, or an unhandled stop. */
@@ -1292,13 +1325,33 @@ static int service_one(struct spawn *sp, int blocking, int *opts_set, int logfd)
                    (void *)(long)(PTRACE_O_TRACECLONE | PTRACE_O_EXITKILL)) == 0)
             *opts_set = 1;
         if (WSTOPSIG(status) == SIGTRAP && (status >> 16) != 0) {
+            /* #200: remember the auto-attached task's tid so a later exit of it
+             * classifies as tracee (not FOREIGN). */
+            unsigned long em = 0;
+            if (ptrace(PTRACE_GETEVENTMSG, t, 0, &em) == 0 && em > 1)
+                tid_add(sp, (pid_t)em);
             ptrace(PTRACE_CONT, t, 0, 0); /* clone/event stop */
             return 1;
         }
         handle_fault_stop(sp, t, logfd);
         return 1;
     }
-    if (t != sp->pid) return 1; /* worker thread ended */
+    if (t != sp->pid) {
+        /* Not the leader: normally one of the tracee's threads/forks (expected).
+         * If it is NOT in our tid set the drain reaped an app child — a bug
+         * (#200); the JVM's Process.waitFor() then gets ECHILD. Count + log. */
+        if (!tid_remove(sp, t)) {
+            sp->foreign_reaps++;
+            if (logfd >= 0 && sp->foreign_reaps <= 8) {
+                char fb[64];
+                int fn = snprintf(fb, sizeof fb,
+                                  "elfloader: FOREIGN reap pid=%d tids=%d\n",
+                                  (int)t, sp->ntids);
+                if (fn > 0) k_write(logfd, fb, (size_t)fn);
+            }
+        }
+        return 1; /* worker thread ended */
+    }
     if (WIFEXITED(status))
         __atomic_store_n(&sp->exit_code,
                          WEXITSTATUS(status) == 0 ? 1 : 2, __ATOMIC_RELEASE);
@@ -1317,6 +1370,7 @@ static void *drain_loop(void *arg) {
     struct spawn *sp = arg;
     int opts_set = 0;
     int logfd = sp->log_set ? open(sp->log, O_WRONLY | O_APPEND) : -1;
+    tid_add(sp, sp->pid); /* leader; TRACECLONE tasks are added as they appear */
     if (logfd >= 0)
         k_write(logfd, "elfloader: drain thread up\n", 27);
     for (;;) {
@@ -1334,6 +1388,11 @@ static void *drain_loop(void *arg) {
         }
     }
     if (logfd >= 0) {
+        char sb[96];
+        int sn = snprintf(sb, sizeof sb,
+                          "elfloader: drain summary foreign_reaps=%d tids_left=%d\n",
+                          sp->foreign_reaps, sp->ntids);
+        if (sn > 0) k_write(logfd, sb, (size_t)sn);
         k_write(logfd, "elfloader: drain thread exit\n", 29);
         close(logfd);
     }

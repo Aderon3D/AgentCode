@@ -4,6 +4,7 @@ import com.agent.code.provider.LlmEvent
 import com.agent.code.provider.LlmRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.plugins.HttpTimeoutConfig
@@ -29,6 +30,24 @@ class OpenCodeClient(
     private val httpClient: HttpClient,
     private val manager: OpenCodeManager
 ) : OpenCodeApi {
+
+    // Kotlin-side build stamp. The native loader carries its own (elfloader.c
+    // ELFLOADER_ROUND), but that only moves when the C changes — a Kotlin-only
+    // fix ships a stale tag and two different APKs read identically (log 20).
+    // Bump APP_BUILD on every client-side change so a pasted dump names its APK.
+    companion object {
+        const val APP_BUILD = "r26"
+    }
+
+    // x-opencode-directory on every session request: the server's workspace
+    // routing resolves directory from ?directory=, then this header, then
+    // cwd. On device cwd alone left workspaceID=undefined and the location
+    // boot hung (log 21/22) — both reference clients (oc-remote, P4OC) pass
+    // the directory explicitly on every call.
+    private fun io.ktor.client.request.HttpRequestBuilder.dirHeader() {
+        val dir = manager.workspaceDir
+        if (dir.isNotBlank()) header("x-opencode-directory", dir)
+    }
     override suspend fun healthCheck(): Result<String> {
         return try {
             val response = httpClient.get("${manager.baseUrl()}/api/health")
@@ -177,7 +196,12 @@ class OpenCodeClient(
     // endpoints below are the actual agent pipeline:
     //   POST /api/session                 -> create a session
     //   POST /api/session/{id}/prompt     -> queue the goal text
-    //   GET  /api/session/{id}/event      -> SSE stream of run events
+    //   GET  /api/event                   -> global SSE stream (filter by sessionID)
+    // The per-session GET /api/session/{id}/event hangs on device: it sits
+    // behind the workspace-routing middleware that waits on the location
+    // boot, which never resolves (workspaceID=undefined, log 21/22). The
+    // global /api/event is outside that middleware — both reference clients
+    // (oc-remote, P4OC) use it and filter by sessionID client-side.
 
     suspend fun createSession(providerID: String, modelID: String): String {
         val body = buildJsonObject {
@@ -187,6 +211,7 @@ class OpenCodeClient(
             })
         }
         val text = httpClient.post("${manager.baseUrl()}/api/session") {
+            dirHeader()
             contentType(ContentType.Application.Json)
             setBody(body.toString())
         }.bodyAsText()
@@ -204,32 +229,81 @@ class OpenCodeClient(
             put("prompt", buildJsonObject { put("text", JsonPrimitive(text)) })
         }
         val resp = httpClient.post("${manager.baseUrl()}/api/session/$sessionID/prompt") {
+            dirHeader()
             contentType(ContentType.Application.Json)
             setBody(body.toString())
         }
-        // Always drain the body so the connection returns to the pool.
-        val bodyText = resp.bodyAsText()
-        if (resp.status.value >= 400) error("sendPrompt: ${resp.status} ${bodyText.take(300)}")
+        if (resp.status.value >= 400) {
+            error("sendPrompt: ${resp.status} ${resp.bodyAsText().take(300)}")
+        }
     }
 
+    // Permission/question auto-reply (open issue 3, docs §8). The agent can
+    // pause mid-run on a permission.asked / question.asked event and wait
+    // forever for a human answer that doesn't exist on-device — that's a
+    // stall we own. Reply "once" (allow this single call, no persistent
+    // saved-permission) and reject questions (no payload shape to guess,
+    // rejection unblocks the run with zero state).
+    suspend fun replyPermission(sessionID: String, requestID: String) {
+        val resp = httpClient.post(
+            "${manager.baseUrl()}/api/session/$sessionID/permission/$requestID/reply"
+        ) {
+            dirHeader()
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("reply", JsonPrimitive("once")) }.toString())
+            timeout { requestTimeoutMillis = 15_000 }
+        }
+        if (resp.status.value >= 400) {
+            error("replyPermission: ${resp.status} ${resp.bodyAsText().take(300)}")
+        }
+    }
+
+    suspend fun questionReject(sessionID: String, requestID: String) {
+        val resp = httpClient.post(
+            "${manager.baseUrl()}/api/session/$sessionID/question/$requestID/reject"
+        ) {
+            dirHeader()
+            contentType(ContentType.Application.Json)
+            setBody("{}")
+            timeout { requestTimeoutMillis = 15_000 }
+        }
+        if (resp.status.value >= 400) {
+            error("questionReject: ${resp.status} ${resp.bodyAsText().take(300)}")
+        }
+    }
+
+    // SSE surface (this method + replyPermission/questionReject + SessionEvent)
+    // is retained but unused under the run architecture — AgentBrain drives
+    // `opencode run` via OpenCodeManager.runPrompt. Kept so the connection-
+    // release hygiene below survives if the serve/SSE path is ever re-enabled.
     fun sessionEvents(sessionID: String, idleTimeoutMs: Long = 120_000L): Flow<SessionEvent> = flow {
-        // The event channel idles between agent steps (LLM latency can exceed
-        // the default 10s read timeout and would kill a healthy run).
-        val channel = httpClient.get("${manager.baseUrl()}/api/session/$sessionID/event") {
+        // Global stream: outside the workspace-routing middleware that hangs
+        // the per-session endpoint on device (location boot never resolves,
+        // logs 21/22). Live-only — no replay — so AgentBrain still subscribes
+        // before sendPrompt.
+        // requestTimeout stays INFINITE (an agent run can idle for minutes
+        // between steps — a finite request budget kills healthy runs, r15).
+        // connectTimeout is finite on purpose: a deadline turns a wedged
+        // connect into a visible StreamInfo error instead of a silent hang.
+        val resp = httpClient.get("${manager.baseUrl()}/api/event") {
+            dirHeader()
             timeout {
                 requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
                 socketTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
+                connectTimeoutMillis = 15_000
             }
-        }.bodyAsChannel()
+        }
+        emit(SessionEvent.StreamInfo("SSE connect ${resp.status.value}"))
+        val channel = resp.bodyAsChannel()
         try {
             while (true) {
-                // Idle deadline, not a whole-run deadline: reset on every event, so
-                // only a true stall trips it. Without it a server that accepts the
-                // stream but never closes it hangs the run forever (no
-                // idle/completion event: the stream just stays open).
+                // Idle deadline, not a whole-run deadline: reset on every event,
+                // so only a true stall trips it. Without it a server that accepts
+                // the stream but never closes it hangs the run forever.
                 val line = withTimeout(idleTimeoutMs) { channel.readUTF8Line() } ?: break
                 if (!line.startsWith("data:")) continue
                 val payload = line.removePrefix("data:").trim()
+                if (!eventBelongsToSession(payload, sessionID)) continue
                 val event = parseSessionEvent(payload)
                 if (event != null) emit(event)
             }
@@ -238,41 +312,84 @@ class OpenCodeClient(
             // or collector cancellation) instead of leaking it in the pool.
             channel.cancel(null)
         }
+        emit(SessionEvent.StreamInfo("SSE stream ended"))
     }
 
-    private fun parseSessionEvent(payload: String): SessionEvent? {
-        return try {
-            val root = Json.parseToJsonElement(payload).jsonObject
-            val type = root["type"]?.jsonPrimitive?.contentOrNull
-            val data = root["data"]?.jsonObject ?: return null
-            fun str(k: String) = data[k]?.jsonPrimitive?.contentOrNull
-            when (type) {
-                "session.next.prompt.admitted" -> SessionEvent.PromptAdmitted(
-                    str("messageID") ?: "?", str("delivery") ?: "?"
+    internal fun parseSessionEvent(payload: String): SessionEvent? =
+        parseSessionEventJson(payload)
+}
+
+// The global /api/event stream wraps every event as
+// {directory, payload:{type, properties}}; the per-session endpoint (and
+// older builds) send the flat {type, data}. Unwrap both shapes here so the
+// when() below is version-agnostic.
+internal fun unwrapEventEnvelope(root: kotlinx.serialization.json.JsonObject): Pair<String?, kotlinx.serialization.json.JsonObject>? {
+    val payload = root["payload"]?.jsonObject ?: root
+    val type = payload["type"]?.jsonPrimitive?.contentOrNull
+    val data = payload["properties"]?.jsonObject ?: payload["data"]?.jsonObject
+    return if (type != null && data != null) type to data else null
+}
+
+// Global stream delivers events for every session; drop the ones that
+// aren't ours before parsing. Events with no sessionID (server.connected
+// etc.) are dropped too — the brain only wants its own run.
+internal fun eventBelongsToSession(payload: String, sessionID: String): Boolean {
+    return try {
+        val root = Json.parseToJsonElement(payload).jsonObject
+        val ps = root["payload"]?.jsonObject ?: root
+        val props = ps["properties"]?.jsonObject ?: ps["data"]?.jsonObject ?: return false
+        props["sessionID"]?.jsonPrimitive?.contentOrNull == sessionID
+    } catch (_: Exception) {
+        false
+    }
+}
+
+internal fun parseSessionEventJson(payload: String): SessionEvent? {
+    return try {
+        val root = Json.parseToJsonElement(payload).jsonObject
+        val (type, data) = unwrapEventEnvelope(root) ?: return null
+        fun str(k: String) = data[k]?.jsonPrimitive?.contentOrNull
+        when (type) {
+            "session.next.prompt.admitted" -> SessionEvent.PromptAdmitted(
+                str("messageID") ?: "?", str("delivery") ?: "?"
+            )
+            // Observed on 1.18.31 right after admitted; we don't act on it,
+            // but naming it stops it from falling into the unknown bucket.
+            "session.next.prompted" -> SessionEvent.PromptAdmitted(
+                str("messageID") ?: "?", str("delivery") ?: "?"
+            )
+            "session.next.step.started" -> SessionEvent.StepStarted(
+                data["model"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull ?: "?",
+                str("agent") ?: "?"
+            )
+            "session.next.text.delta" -> SessionEvent.TextDelta(str("text") ?: "")
+            "session.next.text.ended" -> SessionEvent.TextEnded(str("text") ?: "")
+            "session.next.tool.called" -> SessionEvent.ToolCalled(str("tool") ?: "?")
+            "session.next.tool.input.ended" -> SessionEvent.ToolInput(str("command") ?: str("filePath") ?: "")
+            "session.next.tool.success" -> SessionEvent.ToolFinished(str("callID") ?: "?", true)
+            "session.next.tool.error" -> SessionEvent.ToolFinished(str("callID") ?: "?", false)
+            "session.next.step.ended" -> SessionEvent.StepEnded(str("finish") ?: "stop")
+            // Both v1 and v2 land here; the request id is the only
+            // field that survives the version rename (v1 uses "id",
+            // v2 uses "requestID"). Auto-replied in AgentBrain.
+            "permission.asked", "permission.v2.asked" -> SessionEvent.PermissionAsked(
+                str("requestID") ?: str("id") ?: "?",
+                str("permission") ?: str("title") ?: "permission"
+            )
+            "question.asked", "question.v2.asked" -> SessionEvent.QuestionAsked(
+                str("requestID") ?: str("id") ?: "?"
+            )
+            "session.next.step.failed" -> {
+                val err = data["error"]?.jsonObject
+                SessionEvent.Failed(
+                    "${err?.get("type")?.jsonPrimitive?.contentOrNull ?: "error"}: " +
+                        "${err?.get("message")?.jsonPrimitive?.contentOrNull ?: "step failed"}"
                 )
-                "session.next.step.started" -> SessionEvent.StepStarted(
-                    data["model"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull ?: "?",
-                    str("agent") ?: "?"
-                )
-                "session.next.text.delta" -> SessionEvent.TextDelta(str("text") ?: "")
-                "session.next.text.ended" -> SessionEvent.TextEnded(str("text") ?: "")
-                "session.next.tool.called" -> SessionEvent.ToolCalled(str("tool") ?: "?")
-                "session.next.tool.input.ended" -> SessionEvent.ToolInput(str("command") ?: str("filePath") ?: "")
-                "session.next.tool.success" -> SessionEvent.ToolFinished(str("callID") ?: "?", true)
-                "session.next.tool.error" -> SessionEvent.ToolFinished(str("callID") ?: "?", false)
-                "session.next.step.ended" -> SessionEvent.StepEnded(str("finish") ?: "unknown")
-                "session.next.step.failed" -> {
-                    val err = data["error"]?.jsonObject
-                    SessionEvent.Failed(
-                        "${err?.get("type")?.jsonPrimitive?.contentOrNull ?: "error"}: " +
-                            "${err?.get("message")?.jsonPrimitive?.contentOrNull ?: "step failed"}"
-                    )
-                }
-                else -> null
             }
-        } catch (_: Exception) {
-            null
+            else -> null
         }
+    } catch (_: Exception) {
+        null
     }
 }
 
@@ -286,4 +403,51 @@ sealed interface SessionEvent {
     data class ToolFinished(val callID: String, val ok: Boolean) : SessionEvent
     data class StepEnded(val finish: String) : SessionEvent
     data class Failed(val message: String) : SessionEvent
+    data class StreamInfo(val detail: String) : SessionEvent
+    data class PermissionAsked(val requestID: String, val detail: String) : SessionEvent
+    data class QuestionAsked(val requestID: String) : SessionEvent
+}
+
+// `opencode run --format json` emits one flat JSON object per line: top-level
+// snake_case `type` + a `part` object (part.type is the kebab-case variant).
+// No payload/properties envelope like the SSE stream. A completed tool_use
+// carries BOTH the start and the finish in one event, so this returns a List
+// (usually one element; two for a completed/failed tool). Anything else (file,
+// tool, etc.) maps to an empty list and is skipped.
+internal fun parseRunEvent(payload: String): List<SessionEvent> {
+    return try {
+        val root = Json.parseToJsonElement(payload).jsonObject
+        val type = root["type"]?.jsonPrimitive?.contentOrNull ?: return emptyList()
+        val part = root["part"]?.jsonObject
+        fun partStr(k: String) = part?.get(k)?.jsonPrimitive?.contentOrNull
+        when (type) {
+            "step_start" -> listOf(SessionEvent.StepStarted(partStr("model") ?: "?", "build"))
+            "text" -> {
+                val t = partStr("text") ?: ""
+                if (t.isEmpty()) emptyList() else listOf(SessionEvent.TextEnded(t))
+            }
+            "tool_use" -> {
+                val tool = partStr("tool") ?: "?"
+                val callID = partStr("callID") ?: "?"
+                val status = part?.get("state")?.jsonObject?.get("status")?.jsonPrimitive?.contentOrNull
+                val start = SessionEvent.ToolCalled(tool)
+                when (status) {
+                    "completed" -> listOf(start, SessionEvent.ToolFinished(callID, true))
+                    "error", "failed" -> listOf(start, SessionEvent.ToolFinished(callID, false))
+                    else -> listOf(start)
+                }
+            }
+            "step_finish" -> listOf(SessionEvent.StepEnded(partStr("reason") ?: "stop"))
+            "error" -> {
+                val err = root["error"]?.jsonObject
+                val msg = err?.get("data")?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
+                    ?: err?.get("message")?.jsonPrimitive?.contentOrNull
+                    ?: "run failed"
+                listOf(SessionEvent.Failed(msg))
+            }
+            else -> emptyList()
+        }
+    } catch (_: Exception) {
+        emptyList()
+    }
 }

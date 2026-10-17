@@ -7,6 +7,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -19,6 +21,7 @@ data class OpenCodeConfig(
     val binaryName: String = "opencode",
     val defaultPort: Int = 4096,
     val startupTimeoutMs: Long = 15_000L,
+    val runTimeoutMs: Long = 120_000L,
     val releaseUrl: String = "https://github.com/Aderon3D/AgentCode/releases/download/opencode-binary"
 )
 
@@ -51,6 +54,21 @@ class OpenCodeManager(
     // half-updated loader that is missing a newly-required library.
     private val glibcFiles = listOf("libc.so.6", "libm.so.6", "libpthread.so.0", "libdl.so.2")
     private val loaderSentinel = "2:" + glibcFiles.joinToString(",")
+
+    // Set by start(); the client sends it as x-opencode-directory so the
+    // server resolves the workspace explicitly instead of relying on cwd
+    // (workspaceID=undefined on device — both reference clients pass it).
+    @Volatile
+    var workspaceDir: String = ""
+        private set
+
+    // Path of the events file the last runPrompt() spawned into. The r24/r25
+    // stall was invisible because logDump() only ever read opencode.log — the
+    // run subprocess's stdout (JSON events + elfloader forensics) lands in
+    // run-<taskId>.events, a file nothing read. Exposed so logDump() can show it.
+    @Volatile
+    var lastRunEventsPath: String? = null
+        private set
 
     val state: OpenCodeState get() = _state
 
@@ -145,6 +163,7 @@ class OpenCodeManager(
 
         _state = OpenCodeState.Starting
         serverPort = port
+        workspaceDir = projectDir.rawPath
 
         val installDir = config.installDir.rawPath
         val logFile = config.installDir.resolve("opencode.log")
@@ -219,6 +238,144 @@ class OpenCodeManager(
         _state
     }
 
+    // Per-run `opencode run --format json` (the r24 pivot). Unlike start(),
+    // this spawns a transient one-shot process whose events come on stdout —
+    // no port, no SSE, no long-lived server to hang under ptrace. stdout is
+    // redirected to an events file by spawnLdLinux; we offset-tail it and
+    // yield each JSON line (the elfloader writes its own "elfloader:" forensics
+    // to the same file — skipped by the "{" filter). The flow completes when the
+    // child exits AND the file stops growing.
+    fun runPrompt(
+        taskId: String,
+        providerID: String,
+        model: String,
+        prompt: String,
+        workspace: VirtualPath,
+        sessionId: String? = null
+    ): Flow<String> = flow {
+        // Non-blocking install check. ensureInstalled() takes stateMutex, which
+        // start() holds for its entire duration (including waitForServer, up to
+        // 15s) — calling it here deadlocked the run flow against the web-UI
+        // server startup (r24 log 24: feed showed "run <model> ..." but the
+        // run subprocess never spawned). A plain exists() is enough: start()
+        // installs before serving, and a missing binary fails at spawn time.
+        val binaryPath = config.installDir.resolve(config.binaryName)
+        if (!fileSystem.exists(binaryPath)) {
+            error("OpenCode not installed: $binaryPath missing")
+        }
+
+        // Kill the web-UI server before spawning the run child. Both spawn via
+        // nativeSpawn -> spawn_server_thread -> drain_loop -> waitpid(-1), and
+        // waitpid(-1) is process-scoped: two concurrent drain threads in this
+        // process steal each other's child-stop events. When the serve thread
+        // reaps a run-child stop, ptrace returns ESRCH (only the *forking*
+        // thread can ptrace its child, elfloader.c:1003), PTRACE_CONT also
+        // fails, and the run child parks in ptrace_stop forever (r26: run
+        // spawned but GETSIGINFO errno=3 then infinite hb state=t). Run mode
+        // is self-contained — no port, no SSE — so the server is not needed.
+        // ponytail: serializes serve vs run; concurrent runPrompts (multi-agent)
+        // would still collide — add a spawn mutex if that ever ships.
+        stop()
+
+        val installDir = config.installDir.rawPath
+        val eventsFile = config.installDir.resolve("run-$taskId.events")
+        lastRunEventsPath = eventsFile.rawPath
+        // DNS shim for the child's getaddrinfo preload (same as start()).
+        fileSystem.write(
+            config.installDir.resolve("resolv.conf"),
+            "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
+        )
+        // Fail-fast npm (insurance): if opencode's startup install (bun/npm)
+        // still reaches for a registry package, point it at a dead loopback so
+        // it ECONNREFUSEs in milliseconds instead of blocking the dns-shim on
+        // registry.npmjs.org. HOME=installDir (set by the loader), so this
+        // .npmrc is read. A reachable package is an enhancement, not a
+        // dependency — the run proceeds with stock behavior (§3.7).
+        fileSystem.write(
+            config.installDir.resolve(".npmrc"),
+            "registry=http://127.0.0.1:1/\n"
+        )
+        // Starter workspace config so run-mode has a config anchor from cwd.
+        ensureWorkspaceConfig(workspace)
+
+        // --pure: skip external plugin loading. The starter opencode.json names
+        // three npm plugins; on device opencode resolves those through npm,
+        // which can hang or fail with no network/cache — a silent no-events
+        // stall. Plugins are an enhancement, not a dependency (§3.7), so the
+        // agent path runs pure and stays deterministic.
+        val args = mutableListOf(
+            "run", "--format", "json", "--auto", "--pure",
+            "--dir", workspace.rawPath,
+            "-m", "$providerID/$model"
+        )
+        if (sessionId != null) args += listOf("-s", sessionId)
+        args += prompt
+
+        val pid = PlatformOps.spawnLdLinux(
+            loaderPath = "${config.nativeLibraryDir}/libld.so",
+            glibcDir = "$installDir/glibc",
+            binaryPath = "$installDir/${config.binaryName}",
+            workDir = workspace.rawPath,
+            logPath = eventsFile.rawPath,
+            args = args.toTypedArray()
+        )
+        if (pid <= 0) {
+            val snippet = readLogSnippet(eventsFile)
+            error("run did not start (spawn=$pid)$snippet")
+        }
+
+        // Offset-tail the events file. checkChild returns 0 while the child is
+        // alive and non-zero once it exits (1=exit 0, 2=fail, >=100=signal).
+        // A deadline guards against a child that never exits (ptrace stall) —
+        // without it the flow hangs forever and the brain never falls through
+        // to the next model (the r15 silent-hang class).
+        val deadline = PlatformOps.currentTimeMs() + config.runTimeoutMs
+        var offset = 0L
+        var stablePolls = 0
+        while (true) {
+            val content = try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
+            if (content.length > offset) {
+                val chunk = content.substring(offset.toInt())
+                offset = content.length.toLong()
+                stablePolls = 0
+                for (line in chunk.lineSequence()) {
+                    val trimmed = line.trim()
+                    if (trimmed.startsWith("{")) emit(trimmed)
+                }
+            } else {
+                stablePolls++
+            }
+            val exit = try { PlatformOps.checkChild(pid) } catch (_: Exception) { 0 }
+            // Drained: child gone and no new bytes for a few consecutive polls.
+            if (exit != 0 && stablePolls >= 3) break
+            if (PlatformOps.currentTimeMs() >= deadline) {
+                val snippet = readLogSnippet(eventsFile)
+                error("run timed out after ${config.runTimeoutMs}ms (exit=$exit)$snippet")
+            }
+            delay(150)
+        }
+    }
+
+    // Write a starter opencode.json into the workspace if none exists, so
+    // run-mode has a config anchor from cwd. Never overwrite a user's config.
+    private suspend fun ensureWorkspaceConfig(workspace: VirtualPath) {
+        val cfg = workspace.resolve("opencode.json")
+        if (fileSystem.exists(cfg)) return
+        // No `plugin` list: declaring npm plugins makes opencode run its npm
+        // install path (arborist) at startup even under `--pure` (opencode
+        // #31810/#37888), which on-device blocks in the dns-shim resolving
+        // registry.npmjs.org and stalls the run at `run <model> ...` (r25 log
+        // 27). --pure already loads no external plugins, so the list only hurt.
+        // ponytail: plugins off; if they're ever wanted offline, vendor them
+        // under .opencode/plugins/ and reference the local paths (§3.7).
+        val json = """
+            {
+              "${'$'}schema": "https://opencode.ai/config.json"
+            }
+        """.trimIndent()
+        fileSystem.write(cfg, json)
+    }
+
     // On-demand log export so the log can be pulled even while healthy.
     // Tails the file: the loader forensics lines are what matter, and the
     // clipboard can't take a multi-MB string.
@@ -231,6 +388,7 @@ class OpenCodeManager(
         val header = buildString {
             appendLine("state=${_state}")
             appendLine("port=$serverPort log=${logFile.rawPath} at=${PlatformOps.currentTimeMs()}")
+            appendLine("runEvents=${lastRunEventsPath ?: "none"}")
         }
         val loaderBudget = maxChars * 3 / 4
         val serverBudget = maxChars - loaderBudget
@@ -248,6 +406,16 @@ class OpenCodeManager(
         }
         val serverTruncated = serverBody.length > serverBudget
         val serverTail = if (serverTruncated) serverBody.takeLast(serverBudget) else serverBody
+        // r24/r25: the run subprocess writes its JSON events + elfloader
+        // forensics to run-<taskId>.events, NOT opencode.log. Without this the
+        // agent feed could stall with a log that looked perfectly healthy.
+        val runBody = lastRunEventsPath?.let { path ->
+            try {
+                fileSystem.read(VirtualPath.of(path)).getOrNull().orEmpty()
+            } catch (e: Exception) {
+                "(run events read failed: ${e.message})"
+            }
+        }
         return buildString {
             append(header)
             if (truncated) appendLine("[... ${body.length - loaderBudget} earlier chars trimmed ...]")
@@ -256,6 +424,9 @@ class OpenCodeManager(
             appendLine("=== opencode server log (${serverLog.rawPath}) ===")
             if (serverTruncated) appendLine("[... ${serverBody.length - serverBudget} earlier chars trimmed ...]")
             append(serverTail.ifBlank { "(server log empty)" })
+            appendLine()
+            appendLine("=== run events (${lastRunEventsPath ?: "never spawned"}) ===")
+            append((runBody ?: "(no run attempted)").ifBlank { "(run events empty)" })
         }
     }
 

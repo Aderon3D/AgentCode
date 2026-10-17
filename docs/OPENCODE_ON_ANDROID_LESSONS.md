@@ -294,13 +294,16 @@ works without it):
 - **redact** — strips secrets from tool output before they hit the transcript.
 
 **The agent path passes `--pure`**, so opencode loads *no* external plugins on
-device. Writing the file is harmless (a future `serve`/web-UI path uses it), but
-the agent must not depend on npm resolution: on device that can hang or fail
-with no network/cache, which surfaces as a feed stalled at `run <model> ...`
-with a completely healthy-looking log (r26). If npm is unreachable on-device,
-these resolve to nothing and the agent runs with stock behavior — they're an
-enhancement, not a dependency. Alternative if bundling is ever preferred: ship
-them under `.opencode/plugins/` in the workspace and reference the local paths.
+device. But declaring them in the starter config is **not** harmless: opencode
+still runs its npm install path (arborist) at startup for the listed packages
+even under `--pure` (opencode #31810/#37888). On device there is no npm cache and
+the dns-shim blocks resolving `registry.npmjs.org`, so the run stalls at
+`run <model> ...` with a healthy-looking log (r25 log 27; compare r23 log 23,
+where the same lookup *succeeds* with network). Fix: the starter config now
+lists **no** plugins — `--pure` would skip them anyway, so the list was pure
+downside. Plugins stay an enhancement, not a dependency. To use them offline,
+vendor them under the workspace's `.opencode/plugins/` and reference the local
+paths.
 
 ### 3.8 Native harness: debug the elfloader drain loop without a device (round 27)
 

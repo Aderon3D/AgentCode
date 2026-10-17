@@ -123,9 +123,26 @@ class AgentViewModel(
         scope.launch {
             val dump = withContext(Dispatchers.IO) { openCodeManager.logDump() }
             val s = _state.value
+            // The feed lives only in Compose state — fold its tail into the
+            // dump so one Copy always contains the pipeline stage (where the
+            // prompt stalled) plus loader/server logs.
+            val feed = s.events.takeLast(15).joinToString("\n") { e ->
+                val (marker, text) = when (e) {
+                    is UiEvent.Thinking -> "*" to e.text
+                    is UiEvent.ToolStarted -> ">" to "${e.name}(${e.args.take(80)})"
+                    is UiEvent.ToolFinished -> "<" to "${e.name} ${if (e.success) "ok" else "err"}"
+                    is UiEvent.Iteration -> "*" to "iteration ${e.number} complete"
+                    is UiEvent.Complete -> "+" to "done: ${e.summary}"
+                    is UiEvent.Failed -> "!" to "failed: ${e.reason}"
+                }
+                "$marker $text"
+            }
             _state.update {
                 it.copy(
-                    logDump = "goal=${s.currentGoal} taskRunning=${s.isRunning} uiError=${s.error}\n$dump"
+                    logDump = "app=${OpenCodeClient.APP_BUILD} goal=${s.currentGoal} taskRunning=${s.isRunning} uiError=${s.error}\n" +
+                        "--- agent feed (last ${s.events.size.coerceAtMost(15)}) ---\n" +
+                        (if (feed.isEmpty()) "(empty)" else feed) +
+                        "\n--- loader + server ---\n$dump"
                 )
             }
         }
@@ -233,7 +250,7 @@ class AgentViewModel(
             val client = OpenCodeClient(httpClient, manager)
             val journal = AgentEventJournal(InMemoryWalStore())
             val telemetry = TelemetryEngine(scope)
-            val brain = AgentBrain(client, journal, telemetry)
+            val brain = AgentBrain(manager, journal, telemetry)
             return AgentViewModel(scope, manager, client, brain, journal, telemetry, workspaceRoot, httpClient)
         }
     }

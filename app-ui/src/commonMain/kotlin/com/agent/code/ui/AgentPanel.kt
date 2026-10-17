@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,35 +34,8 @@ fun AgentPanel(
         }
     }
 
-    Column(modifier = modifier.fillMaxWidth().padding(8.dp)) {
-        val clipboard = LocalClipboardManager.current
-        val fullError = buildString {
-            val ps = state.processState
-            if (ps is OpenCodeState.Error) appendLine("OpenCode: ${ps.message}")
-            state.error?.let { appendLine("Agent: $it") }
-        }.trim()
-        // Always offer a log export (healthy runs included) — a run that looks
-        // fine can still hide ptrace/SIGSYS churn worth inspecting.
-        Row(
-            Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
-        ) {
-            if (fullError.isNotEmpty()) {
-                TextButton(onClick = { clipboard.setText(AnnotatedString(fullError)) }) {
-                    Text("Copy Error", fontSize = 11.sp)
-                }
-            }
-            TextButton(onClick = { viewModel.fetchLog() }) { Text("Copy Logs", fontSize = 11.sp) }
-        }
-        // When a dump arrives, put it on the clipboard AND keep it visible in
-        // the panel below (was: auto-cleared — the user never saw logs in-app).
-        LaunchedEffect(state.logDump) {
-            state.logDump?.let {
-                clipboard.setText(AnnotatedString(it))
-            }
-        }
-
+    // Tab content is a plain (non-scrollable) Column, so weight() is safe here.
+    Column(modifier = modifier.fillMaxSize().padding(8.dp)) {
         ProcessStatusHeader(
             processState = state.processState,
             isRunning = state.isRunning,
@@ -111,11 +82,7 @@ fun AgentPanel(
 
         LazyColumn(
             state = listState,
-            // NOT weight(): App's root Column is verticalScroll (unbounded
-            // height), and weight() collapses to 0 there — the feed never
-            // rendered. Fixed bounds = visible empty box + internal scroll.
-            modifier = Modifier.fillMaxWidth()
-                .heightIn(min = 120.dp, max = 420.dp)
+            modifier = Modifier.fillMaxWidth().weight(1f)
                 .background(
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     RoundedCornerShape(4.dp)
@@ -125,35 +92,11 @@ fun AgentPanel(
                 AgentEventRow(event)
             }
         }
-
-        state.logDump?.let { dump ->
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    // Full dump is ~200k chars — head (goal/state header) + tail
-                    // (server log + recent loader forensics) only.
-                    text = dump.take(600) + "\n…\n" + dump.takeLast(4500),
-                    fontSize = 9.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(max = 260.dp)
-                        .verticalScroll(rememberScrollState())
-                        .background(
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            RoundedCornerShape(4.dp)
-                        ).padding(4.dp)
-                )
-                TextButton(onClick = { viewModel.clearLogDump() }) {
-                    Text("Close", fontSize = 11.sp)
-                }
-            }
-        }
     }
 }
 
 @Composable
-private fun ProcessStatusHeader(
+internal fun ProcessStatusHeader(
     processState: OpenCodeState,
     isRunning: Boolean,
     onStart: () -> Unit,
@@ -203,29 +146,29 @@ private fun ProcessStatusHeader(
 
 @Composable
 private fun AgentEventRow(event: UiEvent) {
-    val icon: String
+    val marker: String
     val text: String
     val color: androidx.compose.ui.graphics.Color
     val font: FontFamily
     when (event) {
-        is UiEvent.Thinking -> { icon = "\uD83D\uDCAD"; text = event.text; color = MaterialTheme.colorScheme.onSurface; font = FontFamily.Default }
-        is UiEvent.ToolStarted -> { icon = "\uD83D\uDD27"; text = "\u2192 ${event.name}(${event.args.take(80)})"; color = MaterialTheme.colorScheme.primary; font = FontFamily.Monospace }
+        is UiEvent.Thinking -> { marker = "*"; text = event.text; color = MaterialTheme.colorScheme.onSurface; font = FontFamily.Default }
+        is UiEvent.ToolStarted -> { marker = ">"; text = " ${event.name}(${event.args.take(80)})"; color = MaterialTheme.colorScheme.primary; font = FontFamily.Monospace }
         is UiEvent.ToolFinished -> {
-            icon = if (event.success) "\u2705" else "\u274C"
-            text = "\u2190 ${event.name} ${if (event.success) "ok" else "FAIL"}"
-            color = MaterialTheme.colorScheme.onSurface
+            marker = "<"
+            text = " ${event.name} ${if (event.success) "ok" else "FAIL"}"
+            color = if (event.success) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
             font = FontFamily.Monospace
         }
-        is UiEvent.Iteration -> { icon = "\uD83D\uDD04"; text = "Iteration ${event.number} complete"; color = MaterialTheme.colorScheme.onSurface; font = FontFamily.Default }
-        is UiEvent.Complete -> { icon = "\u2705"; text = "Done: ${event.summary}"; color = MaterialTheme.colorScheme.tertiary; font = FontFamily.Default }
-        is UiEvent.Failed -> { icon = "\u274C"; text = "Failed: ${event.reason}"; color = MaterialTheme.colorScheme.error; font = FontFamily.Default }
+        is UiEvent.Iteration -> { marker = "*"; text = "iteration ${event.number} complete"; color = MaterialTheme.colorScheme.onSurface; font = FontFamily.Default }
+        is UiEvent.Complete -> { marker = "+"; text = "done: ${event.summary}"; color = MaterialTheme.colorScheme.tertiary; font = FontFamily.Default }
+        is UiEvent.Failed -> { marker = "!"; text = "failed: ${event.reason}"; color = MaterialTheme.colorScheme.error; font = FontFamily.Default }
     }
 
     Row(
         Modifier.fillMaxWidth().padding(vertical = 1.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Text("$icon ", fontSize = 11.sp)
+        Text(marker, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(14.dp))
         Text(
             text = text,
             fontSize = 11.sp,

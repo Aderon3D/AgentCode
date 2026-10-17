@@ -95,55 +95,33 @@ class MultiAgentOrchestrator(
                 val stillRunning = mutex.withLock { _slots.value.containsKey(taskId) }
                 if (!stillRunning) return@launch
 
-                manager.start(projectDir = workspaceRoot).let { s ->
-                    if (s is OpenCodeState.Error) throw IllegalStateException(s.message)
-                }
-                // Re-check after suspending call
-                val stillRunning2 = mutex.withLock { _slots.value.containsKey(taskId) }
-                if (!stillRunning2) return@launch
+                // r24 pivot: the brain drives `opencode run --format json`
+                // (one-shot subprocess per task) — no persistent `serve` to
+                // start, no port, no SSE. ensureInstalled above stages the
+                // binary; runPrompt re-checks it before each spawn.
+                val journal = AgentEventJournal(InMemoryWalStore())
+                val telemetry = TelemetryEngine(scope)
+                val brain = AgentBrain(manager, journal, telemetry)
 
-                val httpClient = io.ktor.client.HttpClient {
-                    // Must match AgentViewModel.create: the SSE per-request
-                    // INFINITE override is only honored when HttpTimeout is
-                    // installed, else the default 10s read timeout kills a
-                    // healthy run that idles between steps.
-                    install(io.ktor.client.plugins.HttpTimeout) {
-                        requestTimeoutMillis = 30_000
-                        connectTimeoutMillis = 5_000
-                        socketTimeoutMillis = 30_000
-                    }
+                mutex.withLock {
+                    val slot = _slots.value[taskId] ?: return@withLock
+                    _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0)))
                 }
-                try {
-                    val client = OpenCodeClient(httpClient, manager)
-                    val journal = AgentEventJournal(InMemoryWalStore())
-                    val telemetry = TelemetryEngine(scope)
-                    val brain = AgentBrain(client, journal, telemetry)
 
+                val goal = mutex.withLock { _slots.value[taskId]?.goal } ?: return@launch
+                brain.executeTask(taskId, goal, workspaceRoot).collect { event ->
                     mutex.withLock {
-                        val slot = _slots.value[taskId] ?: return@withLock
-                        // Keep the reserved port when currentState() isn't
-                        // Running: nulling it leaked the reservation.
-                        val running = manager.currentState().let { if (it is OpenCodeState.Running) it.port else null }
-                        _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0), port = running ?: slot.port))
-                    }
-
-                    val goal = mutex.withLock { _slots.value[taskId]?.goal } ?: return@launch
-                    brain.executeTask(taskId, goal, workspaceRoot).collect { event ->
-                        mutex.withLock {
-                            val current = _slots.value[taskId] ?: return@withLock
-                            val updated = when (event) {
-                                is BrainEvent.IterationComplete -> current.copy(state = AgentSlotState.Running(event.iteration))
-                                is BrainEvent.TaskComplete -> current.copy(state = AgentSlotState.Done(event.summary))
-                                is BrainEvent.TaskFailed -> current.copy(state = AgentSlotState.Failed(event.reason))
-                                else -> null
-                            }
-                            if (updated != null) {
-                                _slots.value = _slots.value + (taskId to updated)
-                            }
+                        val current = _slots.value[taskId] ?: return@withLock
+                        val updated = when (event) {
+                            is BrainEvent.IterationComplete -> current.copy(state = AgentSlotState.Running(event.iteration))
+                            is BrainEvent.TaskComplete -> current.copy(state = AgentSlotState.Done(event.summary))
+                            is BrainEvent.TaskFailed -> current.copy(state = AgentSlotState.Failed(event.reason))
+                            else -> null
+                        }
+                        if (updated != null) {
+                            _slots.value = _slots.value + (taskId to updated)
                         }
                     }
-                } finally {
-                    try { httpClient.close() } catch (_: Exception) {}
                 }
             } catch (e: CancellationException) {
                 throw e

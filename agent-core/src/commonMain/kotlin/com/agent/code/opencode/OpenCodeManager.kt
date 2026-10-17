@@ -525,10 +525,14 @@ class OpenCodeManager(
         // before the state becomes Running.
         val st = _state
         val pid = (st as? OpenCodeState.Running)?.pid ?: activePid
-        if (pid == 0) {
-            if (st is OpenCodeState.Running) _state = OpenCodeState.Stopped
-            return@withLock
-        }
+        // Declare Stopped BEFORE killing. The 500ms liveness poll (currentState)
+        // maps Running + a dead child to Error("OpenCode exited (signal N)"), and
+        // the UI cancels its poll on Error. runPrompt() SIGTERMs the serve on
+        // purpose (run pivot), so leaving Running during the ~2s kill/reap window
+        // made a deliberate stop surface as a stuck "OpenCode exited (signal 15)"
+        // error banner. Stopped-first makes the poll see the intent, not the corpse.
+        if (st is OpenCodeState.Running) _state = OpenCodeState.Stopped
+        if (pid == 0) return@withLock
 
         val alive = try {
             val r = processRunner.run(listOf("kill", "-0", pid.toString()))

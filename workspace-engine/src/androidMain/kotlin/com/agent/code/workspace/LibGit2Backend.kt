@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
  * Each method opens/closes a git_repository* per call (stateless, matches
  * the ProcessRunner contract). Load libgit2.so on first use.
  */
+@Suppress("TooManyFunctions") // thin JNI facade: one wrapper per native git2 call
 class LibGit2Backend : GitBackend {
 
     companion object {

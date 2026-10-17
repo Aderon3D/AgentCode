@@ -89,23 +89,12 @@ fun FilesScreen(
         )
     } else {
         Column(modifier = modifier.fillMaxSize().padding(8.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (currentDir.rawPath != root.rawPath) {
-                    TextButton(onClick = { currentDir = currentDir.parent() ?: root }) { Text("Up") }
-                }
-                Text(
-                    // Relative breadcrumb: the part under the workspace root.
-                    text = currentDir.rawPath.removePrefix(root.rawPath).trimStart('/').ifEmpty { "workspace" },
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1
-                )
-                TextButton(onClick = { showNewDialog = true }) { Text("New file", fontSize = 12.sp) }
-            }
+            FilesBreadcrumb(
+                root = root,
+                currentDir = currentDir,
+                onUp = { currentDir = currentDir.parent() ?: root },
+                onNew = { showNewDialog = true }
+            )
 
             loadError?.let {
                 Text("Error: $it", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -115,51 +104,13 @@ fun FilesScreen(
                 Text("Empty directory", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
 
-            LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-                items(nodes) { node ->
-                    val isDir = node is FileNode.Directory
-                    val changed = node.name in changedNames
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (isDir) {
-                                    currentDir = node.path
-                                } else {
-                                    openFile = node as FileNode.File
-                                }
-                            }
-                            .padding(vertical = 6.dp, horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            if (isDir) "[d]" else "[f]",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.width(28.dp)
-                        )
-                        Column(Modifier.weight(1f)) {
-                            Text(node.name, fontSize = 13.sp)
-                            if (!isDir) {
-                                val f = node as FileNode.File
-                                Text(
-                                    "${formatSize(f.sizeBytes)}  ${formatTime(f.lastModifiedMs)}",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        if (changed) {
-                            Text(
-                                "changed",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
-                        }
-                    }
-                }
-            }
+            FileList(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                nodes = nodes,
+                changedNames = changedNames,
+                onOpenDir = { currentDir = it },
+                onOpenFile = { openFile = it }
+            )
         }
 
         if (showNewDialog) {
@@ -170,6 +121,97 @@ fun FilesScreen(
                     // Suspend-free probe: the dialog body is not a suspend scope.
                     fileSystem.exists(currentDir.resolve(name))
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilesBreadcrumb(
+    root: VirtualPath,
+    currentDir: VirtualPath,
+    onUp: () -> Unit,
+    onNew: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (currentDir.rawPath != root.rawPath) {
+            TextButton(onClick = onUp) { Text("Up") }
+        }
+        Text(
+            // Relative breadcrumb: the part under the workspace root.
+            text = currentDir.rawPath.removePrefix(root.rawPath).trimStart('/').ifEmpty { "workspace" },
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
+        )
+        TextButton(onClick = onNew) { Text("New file", fontSize = 12.sp) }
+    }
+}
+
+@Composable
+private fun FileList(
+    modifier: Modifier,
+    nodes: List<FileNode>,
+    changedNames: Set<String>,
+    onOpenDir: (VirtualPath) -> Unit,
+    onOpenFile: (FileNode.File) -> Unit
+) {
+    LazyColumn(modifier) {
+        items(nodes) { node ->
+            FileRow(
+                node = node,
+                changed = node.name in changedNames,
+                onOpenDir = onOpenDir,
+                onOpenFile = onOpenFile
+            )
+        }
+    }
+}
+
+@Composable
+private fun FileRow(
+    node: FileNode,
+    changed: Boolean,
+    onOpenDir: (VirtualPath) -> Unit,
+    onOpenFile: (FileNode.File) -> Unit
+) {
+    val isDir = node is FileNode.Directory
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable {
+                if (isDir) onOpenDir(node.path) else onOpenFile(node as FileNode.File)
+            }
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            if (isDir) "[d]" else "[f]",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(28.dp)
+        )
+        Column(Modifier.weight(1f)) {
+            Text(node.name, fontSize = 13.sp)
+            if (!isDir) {
+                val f = node as FileNode.File
+                Text(
+                    "${formatSize(f.sizeBytes)}  ${formatTime(f.lastModifiedMs)}",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (changed) {
+            Text(
+                "changed",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.tertiary
             )
         }
     }

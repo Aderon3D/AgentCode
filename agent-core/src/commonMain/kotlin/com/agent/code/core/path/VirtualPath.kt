@@ -16,11 +16,14 @@ value class VirtualPath private constructor(val rawPath: String) {
     fun parent(): VirtualPath? {
         if (rawPath == "/") return null
         val lastSlash = maxOf(rawPath.lastIndexOf('/'), rawPath.lastIndexOf('\\'))
-        if (lastSlash < 0) return null
-        if (lastSlash == 0) return VirtualPath("/")
-        val base = rawPath.substring(0, lastSlash)
-        if (base.matches(Regex("^[a-zA-Z]:$"))) return VirtualPath("$base/")
-        return VirtualPath(base)
+        return when {
+            lastSlash < 0 -> null
+            lastSlash == 0 -> VirtualPath("/")
+            else -> {
+                val base = rawPath.substring(0, lastSlash)
+                if (base.matches(Regex("^[a-zA-Z]:$"))) VirtualPath("$base/") else VirtualPath(base)
+            }
+        }
     }
 
     companion object {

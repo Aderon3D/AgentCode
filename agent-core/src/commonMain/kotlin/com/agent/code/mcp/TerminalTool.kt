@@ -20,11 +20,18 @@ class TerminalTool : AgentTool {
     override val riskLevel = RiskLevel.WRITE
 
     override suspend fun execute(argumentsJson: String, fileSystem: FileSystemProvider, processRunner: ProcessRunner): ToolResult {
-        try { EmergencyStop.check() } catch (e: Exception) {
+        try {
+            EmergencyStop.check()
+        } catch (e: IllegalStateException) {
             AuditLog.log(name, argumentsJson, false, e.message ?: "stopped", blocked = true, blockReason = "emergency stop")
             return ToolResult(name, false, "emergency stop activated", 0L)
         }
+        return executeCommand(argumentsJson, processRunner)
+    }
 
+    // Boundary catch-all: the process runner is external, so map any throw to a ToolResult.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun executeCommand(argumentsJson: String, processRunner: ProcessRunner): ToolResult {
         val obj = try {
             Json.parseToJsonElement(argumentsJson).jsonObject
         } catch (_: Exception) {

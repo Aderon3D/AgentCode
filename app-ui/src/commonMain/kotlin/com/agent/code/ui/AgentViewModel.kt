@@ -70,6 +70,7 @@ class AgentViewModel(
     // one final teardown call.
     private val teardownScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    @Suppress("TooGenericExceptionCaught") // boundary: install/start failure becomes a UI Error state
     fun startOpenCode() {
         // Cancel-and-relaunch (was: early-return if alive). A live poll can be
         // a stale watcher for a previous child, and after the poll survives
@@ -161,6 +162,7 @@ class AgentViewModel(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // boundary: any task failure becomes a UI Error state
     fun executeTask(goal: String) {
         if (_state.value.isRunning) return
         brainJob?.cancel()

@@ -71,6 +71,7 @@ class MultiAgentOrchestrator(
         slot
     }
 
+    @Suppress("TooGenericExceptionCaught") // boundary: any task failure marks the slot Failed
     suspend fun startTask(taskId: String) {
         val manager = mutex.withLock {
             if (jobs.containsKey(taskId)) throw IllegalStateException("Task $taskId is already running")
@@ -85,79 +86,95 @@ class MultiAgentOrchestrator(
         // LAZY: jobs[taskId] must be set before the body can reach its finally,
         // else a fast-finishing job sees no map entry and skips all cleanup.
         val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
-            // Check slot still exists before expensive work (handles cancelTask during launch window)
-            val slotExists = mutex.withLock { _slots.value.containsKey(taskId) }
-            if (!slotExists) return@launch
-
+            // Check slot still exists before expensive work (handles cancelTask
+            // during the launch window).
+            if (!slotStillPresent(taskId)) return@launch
             try {
                 manager.ensureInstalled()
-                // Re-check after suspending call: cancelTask may have removed the slot
-                val stillRunning = mutex.withLock { _slots.value.containsKey(taskId) }
-                if (!stillRunning) return@launch
-
-                // r24 pivot: the brain drives `opencode run --format json`
-                // (one-shot subprocess per task) — no persistent `serve` to
-                // start, no port, no SSE. ensureInstalled above stages the
-                // binary; runPrompt re-checks it before each spawn.
-                val journal = AgentEventJournal(InMemoryWalStore())
-                val telemetry = TelemetryEngine(scope)
-                val brain = AgentBrain(manager, journal, telemetry)
-
-                mutex.withLock {
-                    val slot = _slots.value[taskId] ?: return@withLock
-                    _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0)))
-                }
-
-                val goal = mutex.withLock { _slots.value[taskId]?.goal } ?: return@launch
-                brain.executeTask(taskId, goal, workspaceRoot).collect { event ->
-                    mutex.withLock {
-                        val current = _slots.value[taskId] ?: return@withLock
-                        val updated = when (event) {
-                            is BrainEvent.IterationComplete -> current.copy(state = AgentSlotState.Running(event.iteration))
-                            is BrainEvent.TaskComplete -> current.copy(state = AgentSlotState.Done(event.summary))
-                            is BrainEvent.TaskFailed -> current.copy(state = AgentSlotState.Failed(event.reason))
-                            else -> null
-                        }
-                        if (updated != null) {
-                            _slots.value = _slots.value + (taskId to updated)
-                        }
-                    }
-                }
+                // Re-check after the suspending call: cancelTask may have
+                // removed the slot while install/download was in flight.
+                if (!slotStillPresent(taskId)) return@launch
+                streamBrain(manager, taskId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                mutex.withLock {
-                    val current = _slots.value[taskId] ?: return@withLock
-                    _slots.value = _slots.value + (taskId to current.copy(
-                        state = AgentSlotState.Failed(e.message ?: "unknown error")
-                    ))
-                }
+                markFailed(taskId, e)
             } finally {
-                // Only clean up if this is still the current job (guards against taskId reuse)
-                val myJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
-                var ownedPort: Int? = null
-                val owned = mutex.withLock {
-                    if (jobs[taskId] === myJob) {
-                        ownedPort = _slots.value[taskId]?.port
-                        jobs.remove(taskId)
-                        managers.remove(taskId)
-                        _slots.value = _slots.value - taskId
-                        true
-                    } else false
-                }
-                if (owned) {
-                    // Stop the child before its port returns to the pool, or a
-                    // new task can bind the same port while this server still
-                    // listens. NonCancellable: this may run on a cancelled job.
-                    try {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { manager.stop() }
-                    } catch (_: Exception) {}
-                    ownedPort?.let { p -> mutex.withLock { allocatedPorts.remove(p) } }
-                }
+                cleanupJob(taskId, manager)
             }
         }
         mutex.withLock { jobs[taskId] = job }
         job.start()
+    }
+
+    private suspend fun slotStillPresent(taskId: String): Boolean =
+        mutex.withLock { _slots.value.containsKey(taskId) }
+
+    private suspend fun markFailed(taskId: String, e: Exception) {
+        mutex.withLock {
+            val current = _slots.value[taskId] ?: return@withLock
+            _slots.value = _slots.value + (taskId to current.copy(
+                state = AgentSlotState.Failed(e.message ?: "unknown error")
+            ))
+        }
+    }
+
+    // r24 pivot: the brain drives `opencode run --format json` (one-shot
+    // subprocess per task) — no persistent `serve` to start, no port, no SSE.
+    // ensureInstalled (caller) stages the binary; runPrompt re-checks it before
+    // each spawn.
+    private suspend fun streamBrain(manager: OpenCodeManager, taskId: String) {
+        val journal = AgentEventJournal(InMemoryWalStore())
+        val telemetry = TelemetryEngine(scope)
+        val brain = AgentBrain(manager, journal, telemetry)
+
+        mutex.withLock {
+            val slot = _slots.value[taskId] ?: return@withLock
+            _slots.value = _slots.value + (taskId to slot.copy(state = AgentSlotState.Running(0)))
+        }
+
+        val goal = mutex.withLock { _slots.value[taskId]?.goal } ?: return
+        brain.executeTask(taskId, goal, workspaceRoot).collect { event -> applyEvent(taskId, event) }
+    }
+
+    private suspend fun applyEvent(taskId: String, event: BrainEvent) {
+        mutex.withLock {
+            val current = _slots.value[taskId] ?: return@withLock
+            val updated = when (event) {
+                is BrainEvent.IterationComplete -> current.copy(state = AgentSlotState.Running(event.iteration))
+                is BrainEvent.TaskComplete -> current.copy(state = AgentSlotState.Done(event.summary))
+                is BrainEvent.TaskFailed -> current.copy(state = AgentSlotState.Failed(event.reason))
+                else -> null
+            }
+            if (updated != null) {
+                _slots.value = _slots.value + (taskId to updated)
+            }
+        }
+    }
+
+    private suspend fun cleanupJob(taskId: String, manager: OpenCodeManager) {
+        // Only clean up if this is still the current job (guards against taskId
+        // reuse).
+        val myJob = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
+        var ownedPort: Int? = null
+        val owned = mutex.withLock {
+            if (jobs[taskId] === myJob) {
+                ownedPort = _slots.value[taskId]?.port
+                jobs.remove(taskId)
+                managers.remove(taskId)
+                _slots.value = _slots.value - taskId
+                true
+            } else false
+        }
+        if (owned) {
+            // Stop the child before its port returns to the pool, or a new task
+            // can bind the same port while this server still listens.
+            // NonCancellable: this may run on a cancelled job.
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { manager.stop() }
+            } catch (_: Exception) {}
+            ownedPort?.let { p -> mutex.withLock { allocatedPorts.remove(p) } }
+        }
     }
 
     suspend fun cancelTask(taskId: String) {

@@ -127,9 +127,7 @@ internal fun ProcessStatusHeader(
                 // Don't offer Start while a run is in flight: spawning `serve`
                 // beside a live run child collides on the process-scoped
                 // waitpid(-1) drain (elfloader single-spawn gate).
-                if (!isRunning && (processState is OpenCodeState.NotInstalled
-                        || processState is OpenCodeState.Error
-                        || processState is OpenCodeState.Stopped)) {
+                if (canStart(processState, isRunning)) {
                     TextButton(onClick = onStart) { Text("Start") }
                 }
                 if (processState is OpenCodeState.Running) {
@@ -145,6 +143,13 @@ internal fun ProcessStatusHeader(
         }
     }
 }
+
+// Start is offered only when no run is in flight and no process is already up.
+private fun canStart(processState: OpenCodeState, isRunning: Boolean): Boolean =
+    !isRunning && when (processState) {
+        is OpenCodeState.NotInstalled, is OpenCodeState.Error, is OpenCodeState.Stopped -> true
+        else -> false
+    }
 
 @Composable
 private fun AgentEventRow(event: UiEvent) {

@@ -14,6 +14,7 @@ enum class ElevationStatus { StandardUserSpace, PrivilegedAdbUncapped }
 
 class PrivilegedElevationManager(private val context: Context) {
 
+    @Suppress("TooGenericExceptionCaught") // Shizuku/ADB boundary: any failure degrades to StandardUserSpace
     fun applyZeroRootOptimizations(): Result<ElevationStatus> {
         if (!isShizukuAvailable()) {
             return Result.success(ElevationStatus.StandardUserSpace)
@@ -63,7 +64,7 @@ class PrivilegedElevationManager(private val context: Context) {
         val rc = process.waitFor()
         if (rc != 0) {
             val err = process.errorStream.bufferedReader().readText()
-            throw RuntimeException("ADB command failed (exit $rc): $err")
+            throw IllegalStateException("ADB command failed (exit $rc): $err")
         }
     }
 }

@@ -10,7 +10,7 @@ actual object PlatformOps {
         val dir = File(path)
         if (dir.exists()) return
         if (!dir.mkdirs() && !dir.exists()) {
-            throw RuntimeException("Failed to create directory: $path")
+            throw IllegalStateException("Failed to create directory: $path")
         }
     }
 
@@ -36,7 +36,7 @@ actual object PlatformOps {
             }
             if (conn.responseCode !in 200..299) {
                 val body = conn.errorStream?.bufferedReader()?.readText() ?: ""
-                throw RuntimeException("HTTP ${conn.responseCode}: ${body.take(200)}")
+                throw IllegalStateException("HTTP ${conn.responseCode}: ${body.take(200)}")
             }
             conn.inputStream.use { input ->
                 File(destPath).outputStream().use { output ->
@@ -60,13 +60,13 @@ actual object PlatformOps {
 
     actual fun deleteFile(path: String) {
         if (!File(path).delete() && File(path).exists()) {
-            throw RuntimeException("Failed to delete $path")
+            throw IllegalStateException("Failed to delete $path")
         }
     }
 
     actual fun setExecutable(path: String) {
         if (!File(path).setExecutable(true)) {
-            throw RuntimeException("Failed to set executable: $path")
+            throw IllegalStateException("Failed to set executable: $path")
         }
     }
 

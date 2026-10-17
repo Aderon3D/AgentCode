@@ -92,6 +92,7 @@ class OpenCodeManager(
         ensureInstalledInternal()
     }
 
+    @Suppress("TooGenericExceptionCaught") // boundary: download/extract failure becomes an Error state
     private suspend fun ensureInstalledInternal(): OpenCodeState {
         val binaryPath = config.installDir.resolve(config.binaryName)
         val sentinelPath = config.installDir.resolve(".loader-v2")
@@ -148,6 +149,7 @@ class OpenCodeManager(
         _state = OpenCodeState.Installing(1.0f, "Ready")
     }
 
+    @Suppress("TooGenericExceptionCaught") // boundary: spawn/wait failure becomes an Error state
     suspend fun start(
         projectDir: VirtualPath,
         port: Int = config.defaultPort
@@ -259,6 +261,37 @@ class OpenCodeManager(
         workspace: VirtualPath,
         sessionId: String? = null
     ): Flow<String> = flow {
+        val eventsFile = prepareRun(taskId, workspace)
+        val args = buildRunArgs(providerID, model, prompt, workspace, sessionId)
+        val pid = spawnRun(eventsFile, workspace, args)
+        var drained = false
+        try {
+            drainEvents(eventsFile, pid) { emit(it) }
+            drained = true
+        } finally {
+            // Any exit that did not drain normally (timeout, collector
+            // cancellation, spawn error) must kill the child under
+            // NonCancellable — on the cancellation path the job is already
+            // cancelled and the kill would be skipped otherwise (same reason
+            // start() does this). Else the traced child lingers and collides
+            // with the next spawn.
+            if (!drained) {
+                withContext(NonCancellable) {
+                    try {
+                        processRunner.run(listOf("kill", "-9", pid.toString()))
+                        delay(200)
+                        PlatformOps.checkChild(pid)
+                    } catch (_: Exception) {}
+                }
+            }
+            activePid = 0
+        }
+    }
+
+    // Non-blocking install check + per-run preamble. Blocking FS writes +
+    // ensureWorkspaceConfig must leave the collector's thread — the UI collects
+    // this flow on Main.
+    private suspend fun prepareRun(taskId: String, workspace: VirtualPath): VirtualPath {
         // Non-blocking install check. ensureInstalled() takes stateMutex, which
         // start() holds for its entire duration (including waitForServer, up to
         // 15s) — calling it here deadlocked the run flow against the web-UI
@@ -292,8 +325,6 @@ class OpenCodeManager(
             withContext(Dispatchers.IO) { runCatching { fileSystem.delete(VirtualPath.of(prev)) } }
         }
         lastRunEventsPath = eventsFile.rawPath
-        // Blocking FS writes + ensureWorkspaceConfig must leave the collector's
-        // thread — the UI collects this flow on Main.
         withContext(Dispatchers.IO) {
             // DNS shim for the child's getaddrinfo preload (same as start()) —
             // genuinely required, so a failed write aborts the run loudly.
@@ -314,12 +345,21 @@ class OpenCodeManager(
             // Starter workspace config so run-mode has a config anchor from cwd.
             ensureWorkspaceConfig(workspace)
         }
+        return eventsFile
+    }
 
-        // --pure: skip external plugin loading. On device opencode resolves any
-        // config-named plugins through npm, which can hang or fail with no
-        // network/cache — a silent no-events stall. The starter config lists
-        // none, but --pure keeps the agent path deterministic even if a user
-        // adds one. Plugins are an enhancement, not a dependency (§3.7).
+    // --pure: skip external plugin loading. On device opencode resolves any
+    // config-named plugins through npm, which can hang or fail with no
+    // network/cache — a silent no-events stall. The starter config lists
+    // none, but --pure keeps the agent path deterministic even if a user
+    // adds one. Plugins are an enhancement, not a dependency (§3.7).
+    private fun buildRunArgs(
+        providerID: String,
+        model: String,
+        prompt: String,
+        workspace: VirtualPath,
+        sessionId: String?
+    ): List<String> {
         val args = mutableListOf(
             "run", "--format", "json", "--auto", "--pure",
             "--dir", workspace.rawPath,
@@ -327,7 +367,15 @@ class OpenCodeManager(
         )
         if (sessionId != null) args += listOf("-s", sessionId)
         args += prompt
+        return args
+    }
 
+    private suspend fun spawnRun(
+        eventsFile: VirtualPath,
+        workspace: VirtualPath,
+        args: List<String>
+    ): Int {
+        val installDir = config.installDir.rawPath
         val pid = withContext(Dispatchers.IO) {
             PlatformOps.spawnLdLinux(
                 loaderPath = "${config.nativeLibraryDir}/libld.so",
@@ -347,83 +395,67 @@ class OpenCodeManager(
         // timed-out/cancelled run leaks a ptrace-traced child, and the next
         // spawn hits the process-scoped waitpid(-1) collision (r26).
         activePid = pid
+        return pid
+    }
 
-        // Offset-tail the events file. checkChild returns 0 while the child is
-        // alive and non-zero once it exits (1=exit 0, 2=fail, >=100=signal).
-        // The deadline is an IDLE deadline: refreshed on every emitted JSON
-        // line, so a healthy multi-step run (tools + retries, minutes long) is
-        // not killed, while a child that stops producing events (ptrace stall)
-        // still trips it (the r15 silent-hang class).
+    // Offset-tail the events file. checkChild returns 0 while the child is
+    // alive and non-zero once it exits (1=exit 0, 2=fail, >=100=signal).
+    // The deadline is an IDLE deadline: refreshed on every emitted JSON
+    // line, so a healthy multi-step run (tools + retries, minutes long) is
+    // not killed, while a child that stops producing events (ptrace stall)
+    // still trips it (the r15 silent-hang class). Returns once drained.
+    private suspend fun drainEvents(
+        eventsFile: VirtualPath,
+        pid: Int,
+        emit: suspend (String) -> Unit
+    ) {
         var deadline = PlatformOps.currentTimeMs() + config.runTimeoutMs
         var offset = 0L
         var stablePolls = 0
-        var drained = false
-        try {
-            while (true) {
-                val content = withContext(Dispatchers.IO) {
-                    try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
-                }
-                if (content.length > offset) {
-                    // Only consume whole lines: a read can land mid-line for a
-                    // large tool output; emitting the fragment (then advancing
-                    // past it) would silently lose the event.
-                    val chunk = content.substring(offset.toInt())
-                    val nl = chunk.lastIndexOf('\n')
-                    if (nl >= 0) {
-                        val complete = chunk.substring(0, nl)
-                        offset += nl + 1
-                        stablePolls = 0
-                        for (line in complete.lineSequence()) {
-                            val trimmed = line.trim()
-                            if (trimmed.startsWith("{")) {
-                                emit(trimmed)
-                                deadline = PlatformOps.currentTimeMs() + config.runTimeoutMs
-                            }
+        while (true) {
+            val content = readEventsFile(eventsFile)
+            if (content.length > offset) {
+                // Only consume whole lines: a read can land mid-line for a
+                // large tool output; emitting the fragment (then advancing
+                // past it) would silently lose the event.
+                val chunk = content.substring(offset.toInt())
+                val nl = chunk.lastIndexOf('\n')
+                if (nl >= 0) {
+                    val complete = chunk.substring(0, nl)
+                    offset += nl + 1
+                    stablePolls = 0
+                    for (line in complete.lineSequence()) {
+                        val trimmed = line.trim()
+                        if (trimmed.startsWith("{")) {
+                            emit(trimmed)
+                            deadline = PlatformOps.currentTimeMs() + config.runTimeoutMs
                         }
-                    } else {
-                        stablePolls++
                     }
                 } else {
                     stablePolls++
                 }
-                val exit = withContext(Dispatchers.IO) {
-                    try { PlatformOps.checkChild(pid) } catch (_: Exception) { 0 }
-                }
-                // Drained: child gone and no new bytes for a few consecutive polls.
-                if (exit != 0 && stablePolls >= 3) {
-                    // Flush a final event that had no trailing newline.
-                    val content = withContext(Dispatchers.IO) {
-                        try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
-                    }
-                    val tail = content.substring(minOf(offset.toInt(), content.length)).trim()
-                    if (tail.startsWith("{")) emit(tail)
-                    drained = true
-                    break
-                }
-                if (PlatformOps.currentTimeMs() >= deadline) {
-                    val snippet = readLogSnippet(eventsFile)
-                    error("run timed out after ${config.runTimeoutMs}ms (exit=$exit)$snippet")
-                }
-                delay(150)
+            } else {
+                stablePolls++
             }
-        } finally {
-            // Any exit that did not drain normally (timeout, collector
-            // cancellation, spawn error) must kill the child under
-            // NonCancellable — on the cancellation path the job is already
-            // cancelled and the kill would be skipped otherwise (same reason
-            // start() does this). Else the traced child lingers and collides
-            // with the next spawn.
-            if (!drained) {
-                withContext(NonCancellable) {
-                    try {
-                        processRunner.run(listOf("kill", "-9", pid.toString()))
-                        delay(200)
-                        PlatformOps.checkChild(pid)
-                    } catch (_: Exception) {}
-                }
+            val exit = checkChildOrZero(pid)
+            // Drained: child gone and no new bytes for a few consecutive polls.
+            if (exit != 0 && stablePolls >= 3) {
+                // Flush a final event that had no trailing newline.
+                val content = readEventsFile(eventsFile)
+                val tail = content.substring(minOf(offset.toInt(), content.length)).trim()
+                if (tail.startsWith("{")) emit(tail)
+                return
             }
-            activePid = 0
+            if (PlatformOps.currentTimeMs() >= deadline) {
+                val snippet = readLogSnippet(eventsFile)
+                error("run timed out after ${config.runTimeoutMs}ms (exit=$exit)$snippet")
+            }
+            delay(150)
         }
+    }
+
+    private suspend fun readEventsFile(eventsFile: VirtualPath): String = withContext(Dispatchers.IO) {
+        try { fileSystem.read(eventsFile).getOrNull().orEmpty() } catch (_: Exception) { "" }
     }
 
     // Write a starter opencode.json into the workspace if none exists, so
@@ -449,6 +481,7 @@ class OpenCodeManager(
     // On-demand log export so the log can be pulled even while healthy.
     // Tails the file: the loader forensics lines are what matter, and the
     // clipboard can't take a multi-MB string.
+    @Suppress("TooGenericExceptionCaught") // boundary: a failed log read degrades to a note, never throws
     suspend fun logDump(maxChars: Int = 200_000): String {
         val logFile = config.installDir.resolve("opencode.log")
         // The child's own opencode log (HOME = install dir, elfloader): the
@@ -466,14 +499,14 @@ class OpenCodeManager(
         val loaderBudget = maxChars / 2
         val serverBudget = maxChars - loaderBudget - runBudget
         val body = try {
-            fileSystem.read(logFile).getOrNull().orEmpty()
+            fileSystem.readTail(logFile, loaderBudget + 1).getOrNull().orEmpty()
         } catch (e: Exception) {
             "(log read failed: ${e.message})"
         }
         val truncated = body.length > loaderBudget
         val tail = if (truncated) body.takeLast(loaderBudget) else body
         val serverBody = try {
-            fileSystem.read(serverLog).getOrNull().orEmpty()
+            fileSystem.readTail(serverLog, serverBudget + 1).getOrNull().orEmpty()
         } catch (e: Exception) {
             "(server log read failed: ${e.message})"
         }
@@ -494,11 +527,11 @@ class OpenCodeManager(
         }
         return buildString {
             append(header)
-            if (truncated) appendLine("[... ${body.length - loaderBudget} earlier chars trimmed ...]")
+            if (truncated) appendLine("[... earlier log trimmed ...]")
             append(tail.ifBlank { "(log empty)" })
             appendLine()
             appendLine("=== opencode server log (${serverLog.rawPath}) ===")
-            if (serverTruncated) appendLine("[... ${serverBody.length - serverBudget} earlier chars trimmed ...]")
+            if (serverTruncated) appendLine("[... earlier server log trimmed ...]")
             append(serverTail.ifBlank { "(server log empty)" })
             appendLine()
             appendLine("=== run events (${lastRunEventsPath ?: "never spawned"}) ===")
@@ -525,10 +558,14 @@ class OpenCodeManager(
         // before the state becomes Running.
         val st = _state
         val pid = (st as? OpenCodeState.Running)?.pid ?: activePid
-        if (pid == 0) {
-            if (st is OpenCodeState.Running) _state = OpenCodeState.Stopped
-            return@withLock
-        }
+        // Declare Stopped BEFORE killing. The 500ms liveness poll (currentState)
+        // maps Running + a dead child to Error("OpenCode exited (signal N)"), and
+        // the UI cancels its poll on Error. runPrompt() SIGTERMs the serve on
+        // purpose (run pivot), so leaving Running during the ~2s kill/reap window
+        // made a deliberate stop surface as a stuck "OpenCode exited (signal 15)"
+        // error banner. Stopped-first makes the poll see the intent, not the corpse.
+        if (st is OpenCodeState.Running) _state = OpenCodeState.Stopped
+        if (pid == 0) return@withLock
 
         val alive = try {
             val r = processRunner.run(listOf("kill", "-0", pid.toString()))
@@ -560,27 +597,37 @@ class OpenCodeManager(
         val deadline = PlatformOps.currentTimeMs() + config.startupTimeoutMs
         var lastError = "no attempts made"
         while (PlatformOps.currentTimeMs() < deadline) {
-            val child = try {
-                // nativeCheck reads /proc and appends a heartbeat to the log —
-                // keep it off the caller's (Main) thread.
-                withContext(Dispatchers.IO) { PlatformOps.checkChild(pid) }
-            } catch (e: CancellationException) { throw e
-            } catch (_: Exception) { 0 }
+            val child = checkChildOrZero(pid)
             if (child != 0) throw IllegalStateException("OpenCode exited during startup (${childStatus(child)})")
-            try {
-                // Blocking socket I/O must leave the caller's thread: start()
-                // runs on the UI scope (MainActivity rememberCoroutineScope),
-                // and Android throws NetworkOnMainThreadException otherwise.
-                val code = withContext(Dispatchers.IO) {
-                    PlatformOps.httpGet("http://127.0.0.1:$port/api/health", 1000, 1000)
-                }
-                if (code == 200) return
-                lastError = "HTTP $code"
-            } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { lastError = e.toString().take(160) }
+            val (code, error) = healthProbe(port)
+            if (code == 200) return
+            lastError = error ?: "HTTP $code"
             delay(100)
         }
         throw IllegalStateException("OpenCode server did not start within ${config.startupTimeoutMs}ms on port $port (last health: $lastError)")
+    }
+
+    private suspend fun checkChildOrZero(pid: Int): Int = try {
+        // nativeCheck reads /proc and appends a heartbeat to the log — keep it
+        // off the caller's (Main) thread.
+        withContext(Dispatchers.IO) { PlatformOps.checkChild(pid) }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) { 0 }
+
+    // One /api/health probe. Returns (code, null) on a response, (null, error)
+    // on a non-cancellation failure. Blocking socket I/O leaves the caller's
+    // thread: start() runs on the UI scope, and Android throws
+    // NetworkOnMainThreadException otherwise.
+    @Suppress("TooGenericExceptionCaught") // boundary: any probe failure is reported, not thrown
+    private suspend fun healthProbe(port: Int): Pair<Int?, String?> = try {
+        withContext(Dispatchers.IO) {
+            PlatformOps.httpGet("http://127.0.0.1:$port/api/health", 1000, 1000)
+        } to null
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null to e.toString().take(160)
     }
 
     private fun childStatus(code: Int): String = when {

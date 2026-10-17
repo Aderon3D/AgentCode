@@ -31,6 +31,8 @@ import kotlinx.coroutines.launch
  * and verifies a [FileBackedWalStore] survives a simulated restart.
  * Git/worktree paths are intentionally excluded — no `git` binary on-device.
  */
+// Deliberate catch-all: probe failures are surfaced as UI text, never crash the UI.
+@Suppress("TooGenericExceptionCaught")
 @Composable
 fun M1RealIoDemo(baseDir: String) {
     val fs = remember(baseDir) { RealFileSystem(VirtualPath.of(baseDir)) }

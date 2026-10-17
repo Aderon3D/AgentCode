@@ -117,6 +117,7 @@ private fun TabBar(selected: Int, onSelect: (Int) -> Unit) {
  * Stubbed subsystems (LLM/MCP/process) are not exercised here.
  */
 @Composable
+@Suppress("TooGenericExceptionCaught") // demo boundary: any failure is surfaced in the UI
 fun M05SpineDemo() {
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()

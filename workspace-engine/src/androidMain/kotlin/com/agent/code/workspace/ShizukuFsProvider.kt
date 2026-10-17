@@ -15,7 +15,7 @@ import rikka.shizuku.Shizuku
 // keep the sanctioned privileged-shell behavior from the doc. Paths inside the
 // sandbox use the local RealFileSystem; only out-of-sandbox paths are escalated.
 // Any failure (Shizuku absent, permission missing, method gone) falls back.
-// TODO: when bumping to Shizuku API 14, migrate to bindUserService + AIDL.
+// When bumping to Shizuku API 14, migrate to bindUserService + AIDL.
 class ShizukuFsProvider(
     private val root: VirtualPath,
     private val fallback: RealFileSystem
@@ -75,6 +75,7 @@ class ShizukuFsProvider(
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // Shizuku process boundary: any failure maps to FileError.IOError
     override suspend fun write(path: VirtualPath, content: String): Result<Unit> {
         if (!isAvailable() || isSandboxed(path)) return fallback.write(path, content)
         val p = shizuku("cat > ${shellArg(path.rawPath)}") ?: return fallback.write(path, content)

@@ -55,6 +55,8 @@ import kotlinx.coroutines.withContext
 /**
  * Unified probe dashboard: Run All, Copy All, collapsible per-probe sections.
  */
+// Deliberate catch-all: probe failures are captured and shown, never crash the UI.
+@Suppress("TooGenericExceptionCaught")
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor()) {
@@ -109,33 +111,9 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
                     running = true
                     scope.launch {
                         try {
-                            val mc = withContext(Dispatchers.IO) { runMissionControlProbe() }
-                            results["Mission Control"] = mc; expanded["Mission Control"] = true
-
-                            val m1 = withContext(Dispatchers.IO) { runM1Probe(baseDir) }
-                            results["M1 Real IO"] = m1; expanded["M1 Real IO"] = true
-
-                            results["LibGit2 JNI"] = runNative { runLibGit2Probe(baseDir) }
-                            expanded["LibGit2 JNI"] = true
-
-                            val shizuku = withContext(Dispatchers.IO) { runShizukuProbe() }
-                            results["Shizuku"] = shizuku; expanded["Shizuku"] = true
-
-                            val m2 = withContext(Dispatchers.IO) { runM2Probe(governor) }
-                            results["M2 Concurrency"] = m2; expanded["M2 Concurrency"] = true
-
-                            results["TreeSitter JNI"] = runNative { runTreeSitterProbe() }
-                            expanded["TreeSitter JNI"] = true
-
-                            results["FileWatcher"] = runNative { runFileWatcherProbe() }
-                            expanded["FileWatcher"] = true
-
-                            results["Tier 2/4 Funnel"] = runNative { runTier24Probe() }
-                            expanded["Tier 2/4 Funnel"] = true
-
-                            val stats = withContext(Dispatchers.IO) { collector.collect().format() }
-                            deviceStatsText = stats
-                            results["Device Stats"] = stats; expanded["Device Stats"] = true
+                            runAllProbes(baseDir, governor, collector, results, expanded, runNative) {
+                                deviceStatsText = it
+                            }
                         } catch (e: Throwable) {
                             results["Error"] = "${e::class.simpleName}: ${e.message}"
                         } finally {
@@ -165,22 +143,80 @@ fun ProbeDashboard(baseDir: String, governor: PowerGovernor = StubPowerGovernor(
         }
         results.forEach { (name, log) ->
             val displayText = if (name == "Device Stats") (deviceStatsText ?: log) else log
-            HorizontalDivider()
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { toggle(name) },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (isExpanded(name)) "▼ $name" else "▶ $name",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f).padding(vertical = 8.dp),
-                )
-            }
-            AnimatedVisibility(isExpanded(name)) {
-                Text(displayText, modifier = Modifier.padding(start = 8.dp))
-            }
+            ProbeResultSection(
+                name = name,
+                displayText = displayText,
+                expanded = isExpanded(name),
+                onToggle = { toggle(name) },
+            )
         }
     }
+}
+
+@Composable
+private fun ProbeResultSection(
+    name: String,
+    displayText: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    HorizontalDivider()
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (expanded) "▼ $name" else "▶ $name",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+        )
+    }
+    AnimatedVisibility(expanded) {
+        Text(displayText, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+private suspend fun runAllProbes(
+    baseDir: String,
+    governor: PowerGovernor,
+    collector: DeviceStatsCollector,
+    results: MutableMap<String, String>,
+    expanded: MutableMap<String, Boolean>,
+    runNative: suspend (suspend () -> String) -> String,
+    onDeviceStats: (String) -> Unit,
+) {
+    val mc = withContext(Dispatchers.IO) { runMissionControlProbe() }
+    results["Mission Control"] = mc
+    expanded["Mission Control"] = true
+
+    val m1 = withContext(Dispatchers.IO) { runM1Probe(baseDir) }
+    results["M1 Real IO"] = m1
+    expanded["M1 Real IO"] = true
+
+    results["LibGit2 JNI"] = runNative { runLibGit2Probe(baseDir) }
+    expanded["LibGit2 JNI"] = true
+
+    val shizuku = withContext(Dispatchers.IO) { runShizukuProbe() }
+    results["Shizuku"] = shizuku
+    expanded["Shizuku"] = true
+
+    val m2 = withContext(Dispatchers.IO) { runM2Probe(governor) }
+    results["M2 Concurrency"] = m2
+    expanded["M2 Concurrency"] = true
+
+    results["TreeSitter JNI"] = runNative { runTreeSitterProbe() }
+    expanded["TreeSitter JNI"] = true
+
+    results["FileWatcher"] = runNative { runFileWatcherProbe() }
+    expanded["FileWatcher"] = true
+
+    results["Tier 2/4 Funnel"] = runNative { runTier24Probe() }
+    expanded["Tier 2/4 Funnel"] = true
+
+    val stats = withContext(Dispatchers.IO) { collector.collect().format() }
+    onDeviceStats(stats)
+    results["Device Stats"] = stats
+    expanded["Device Stats"] = true
 }
 
 private suspend fun runM1Probe(baseDir: String): String {
@@ -237,6 +273,8 @@ private suspend fun runMissionControlProbe(): String {
         "  Telemetry frames: $frames"
 }
 
+// Deliberate catch-all: a failed step is recorded in the probe log, not thrown.
+@Suppress("TooGenericExceptionCaught")
 private suspend fun runLibGit2Probe(baseDir: String): String = withContext(Dispatchers.IO) {
     val probeDir = File("$baseDir/libgit2-probe").also { it.deleteRecursively() }
     probeDir.mkdirs()
@@ -355,6 +393,8 @@ private fun runM2Probe(governor: PowerGovernor = StubPowerGovernor()): String = 
     log.joinToString("\n")
 }
 
+// Deliberate catch-all: a JNI/parse failure is reported as probe output.
+@Suppress("TooGenericExceptionCaught")
 private fun runTreeSitterProbe(): String {
     val sample = """
         package com.example
@@ -388,6 +428,8 @@ private fun runTreeSitterProbe(): String {
     }
 }
 
+// Deliberate catch-all: a watcher failure is reported as probe output.
+@Suppress("TooGenericExceptionCaught")
 private fun runFileWatcherProbe(): String {
     val tmpDir = File(System.getProperty("java.io.tmpdir"), "fw-probe-${System.nanoTime()}")
     tmpDir.mkdirs()

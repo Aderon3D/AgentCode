@@ -31,18 +31,17 @@ class WorktreeManager(
 
     suspend fun finalizeAndSquashBranch(taskId: String, targetBranch: String = "main"): Result<Unit> {
         val branch = "agent/task-$taskId"
-        gitBackend.checkout(rootRepoPath, targetBranch)
-            .onFailure { return Result.failure(it) }
-        gitBackend.mergeSquash(rootRepoPath, branch)
-            .onFailure { return Result.failure(it) }
-        gitBackend.addAll(rootRepoPath)
-            .onFailure { return Result.failure(it) }
-        gitBackend.commit(rootRepoPath, "squash task $taskId")
-            .onFailure { return Result.failure(it) }
-        gitBackend.worktreeRemove(rootRepoPath, ".worktrees/task-$taskId")
-            .onFailure { return Result.failure(it) }
-        gitBackend.branchDelete(rootRepoPath, branch)
-            .onFailure { return Result.failure(it) }
+        val steps: List<suspend () -> Result<Unit>> = listOf(
+            { gitBackend.checkout(rootRepoPath, targetBranch) },
+            { gitBackend.mergeSquash(rootRepoPath, branch) },
+            { gitBackend.addAll(rootRepoPath) },
+            { gitBackend.commit(rootRepoPath, "squash task $taskId") },
+            { gitBackend.worktreeRemove(rootRepoPath, ".worktrees/task-$taskId") },
+            { gitBackend.branchDelete(rootRepoPath, branch) },
+        )
+        for (step in steps) {
+            step().onFailure { return Result.failure(it) }
+        }
         return Result.success(Unit)
     }
 

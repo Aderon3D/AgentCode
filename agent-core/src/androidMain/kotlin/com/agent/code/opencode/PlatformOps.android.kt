@@ -94,4 +94,6 @@ actual object PlatformOps {
     ): Int = ElfLoader.nativeSpawn(loaderPath, glibcDir, binaryPath, workDir, logPath, args)
 
     actual fun checkChild(pid: Int): Int = ElfLoader.nativeCheck(pid)
+
+    actual fun deviceDnsServers(): List<String> = AndroidDeviceDns.servers()
 }

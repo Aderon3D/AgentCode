@@ -15,6 +15,20 @@ import kotlinx.coroutines.withContext
 
 private const val LOG_TAIL_LINES = 200
 
+// Fallback resolvers for the child's DNS shim. Public DNS is a last resort:
+// some carriers/networks drop outbound :53 to it, which fails every lookup
+// (r27 log 33: models.dev + model API unreachable -> runs died on
+// "Unexpected server error").
+private val PUBLIC_DNS = listOf("8.8.8.8", "1.1.1.1")
+
+// resolv.conf body for the child's getaddrinfo preload (dnsshim.c reads up to
+// 4 entries). Device resolvers first, public ones as fallback.
+private fun resolvConf(): String {
+    val device = runCatching { PlatformOps.deviceDnsServers() }.getOrDefault(emptyList())
+    return (device + PUBLIC_DNS).distinct().take(4)
+        .joinToString("") { "nameserver $it\n" }
+}
+
 data class OpenCodeConfig(
     val installDir: VirtualPath = VirtualPath.of("/data/user/0/com.agent.code/files/opencode"),
     val nativeLibraryDir: String = "/data/app/~~placeholder~~/com.agent.code/lib/arm64",
@@ -172,13 +186,12 @@ class OpenCodeManager(
         val installDir = config.installDir.rawPath
         val logFile = config.installDir.resolve("opencode.log")
         // Nameservers for the child's DNS shim (getaddrinfo preload, read via
-        // OC_RESOLV_CONF). ponytail: hardcoded public DNS — switch to
-        // ConnectivityManager device DNS if a carrier blocks outbound :53
-        // (shows up as EAI failures in the opencode server log we dump).
+        // OC_RESOLV_CONF). Device DNS first — if a network hands out resolvers
+        // or blocks public :53, hardcoding 8.8.8.8 alone fails every lookup.
         val resolv = withContext(Dispatchers.IO) {
             fileSystem.write(
                 config.installDir.resolve("resolv.conf"),
-                "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
+                resolvConf()
             )
         }
         if (resolv.isFailure) {
@@ -336,7 +349,7 @@ class OpenCodeManager(
             // genuinely required, so a failed write aborts the run loudly.
             fileSystem.write(
                 config.installDir.resolve("resolv.conf"),
-                "nameserver 8.8.8.8\nnameserver 1.1.1.1\n"
+                resolvConf()
             ).getOrElse { error("resolv.conf write failed: ${it.message}") }
             // Fail-fast npm (insurance): if opencode's startup install (bun/npm)
             // still reaches for a registry package, point it at a dead loopback so
@@ -499,10 +512,17 @@ class OpenCodeManager(
         // only place that shows whether the session/prompt/LLM call actually
         // arrived server-side — loader stdout never sees Kotlin-side traffic.
         val serverLog = VirtualPath.of("${config.installDir.rawPath}/.local/share/opencode/log/opencode.log")
+        // What the child's DNS shim will actually query (OC_RESOLV_CONF). A
+        // blocked/missing resolver shows up here, not in the loader log.
+        val resolvers = fileSystem.read(config.installDir.resolve("resolv.conf"))
+            .getOrNull().orEmpty().trim().lines()
+            .mapNotNull { it.removePrefix("nameserver").trim().ifBlank { null } }
+            .joinToString(",")
         val header = buildString {
             appendLine("state=${_state}")
             appendLine("port=$serverPort log=${logFile.rawPath} at=${PlatformOps.currentTimeMs()}")
             appendLine("runEvents=${lastRunEventsPath ?: "none"}")
+            appendLine("resolv=${resolvers.ifBlank { "none" }}")
         }
         // Split the budget across the three sections so the combined dump
         // (auto-copied to the clipboard) stays within maxChars.

@@ -1174,6 +1174,20 @@ Java_com_agent_code_opencode_ElfLoader_nativeSpawn(JNIEnv *env, jobject thiz,
     /* Resolve libdnsshim.so's directory here, in the parent: child_main runs
      * post-fork, where a non-async-signal-safe call like dladdr can deadlock
      * if another thread held the dynamic-loader lock at fork() time. */
+    g_dnsshim_preload[0] = 0;
+    {
+        Dl_info di;
+        if (dladdr((void *)w_all, &di) && di.dli_fname && di.dli_fname[0] == '/') {
+            const char *slash = strrchr(di.dli_fname, '/');
+            size_t dl = slash ? (size_t)(slash - di.dli_fname) : 0;
+            static const char rel[] = "/libdnsshim.so";
+            if (dl > 0 && 11 + dl + sizeof rel <= sizeof g_dnsshim_preload) {
+                memcpy(g_dnsshim_preload, "LD_PRELOAD=", 11);
+                memcpy(g_dnsshim_preload + 11, di.dli_fname, dl);
+                memcpy(g_dnsshim_preload + 11 + dl, rel, sizeof rel);
+            }
+        }
+    }
     jsize n = (*env)->GetArrayLength(env, jArgs);
     if (n < 0 || n > LD_MAX_ARGS) {
         (*env)->ReleaseStringUTFChars(env, jLog, logp);

@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.core.power.AndroidPowerGovernor
+import com.agent.code.opencode.AndroidDeviceDns
 import com.agent.code.service.ResilientAgentForegroundService
 import com.agent.code.ui.AgentViewModel
 import com.agent.code.security.AuditLog
@@ -22,6 +23,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val governor = AndroidPowerGovernor(applicationContext)
+        // Lets the child opencode resolve DNS via the network's own resolvers.
+        AndroidDeviceDns.context = applicationContext
         ResilientAgentForegroundService.start(this)
 
         // Install/runtime FS: opencode binary + loader sentinel + .local log all

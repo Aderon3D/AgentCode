@@ -60,3 +60,18 @@ JAVA_HOME=/opt/java/jdk-21.0.12.1+1 ./gradlew \
   :workspace-engine:testAndroidHostTest \
   :app-ui:testAndroidHostTest
 ```
+
+CI also runs detekt as a hard gate (`CI=true`), so fix findings locally before
+pushing.
+
+## GitHub auth
+
+`gh` holds the token at `~/.config/gh/hosts.yml` (mode 600) and git uses
+`gh auth git-credential`, so `git push` needs no token in the remote URL or in
+the worktree. Never write a token into `.git/`, a tracked file, or the remote
+URL — a repo copy would leak it.
+
+Long term, use a fine-grained PAT limited to this repository: Contents RW,
+Pull requests RW, Workflows RW, Actions R, Metadata R. Rotate every 90 days;
+the classic token in use grants far more (`write:org`, `write:packages`,
+`admin:repo_hook`).

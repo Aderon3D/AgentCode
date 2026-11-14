@@ -39,6 +39,8 @@ data class AgentUiState(
 )
 
 sealed interface UiEvent {
+    /** The goal the user submitted; the transcript's opening bubble. */
+    data class UserMessage(val text: String) : UiEvent
     data class Thinking(val text: String) : UiEvent
     data class ToolStarted(val name: String, val args: String) : UiEvent
     data class ToolFinished(val name: String, val success: Boolean) : UiEvent
@@ -129,6 +131,7 @@ class AgentViewModel(
             // prompt stalled) plus loader/server logs.
             val feed = s.events.takeLast(15).joinToString("\n") { e ->
                 val (marker, text) = when (e) {
+                    is UiEvent.UserMessage -> ">" to e.text
                     is UiEvent.Thinking -> "*" to e.text
                     is UiEvent.ToolStarted -> ">" to "${e.name}(${e.args.take(80)})"
                     is UiEvent.ToolFinished -> "<" to "${e.name} ${if (e.success) "ok" else "err"}"
@@ -174,7 +177,7 @@ class AgentViewModel(
                 // Keep the conversation on screen across tasks — the brain
                 // continues the same opencode session (AgentBrain.sessionId).
                 // Capped so a long chat cannot grow Compose state unboundedly.
-                events = it.events.takeLast(499) + UiEvent.Thinking("→ goal: $goal"),
+                events = it.events.takeLast(499) + UiEvent.UserMessage(goal),
                 error = null
             )
         }
@@ -182,7 +185,6 @@ class AgentViewModel(
         brainJob = scope.launch {
             try {
                 val taskId = "T-${System.currentTimeMillis()}"
-                val events = mutableListOf<UiEvent>()
 
                 brain.executeTask(taskId, goal, workspaceRoot).collect { event ->
                     val uiEvent = when (event) {
@@ -193,9 +195,11 @@ class AgentViewModel(
                         is BrainEvent.TaskComplete -> UiEvent.Complete(event.summary)
                         is BrainEvent.TaskFailed -> UiEvent.Failed(event.reason)
                     }
-                    events.add(uiEvent)
-                    val snapshot = events.toList()
-                    _state.update { it.copy(events = snapshot) }
+                    // Append, never replace: the feed is the whole conversation,
+                    // so a second task's events land after the first task's and
+                    // the on-screen transcript matches the session the model
+                    // continues. Cap keeps Compose state bounded.
+                    _state.update { it.copy(events = (it.events + uiEvent).takeLast(500)) }
 
                     if (event is BrainEvent.TaskComplete || event is BrainEvent.TaskFailed) {
                         _state.update { it.copy(isRunning = false) }

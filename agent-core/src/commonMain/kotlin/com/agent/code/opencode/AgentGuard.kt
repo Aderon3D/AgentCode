@@ -102,8 +102,12 @@ internal object AgentGuard {
                 }
               }
               const fp = args.filePath;
+              // Same target rules as bash: relative paths resolve inside the
+              // child's cwd (the workspace); "..", "~" and absolute paths
+              // outside it are denied. A bare prefix test let both
+              // "workspace/../opencode/x" and "/…/workspace-evil" through.
               if ((inp.tool === "write" || inp.tool === "edit" || inp.tool === "patch") &&
-                  fp && !String(fp).startsWith(directory)) {
+                  fp && badTarget(String(fp).replace(/^["']+|["']+$/g, ""))) {
                 deny("write outside workspace: " + fp);
               }
             },

@@ -199,7 +199,13 @@ class AgentViewModel(
                         is BrainEvent.Thinking -> UiEvent.Thinking(event.text)
                         is BrainEvent.ToolCallStarted -> UiEvent.ToolStarted(event.toolName, event.args)
                         is BrainEvent.ToolCallFinished ->
-                            UiEvent.ToolFinished(event.toolName, event.success, event.output)
+                            // One `cat` or a build log can be hundreds of KB; the
+                            // transcript keeps only what it can ever display.
+                            UiEvent.ToolFinished(
+                                event.toolName,
+                                event.success,
+                                event.output.take(MAX_TOOL_OUTPUT_CHARS),
+                            )
                         is BrainEvent.IterationComplete -> UiEvent.Iteration(event.iteration)
                         is BrainEvent.TaskComplete -> UiEvent.Complete(event.summary)
                         is BrainEvent.TaskFailed -> UiEvent.Failed(event.reason)
@@ -252,6 +258,10 @@ class AgentViewModel(
     }
 
     companion object {
+        // Bounds the transcript's memory: tool results are the only unbounded
+        // field in the 500-event window.
+        private const val MAX_TOOL_OUTPUT_CHARS = 20_000
+
         fun create(
             scope: CoroutineScope,
             fileSystem: FileSystemProvider,

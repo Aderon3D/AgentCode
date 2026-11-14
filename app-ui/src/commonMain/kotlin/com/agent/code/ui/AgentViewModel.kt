@@ -41,9 +41,13 @@ data class AgentUiState(
 sealed interface UiEvent {
     /** The goal the user submitted; the transcript's opening bubble. */
     data class UserMessage(val text: String) : UiEvent
+    /** The assistant's reply text (markdown). */
+    data class Message(val text: String) : UiEvent
+    /** Model reasoning, shown collapsed; not part of the answer. */
+    data class Reasoning(val text: String) : UiEvent
     data class Thinking(val text: String) : UiEvent
     data class ToolStarted(val name: String, val args: String) : UiEvent
-    data class ToolFinished(val name: String, val success: Boolean) : UiEvent
+    data class ToolFinished(val name: String, val success: Boolean, val output: String = "") : UiEvent
     data class Iteration(val number: Int) : UiEvent
     data class Complete(val summary: String) : UiEvent
     data class Failed(val reason: String) : UiEvent
@@ -132,9 +136,11 @@ class AgentViewModel(
             val feed = s.events.takeLast(15).joinToString("\n") { e ->
                 val (marker, text) = when (e) {
                     is UiEvent.UserMessage -> ">" to e.text
+                    is UiEvent.Message -> "=" to e.text
+                    is UiEvent.Reasoning -> "?" to e.text.take(200)
                     is UiEvent.Thinking -> "*" to e.text
-                    is UiEvent.ToolStarted -> ">" to "${e.name}(${e.args.take(80)})"
-                    is UiEvent.ToolFinished -> "<" to "${e.name} ${if (e.success) "ok" else "err"}"
+                    is UiEvent.ToolStarted -> ">" to "${e.name}(${e.args.take(200)})"
+                    is UiEvent.ToolFinished -> "<" to "${e.name} ${if (e.success) "ok" else "err"}: ${e.output.take(200)}"
                     is UiEvent.Iteration -> "*" to "iteration ${e.number} complete"
                     is UiEvent.Complete -> "+" to "done: ${e.summary}"
                     is UiEvent.Failed -> "!" to "failed: ${e.reason}"
@@ -188,9 +194,12 @@ class AgentViewModel(
 
                 brain.executeTask(taskId, goal, workspaceRoot).collect { event ->
                     val uiEvent = when (event) {
+                        is BrainEvent.Answer -> UiEvent.Message(event.text)
+                        is BrainEvent.Reasoning -> UiEvent.Reasoning(event.text)
                         is BrainEvent.Thinking -> UiEvent.Thinking(event.text)
                         is BrainEvent.ToolCallStarted -> UiEvent.ToolStarted(event.toolName, event.args)
-                        is BrainEvent.ToolCallFinished -> UiEvent.ToolFinished(event.toolName, event.success)
+                        is BrainEvent.ToolCallFinished ->
+                            UiEvent.ToolFinished(event.toolName, event.success, event.output)
                         is BrainEvent.IterationComplete -> UiEvent.Iteration(event.iteration)
                         is BrainEvent.TaskComplete -> UiEvent.Complete(event.summary)
                         is BrainEvent.TaskFailed -> UiEvent.Failed(event.reason)

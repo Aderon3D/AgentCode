@@ -18,8 +18,11 @@ data class AgentConfig(
 
 sealed interface BrainEvent {
     data class Thinking(val text: String) : BrainEvent
+    /** The assistant's actual reply text (markdown), streamed per step. */
+    data class Answer(val text: String) : BrainEvent
+    data class Reasoning(val text: String) : BrainEvent
     data class ToolCallStarted(val toolName: String, val args: String) : BrainEvent
-    data class ToolCallFinished(val toolName: String, val success: Boolean) : BrainEvent
+    data class ToolCallFinished(val toolName: String, val success: Boolean, val output: String = "") : BrainEvent
     data class IterationComplete(val iteration: Int) : BrainEvent
     data class TaskComplete(val summary: String) : BrainEvent
     data class TaskFailed(val reason: String) : BrainEvent
@@ -135,20 +138,19 @@ private class RunAccumulator {
         }
         is SessionEvent.ToolCalled -> {
             currentTool = ev.tool
-            BrainEvent.ToolCallStarted(ev.tool, "")
+            BrainEvent.ToolCallStarted(ev.tool, ev.input)
         }
-        is SessionEvent.ToolFinished -> BrainEvent.ToolCallFinished(currentTool, ev.ok)
-        // Surface the tool args (the feed's whole point: what the agent ran
-        // when a run stalls).
-        is SessionEvent.ToolInput ->
-            if (ev.detail.isNotBlank()) BrainEvent.Thinking("run: ${ev.detail.take(200)}") else null
+        is SessionEvent.ToolFinished -> BrainEvent.ToolCallFinished(currentTool, ev.ok, ev.output)
+        is SessionEvent.Reasoning -> BrainEvent.Reasoning(ev.text)
+        // Legacy SSE shape: args already arrive on ToolCalled in run mode.
+        is SessionEvent.ToolInput -> null
         is SessionEvent.TextEnded -> {
             val t = ev.text.trim()
             if (t.isEmpty()) {
                 null
             } else {
                 transcript.append(t).append("\n\n")
-                BrainEvent.Thinking(t)
+                BrainEvent.Answer(t)
             }
         }
         is SessionEvent.StepEnded -> {

@@ -1,9 +1,10 @@
 package com.agent.code.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -38,11 +39,10 @@ fun AgentPanel(
     val listState = rememberLazyListState()
 
     // Only conversation-shaped events make the transcript; stage markers
-    // ("run model ...", iteration counters, tool-finish pairs) are noise here.
-    val chat = state.events.filter {
-        it is UiEvent.UserMessage || it is UiEvent.Complete ||
-            it is UiEvent.Failed || it is UiEvent.ToolStarted
-    }
+    // ("run model ...", iteration counters) are noise here.
+    val chat = remember(state.events) { chatItems(state.events) }
+    // Expanded tool calls / reasoning blocks, keyed by row index (append-only).
+    val expanded = remember { mutableStateMapOf<Int, Boolean>() }
     val itemCount = chat.size + if (state.isRunning) 1 else 0
 
     LaunchedEffect(itemCount) {
@@ -72,7 +72,13 @@ fun AgentPanel(
                     )
                 }
             }
-            items(chat) { event -> ChatRow(event) }
+            itemsIndexed(chat) { index, item ->
+                ChatRow(
+                    item = item,
+                    expanded = expanded[index] == true,
+                    onToggle = { expanded[index] = !(expanded[index] ?: false) },
+                )
+            }
             if (state.isRunning) {
                 item { WorkingRow() }
             }
@@ -167,28 +173,153 @@ private fun statusOf(state: AgentUiState): Pair<String, androidx.compose.ui.grap
 }
 
 @Composable
-private fun ChatRow(event: UiEvent) {
-    when (event) {
-        is UiEvent.UserMessage -> Bubble(event.text, mine = true)
-        is UiEvent.Complete -> Bubble(event.summary, mine = false)
-        is UiEvent.Failed -> Bubble("Failed: ${event.reason}", mine = false, error = true)
-        is UiEvent.ToolStarted -> ToolRow(event.name, event.args)
-        else -> Unit
+private fun ChatRow(item: ChatItem, expanded: Boolean, onToggle: () -> Unit) {
+    when (item) {
+        is ChatItem.User -> Bubble(item.text, mine = true)
+        is ChatItem.Agent -> AgentBubble(item.text)
+        is ChatItem.Reasoning -> ReasoningRow(item.text, expanded, onToggle)
+        is ChatItem.Tool -> ToolCallRow(item, expanded, onToggle)
+        is ChatItem.Note -> Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                item.text,
+                fontSize = 10.sp,
+                color = if (item.error) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** The agent's reply: markdown, not a raw Text dump. */
+@Composable
+private fun AgentBubble(text: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        SelectionContainer {
+            Column(
+                Modifier
+                    .widthIn(max = 360.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                MarkdownText(text, MaterialTheme.colorScheme.onSurface)
+            }
+        }
     }
 }
 
 @Composable
-private fun Bubble(text: String, mine: Boolean, error: Boolean = false) {
-    val bg = when {
-        error -> MaterialTheme.colorScheme.errorContainer
-        mine -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
+private fun ReasoningRow(text: String, expanded: Boolean, onToggle: () -> Unit) {
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (expanded) "▾" else "▸",
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = dim,
+                modifier = Modifier.width(12.dp),
+            )
+            Text(
+                "thinking · ${text.length} chars",
+                fontSize = 10.sp,
+                color = dim,
+            )
+        }
+        if (expanded) {
+            SelectionContainer {
+                Text(
+                    capText(text, 6000),
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    color = dim,
+                    modifier = Modifier.padding(start = 12.dp, top = 2.dp),
+                )
+            }
+        }
     }
-    val fg = when {
-        error -> MaterialTheme.colorScheme.onErrorContainer
-        mine -> MaterialTheme.colorScheme.onPrimaryContainer
-        else -> MaterialTheme.colorScheme.onSurface
+}
+
+/** One tool call, collapsed to a line; expand for full args + output. */
+@Composable
+private fun ToolCallRow(item: ChatItem.Tool, expanded: Boolean, onToggle: () -> Unit) {
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    val mono = FontFamily.Monospace
+    val nameColor = when (item.ok) {
+        true -> dim
+        false -> MaterialTheme.colorScheme.error
+        null -> MaterialTheme.colorScheme.tertiary
     }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (expanded) "▾" else "▸",
+                fontSize = 10.sp,
+                fontFamily = mono,
+                color = dim,
+                modifier = Modifier.width(12.dp),
+            )
+            Text(item.name, fontSize = 11.sp, fontFamily = mono, fontWeight = FontWeight.SemiBold, color = nameColor)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                toolPreview(item),
+                fontSize = 11.sp,
+                fontFamily = mono,
+                color = dim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (item.ok == null) {
+                CircularProgressIndicator(Modifier.size(9.dp), strokeWidth = 1.2.dp)
+            } else if (!item.ok) {
+                Text("failed", fontSize = 9.sp, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        if (expanded) {
+            if (item.args.isNotBlank()) CodeBox(capText(item.args, 6000))
+            if (item.output.isNotBlank()) CodeBox(capText(item.output, 12000))
+        }
+    }
+}
+
+private fun toolPreview(item: ChatItem.Tool): String =
+    (item.args.ifBlank { item.output })
+        .lineSequence().firstOrNull()?.trim()?.take(120) ?: ""
+
+private fun capText(text: String, max: Int): String =
+    if (text.length <= max) text else text.take(max) + "\n… (${text.length - max} chars cut)"
+
+@Composable
+private fun CodeBox(text: String) {
+    SelectionContainer {
+        Text(
+            text,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
+                .padding(6.dp),
+        )
+    }
+}
+
+@Composable
+private fun Bubble(text: String, mine: Boolean) {
+    val bg = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (mine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
@@ -205,28 +336,6 @@ private fun Bubble(text: String, mine: Boolean, error: Boolean = false) {
                 color = fg,
             )
         }
-    }
-}
-
-@Composable
-private fun ToolRow(name: String, args: String) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Text(
-            "·",
-            fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(10.dp),
-        )
-        Text(
-            "$name ${args.take(100)}",
-            fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            lineHeight = 14.sp,
-        )
     }
 }
 

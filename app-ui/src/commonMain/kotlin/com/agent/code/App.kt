@@ -47,6 +47,7 @@ fun App(
     agentViewModel: AgentViewModel? = null,
     fileSystem: FileSystemProvider? = null,
     workspaceRoot: VirtualPath? = null,
+    banner: (@Composable () -> Unit)? = null,
 ) {
     MaterialTheme {
         var tab by remember { mutableStateOf(0) }
@@ -59,6 +60,7 @@ fun App(
                 .safeContentPadding()
                 .fillMaxSize(),
         ) {
+            banner?.invoke()
             Box(
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) {

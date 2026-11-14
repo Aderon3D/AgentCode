@@ -5,8 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import com.agent.code.opencode.OpenCodeClient
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.json.JSONArray
 import java.io.File
 import java.net.HttpURLConnection
@@ -33,20 +36,54 @@ object Updater {
     /** Download URL + tag of the newest `r<NN>` release newer than this build. */
     private data class Release(val tag: String, val code: Int, val apkUrl: String)
 
-    fun checkAndInstall(context: Context) {
+    /**
+     * What the banner shows: null = nothing to say, otherwise one line.
+     * A silent updater is undebuggable on a device with no adb, so every check
+     * leaves a visible trace (including failures) for a few seconds.
+     */
+    val status = MutableStateFlow<String?>(null)
+
+    // Foregrounding is the cheapest retry trigger: a cold start often fires
+    // before the radio is up, so one launch-time attempt is not enough.
+    private var lastCheckMs = 0L
+
+    fun checkIfDue(context: Context) {
+        val now = System.currentTimeMillis()
+        if (now - lastCheckMs < 10 * 60_000) return
+        lastCheckMs = now
+        check(context)
+    }
+
+    @Suppress("TooGenericExceptionCaught") // update path is best-effort: any failure lands in the banner
+    fun check(context: Context) {
+        status.value = "Checking for updates…"
         Thread {
-            // Updating is best-effort: offline / rate-limited / parse failure all
-            // leave the app running silently.
-            runCatching {
-                val current = OpenCodeClient.APP_BUILD.removePrefix("r").toIntOrNull()
-                    ?: return@runCatching
-                val release = latestNewer(current) ?: return@runCatching
-                Toast.makeText(context, "Downloading ${release.tag}…", Toast.LENGTH_SHORT).show()
-                val apk = File(context.cacheDir, "update-${release.tag}.apk")
-                download(release.apkUrl, apk)
-                Toast.makeText(context, "${release.tag} downloaded — confirm install", Toast.LENGTH_LONG).show()
-                install(context, apk)
+            var lastError: Exception? = null
+            for (attempt in 0 until 3) {
+                try {
+                    val current = OpenCodeClient.APP_BUILD.removePrefix("r").toIntOrNull()
+                        ?: error("bad build id ${OpenCodeClient.APP_BUILD}")
+                    val release = latestNewer(current)
+                    if (release == null) {
+                        status.value = "Up to date (${OpenCodeClient.APP_BUILD})"
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            if (status.value == "Up to date (${OpenCodeClient.APP_BUILD})") status.value = null
+                        }, 4000)
+                        return@Thread
+                    }
+                    status.value = "Update ${release.tag} available — downloading…"
+                    val apk = File(context.cacheDir, "update-${release.tag}.apk")
+                    download(release.apkUrl, apk)
+                    status.value = "Confirm the install dialog for ${release.tag}"
+                    install(context, apk)
+                    return@Thread
+                } catch (e: Exception) {
+                    lastError = e
+                    Thread.sleep(1500L * (attempt + 1))
+                }
             }
+            status.value = "Update check failed (${OpenCodeClient.APP_BUILD}): " +
+                "${lastError?.let { it::class.simpleName }}: ${lastError?.message}"
         }.start()
     }
 

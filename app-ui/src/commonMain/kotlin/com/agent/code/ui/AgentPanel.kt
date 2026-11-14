@@ -130,6 +130,14 @@ private fun StatusBar(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        // Which APK is actually running — the first thing to check when an
+        // update or a fix "didn't take".
+        Text(
+            com.agent.code.opencode.OpenCodeClient.APP_BUILD,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.outline,
+        )
+        Spacer(Modifier.width(6.dp))
         if (!state.isRunning && state.events.isNotEmpty()) {
             TextButton(onClick = onNew) { Text("New", fontSize = 12.sp) }
         }

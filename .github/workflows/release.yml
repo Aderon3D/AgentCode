@@ -20,6 +20,10 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write
+    # `secrets` is not available in a step `if:` (the workflow fails to parse),
+    # so the secret is exposed once here and steps read the env var.
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,10 +46,16 @@ jobs:
           sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
           yes | sdkmanager --licenses
 
+      - name: Require signing secrets
+        run: |
+          # Before the build: without the key Gradle is handed a nonexistent
+          # keystore and fails opaquely. Fail with the real reason instead.
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::ANDROID_KEYSTORE_B64 is not set; the APK would not be signed with the key the installed app trusts."
+            exit 1
+          fi
+
       - name: Decode signing key
-        if: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
-        env:
-          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/app.jks"
 
       - name: Assemble Android debug APK
@@ -55,18 +65,6 @@ jobs:
           SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew :androidApp:assembleDebug --no-daemon
-
-      - name: Require signing secrets
-        env:
-          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-        run: |
-          # Without the key the build still succeeds — signed with the runner's
-          # throwaway debug key — and every install would be rejected as
-          # UPDATE_INCOMPATIBLE. Fail instead of publishing that.
-          if [ -z "$KEYSTORE_B64" ]; then
-            echo "::error::ANDROID_KEYSTORE_B64 is not set; the APK would not be signed with the key the installed app trusts."
-            exit 1
-          fi
 
       - name: Verify the APK carries the updater's signing key
         run: |

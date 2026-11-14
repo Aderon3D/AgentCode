@@ -5,8 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.widget.Toast
 import com.agent.code.opencode.OpenCodeClient
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +17,7 @@ import org.json.JSONArray
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Self-update from GitHub releases.
@@ -47,6 +51,9 @@ object Updater {
     // before the radio is up, so one launch-time attempt is not enough.
     private var lastCheckMs = 0L
 
+    // One worker at a time: two quick foregrounds must not download twice.
+    private val checking = AtomicBoolean(false)
+
     fun checkIfDue(context: Context) {
         val now = System.currentTimeMillis()
         if (now - lastCheckMs < 10 * 60_000) return
@@ -56,35 +63,49 @@ object Updater {
 
     @Suppress("TooGenericExceptionCaught") // update path is best-effort: any failure lands in the banner
     fun check(context: Context) {
+        if (!checking.compareAndSet(false, true)) return
         status.value = "Checking for updates…"
         Thread {
-            var lastError: Exception? = null
-            for (attempt in 0 until 3) {
-                try {
-                    val current = OpenCodeClient.APP_BUILD.removePrefix("r").toIntOrNull()
-                        ?: error("bad build id ${OpenCodeClient.APP_BUILD}")
-                    val release = latestNewer(current)
-                    if (release == null) {
-                        status.value = "Up to date (${OpenCodeClient.APP_BUILD})"
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            if (status.value == "Up to date (${OpenCodeClient.APP_BUILD})") status.value = null
-                        }, 4000)
-                        return@Thread
-                    }
-                    status.value = "Update ${release.tag} available — downloading…"
-                    val apk = File(context.cacheDir, "update-${release.tag}.apk")
-                    download(release.apkUrl, apk)
-                    status.value = "Confirm the install dialog for ${release.tag}"
-                    install(context, apk)
-                    return@Thread
-                } catch (e: Exception) {
-                    lastError = e
-                    Thread.sleep(1500L * (attempt + 1))
-                }
+            try {
+                attemptCheck(context)
+            } finally {
+                checking.set(false)
             }
-            status.value = "Update check failed (${OpenCodeClient.APP_BUILD}): " +
-                "${lastError?.let { it::class.simpleName }}: ${lastError?.message}"
         }.start()
+    }
+
+    @Suppress("TooGenericExceptionCaught") // network/IO/JSON all funnel into the retry loop
+    private fun attemptCheck(context: Context) {
+        var lastError: Exception? = null
+        for (attempt in 0 until 3) {
+            try {
+                val current = OpenCodeClient.APP_BUILD.removePrefix("r").toIntOrNull()
+                    ?: error("bad build id ${OpenCodeClient.APP_BUILD}")
+                val release = latestNewer(current)
+                if (release == null) {
+                    val upToDate = "Up to date (${OpenCodeClient.APP_BUILD})"
+                    status.value = upToDate
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (status.value == upToDate) status.value = null
+                    }, 4000)
+                    return
+                }
+                status.value = "Update ${release.tag} available — downloading…"
+                val apk = File(context.cacheDir, "update-${release.tag}.apk")
+                download(release.apkUrl, apk)
+                status.value = "Confirm the install dialog for ${release.tag}"
+                install(context, apk)
+                return
+            } catch (e: Exception) {
+                lastError = e
+                Thread.sleep(1500L * (attempt + 1))
+            }
+        }
+        // Next foreground retries immediately instead of waiting out the
+        // 10-minute throttle after a failure.
+        lastCheckMs = 0L
+        status.value = "Update check failed (${OpenCodeClient.APP_BUILD}): " +
+            "${lastError?.let { it::class.simpleName }}: ${lastError?.message}"
     }
 
     private fun latestNewer(current: Int): Release? {
@@ -133,6 +154,25 @@ object Updater {
     }
 
     private fun install(context: Context, apk: File) {
+        // Android 8+ needs a per-app "install unknown apps" grant; without it
+        // the commit below just fails and looks like a dead updater.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) {
+            status.value = "Allow \"install unknown apps\" for AgentCode, then reopen"
+            lastCheckMs = 0L
+            Handler(Looper.getMainLooper()).post {
+                runCatching {
+                    context.startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:${context.packageName}")
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+            return
+        }
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         val sessionId = installer.createSession(params)

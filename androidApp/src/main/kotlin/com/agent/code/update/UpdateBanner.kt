@@ -36,7 +36,8 @@ fun UpdateBanner() {
             color = MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.weight(1f),
         )
-        if (text.contains("failed")) {
+        // Failed or blocked (e.g. install permission) — both are retryable.
+        if (text.contains("failed") || text.startsWith("Allow")) {
             TextButton(onClick = { Updater.check(context) }) { Text("Retry", fontSize = 11.sp) }
         }
     }

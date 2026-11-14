@@ -75,4 +75,37 @@ class ChatItemsTest {
         assertEquals("see docs and now", s.text)
         assertTrue(s.spanStyles.isNotEmpty())
     }
+
+    @Test
+    fun unclosedMarkersKeepTextAndTerminate() {
+        // Streaming can hand us a half-written marker; it must render as text,
+        // never loop or swallow the rest of the reply.
+        assertEquals("**half", inlineMarkdown("**half").text)
+        assertEquals("`half", inlineMarkdown("`half").text)
+        assertEquals("[half((", inlineMarkdown("[half((").text)
+        assertEquals("*a", inlineMarkdown("*a").text)
+        assertEquals("****", inlineMarkdown("****").text)
+    }
+
+    @Test
+    fun crlfInputParsesLikeLf() {
+        val blocks = parseMarkdown("# T\r\nbody\r\n\r\n- x\r\n")
+        assertEquals("T", (blocks[0] as MdBlock.Heading).text)
+        assertEquals("body", (blocks[1] as MdBlock.Paragraph).text)
+        assertEquals("x", (blocks[2] as MdBlock.Bullet).text)
+    }
+
+    @Test
+    fun unclosedCodeFenceKeepsRemainingLines() {
+        val blocks = parseMarkdown("```\na\nb")
+        assertEquals(1, blocks.size)
+        assertEquals("a\nb", (blocks[0] as MdBlock.Code).code)
+    }
+
+    @Test
+    fun hashtagIsTextNotHeading() {
+        val blocks = parseMarkdown("#hashtag")
+        assertEquals(1, blocks.size)
+        assertEquals("#hashtag", (blocks[0] as MdBlock.Paragraph).text)
+    }
 }

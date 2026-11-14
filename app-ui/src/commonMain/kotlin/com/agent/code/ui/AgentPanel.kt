@@ -45,8 +45,12 @@ fun AgentPanel(
     val expanded = remember { mutableStateMapOf<Int, Boolean>() }
     val itemCount = chat.size + if (state.isRunning) 1 else 0
 
+    // Follow new rows only while the reader is at the bottom: a streaming run
+    // must not yank the view away from someone who scrolled up to read.
     LaunchedEffect(itemCount) {
-        if (itemCount > 0) listState.animateScrollToItem(itemCount - 1)
+        if (itemCount == 0) return@LaunchedEffect
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+        if (lastVisible >= itemCount - 2) listState.animateScrollToItem(itemCount - 1)
     }
 
     Column(modifier = modifier.fillMaxSize()) {

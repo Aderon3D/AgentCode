@@ -46,6 +46,8 @@ internal sealed interface MdBlock {
 }
 
 private val BULLET = Regex("^([-*+]|\\d{1,2}[.)])\\s+")
+// A heading needs whitespace after the hashes; "#hashtag" is text.
+private val HEADING_PREFIX = Regex("^#{1,6}\\s")
 
 /** Block-level parse; a blank line closes a paragraph. Pure — unit-tested. */
 internal fun parseMarkdown(text: String): List<MdBlock> {
@@ -73,7 +75,7 @@ internal fun parseMarkdown(text: String): List<MdBlock> {
                 out += MdBlock.Code(lang, code.toString().trimEnd())
             }
             line.isBlank() -> flush()
-            t.startsWith("#") -> {
+            t.startsWith("#") && HEADING_PREFIX.containsMatchIn(t) -> {
                 flush()
                 val level = t.takeWhile { it == '#' }.length.coerceIn(1, 6)
                 out += MdBlock.Heading(level, t.removePrefix("#".repeat(level)).trim())

@@ -56,6 +56,30 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew :androidApp:assembleDebug --no-daemon
 
+      - name: Require signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          # Without the key the build still succeeds — signed with the runner's
+          # throwaway debug key — and every install would be rejected as
+          # UPDATE_INCOMPATIBLE. Fail instead of publishing that.
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::ANDROID_KEYSTORE_B64 is not set; the APK would not be signed with the key the installed app trusts."
+            exit 1
+          fi
+
+      - name: Verify the APK carries the updater's signing key
+        run: |
+          APK=androidApp/build/outputs/apk/debug/androidApp-debug.apk
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          APKSIGNER=$(ls -d "$SDK"/build-tools/*/apksigner | sort -V | tail -1)
+          DIGEST=$("$APKSIGNER" verify --print-certs "$APK" | grep -i 'SHA-256 digest' | head -1 | awk '{print $NF}')
+          EXPECTED=b0ed277135998b84203ea4cfda7ef55d516fa775caa311caf63afb9a1c954268
+          if [ "$DIGEST" != "$EXPECTED" ]; then
+            echo "::error::APK is signed with $DIGEST, not the updater key ($EXPECTED); devices would reject the update."
+            exit 1
+          fi
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,6 +90,13 @@ jobs:
           APK="AgentCode-$TAG.apk"
           cp androidApp/build/outputs/apk/debug/androidApp-debug.apk "$APK"
           if gh release view "$TAG" >/dev/null 2>&1; then
+            # Keep exactly one APK asset: the updater takes the first ".apk" it
+            # finds, and a manual publish under another name would linger.
+            gh release view "$TAG" --json assets --jq '.assets[].name' \
+              | grep -E '\.apk$' \
+              | while read -r name; do
+                  [ "$name" = "$APK" ] || gh release delete-asset "$TAG" "$name" -y
+                done
             gh release upload "$TAG" "$APK" --clobber
           else
             gh release create "$TAG" "$APK" --title "$TAG" \

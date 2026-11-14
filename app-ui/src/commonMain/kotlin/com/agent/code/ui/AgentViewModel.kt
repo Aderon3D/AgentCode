@@ -171,9 +171,10 @@ class AgentViewModel(
             it.copy(
                 isRunning = true,
                 currentGoal = goal,
-                // First visible mark: if the feed stays empty AFTER this line the
-                // break is downstream (session/prompt/SSE), before it = submit never ran.
-                events = listOf(UiEvent.Thinking("→ goal: $goal")),
+                // Keep the conversation on screen across tasks — the brain
+                // continues the same opencode session (AgentBrain.sessionId).
+                // Capped so a long chat cannot grow Compose state unboundedly.
+                events = it.events.takeLast(499) + UiEvent.Thinking("→ goal: $goal"),
                 error = null
             )
         }
@@ -217,6 +218,14 @@ class AgentViewModel(
         brainJob?.cancel()
         brainJob = null
         _state.update { it.copy(isRunning = false) }
+    }
+
+    // Fresh conversation: the next task starts a new opencode session and the
+    // feed starts over. Idle-only; a running task keeps its context.
+    fun newChat() {
+        if (_state.value.isRunning) return
+        brain.newSession()
+        _state.update { it.copy(events = emptyList(), error = null) }
     }
 
     fun destroy() {

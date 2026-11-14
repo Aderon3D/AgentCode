@@ -31,6 +31,20 @@ JAVA_HOME=/opt/java/jdk-21.0.12.1+1 ./gradlew detekt
 - Test source sets are excluded — detekt runs on production code only.
 - Android Lint is also available for Android modules: `./gradlew lint`.
 
+## Tool-use calibration
+
+Evidence from session audits (see repo history): plain grep/bash dominate while
+the MCP analysis tools sit idle. Follow these thresholds:
+
+- **Structure/reachability questions → graph tools first** (`search_graph`,
+  `trace_path`, `query_graph`, `get_architecture`). `grep`/`rg` is for literals
+  and coverage gaps only, never for "where is X used / how does A reach B".
+  Past-session recall and recorded decisions → `mempalace_*`, not the code graph.
+- **Stuck after 2 failed attempts on a hard problem → call `advice_ask`** with the
+  context and what you tried (it consults a bigger Gemini model; 5-min timeout).
+- **Kotlin quality checks → `detekt` MCP tool**, not a hand-rolled
+  `./gradlew detekt` bash call (same config, structured findings).
+
 ## Build
 
 ```

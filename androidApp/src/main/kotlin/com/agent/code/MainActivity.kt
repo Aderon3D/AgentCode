@@ -14,6 +14,7 @@ import com.agent.code.opencode.AndroidDeviceDns
 import com.agent.code.service.ResilientAgentForegroundService
 import com.agent.code.ui.AgentViewModel
 import com.agent.code.security.AuditLog
+import com.agent.code.update.Updater
 import com.agent.code.workspace.RealFileSystem
 import com.agent.code.workspace.GitProcessRunner
 
@@ -26,6 +27,8 @@ class MainActivity : ComponentActivity() {
         // Lets the child opencode resolve DNS via the network's own resolvers.
         AndroidDeviceDns.context = applicationContext
         ResilientAgentForegroundService.start(this)
+        // Self-update from GitHub releases; silent unless a newer APK exists.
+        Updater.checkAndInstall(this)
 
         // Install/runtime FS: opencode binary + loader sentinel + .local log all
         // live under files/opencode — outside the workspace, so the manager needs

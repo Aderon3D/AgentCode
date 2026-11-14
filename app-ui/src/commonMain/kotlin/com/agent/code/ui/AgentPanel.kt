@@ -66,6 +66,10 @@ fun AgentPanel(
             if (state.isRunning) {
                 Spacer(Modifier.width(4.dp))
                 OutlinedButton(onClick = { viewModel.cancelTask() }) { Text("Stop") }
+            } else if (state.events.isNotEmpty()) {
+                // Starts a fresh opencode session; the feed is the conversation.
+                Spacer(Modifier.width(4.dp))
+                TextButton(onClick = { viewModel.newChat() }) { Text("New") }
             }
         }
 

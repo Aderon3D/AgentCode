@@ -36,6 +36,19 @@ class AgentBrain(
     private suspend fun nextId(): Long = seqMutex.withLock { ++seq }
     private fun now(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
 
+    // Conversation continuity: every run event carries its opencode session id,
+    // and `run -s <id>` continues that conversation instead of starting empty.
+    // Committed only after a successful run, so a failed model retry or a
+    // cancelled task never leaves the next prompt duplicated inside a
+    // half-finished session. In-memory only: an app restart starts a new
+    // conversation (persisting the id belongs with M7).
+    private var sessionId: String? = null
+
+    /** Drop the conversation: the next task starts a new opencode session. */
+    fun newSession() {
+        sessionId = null
+    }
+
 @Suppress("TooGenericExceptionCaught") // boundary: any runPrompt failure falls through to the next model
 fun executeTask(
         taskId: String,
@@ -60,6 +73,7 @@ fun executeTask(
                 // "run <model>" = the subprocess is starting up).
                 send(BrainEvent.Thinking("run $model ..."))
                 val run = RunAccumulator()
+                var runSessionId: String? = null
 
                 // runPrompt spawns the subprocess and yields raw JSON lines;
                 // parseRunEvent maps each to SessionEvent(s). A completed tool
@@ -70,14 +84,17 @@ fun executeTask(
                     providerID = config.providerID,
                     model = model,
                     prompt = "$goal\n\n(workspace: ${workspaceRoot.rawPath})",
-                    workspace = workspaceRoot
+                    workspace = workspaceRoot,
+                    sessionId = sessionId
                 ).collect { line ->
+                    if (runSessionId == null) runSessionId = sessionIdOf(line)
                     for (ev in parseRunEvent(line)) {
                         run.onEvent(ev, model)?.let { send(it) }
                     }
                 }
 
                 if (run.finished && run.failure == null) {
+                    runSessionId?.let { sessionId = it }
                     val summary = run.transcript.toString().trim().ifBlank { "done (no text output)" }
                     send(BrainEvent.TaskComplete(summary))
                     val completeId = nextId()
@@ -157,3 +174,12 @@ private class RunAccumulator {
         else -> null
     }
 }
+
+// opencode stamps every run JSON event with "sessionID"; the first one on the
+// stream names the session this run used (a fresh one unless -s was passed).
+// Cheap regex instead of a second JSON parse: each event is parsed for its own
+// shape right after, and loader forensics lines ("elfloader: ...") simply miss.
+private val SESSION_ID_RE = Regex("\"sessionID\"\\s*:\\s*\"([^\"]+)\"")
+
+internal fun sessionIdOf(line: String): String? =
+    SESSION_ID_RE.find(line)?.groupValues?.get(1)

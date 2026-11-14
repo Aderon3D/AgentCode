@@ -351,27 +351,45 @@ class OpenCodeManager(
                 config.installDir.resolve("resolv.conf"),
                 resolvConf()
             ).getOrElse { error("resolv.conf write failed: ${it.message}") }
-            // Fail-fast npm (insurance): if opencode's startup install (bun/npm)
-            // still reaches for a registry package, point it at a dead loopback so
-            // it ECONNREFUSEs in milliseconds instead of blocking the dns-shim on
-            // registry.npmjs.org. HOME=installDir (set by the loader), so this
-            // .npmrc is read. Best-effort: a reachable package is an enhancement,
-            // not a dependency — the run proceeds with stock behavior (§3.7).
+            // Fail-fast npm: any config with a plugin[] entry makes opencode run
+            // a dependency install of @opencode-ai/plugin into the config dir
+            // before the session loop (r38 log 38: run sat 34s+ with zero output
+            // mid-retry; host measured 70.7s of npm backoff against the dead
+            // loopback before the non-fatal WARN). fetch-retries=0 + near-zero
+            // backoffs collapse that to ~0.2s; the install failure is ignored by
+            // opencode and the guard (a bare file path) needs no package. The
+            // dead loopback also blocks any real registry reach (§3.7).
             fileSystem.write(
                 config.installDir.resolve(".npmrc"),
-                "registry=http://127.0.0.1:1/\n"
+                "registry=http://127.0.0.1:1/\n" +
+                    "fetch-retries=0\n" +
+                    "fetch-retry-mintimeout=1\n" +
+                    "fetch-retry-maxtimeout=2\n" +
+                    "fetch-timeout=5000\n"
             )
+            // Guard plugin + global config (HOME=installDir): enforcement for
+            // the autonomous run path lives inside opencode — see AgentGuard.
+            fileSystem.write(
+                config.installDir.resolve("agent-guard.mjs"),
+                AgentGuard.pluginJs(installDir)
+            ).getOrElse { error("agent-guard write failed: ${it.message}") }
+            fileSystem.write(
+                VirtualPath.of("$installDir/.config/opencode/opencode.json"),
+                AgentGuard.configJson(installDir)
+            ).getOrElse { error("guard config write failed: ${it.message}") }
+            // Fresh audit per run (same rationale as the events file above).
+            runCatching { fileSystem.delete(config.installDir.resolve("agent-audit.log")) }
             // Starter workspace config so run-mode has a config anchor from cwd.
             ensureWorkspaceConfig(workspace)
         }
         return eventsFile
     }
 
-    // --pure: skip external plugin loading. On device opencode resolves any
-    // config-named plugins through npm, which can hang or fail with no
-    // network/cache — a silent no-events stall. The starter config lists
-    // none, but --pure keeps the agent path deterministic even if a user
-    // adds one. Plugins are an enhancement, not a dependency (§3.7).
+    // No --pure: it blocks ALL plugins, including the local agent-guard
+    // (verified on 1.18.27) that enforces tool.execute.before under --auto.
+    // The npm/arborist startup stall (r25 log 27) came from npm-named plugins
+    // in config; the guard is a bare file path resolved without npm, and the
+    // dead-loopback .npmrc above still fail-fasts any registry reach.
     private fun buildRunArgs(
         providerID: String,
         model: String,
@@ -380,7 +398,7 @@ class OpenCodeManager(
         sessionId: String?
     ): List<String> {
         val args = mutableListOf(
-            "run", "--format", "json", "--auto", "--pure",
+            "run", "--format", "json", "--auto",
             "--dir", workspace.rawPath,
             "-m", "$providerID/$model"
         )
@@ -488,12 +506,11 @@ class OpenCodeManager(
         val cfg = workspace.resolve("opencode.json")
         if (fileSystem.exists(cfg)) return
         // No `plugin` list: declaring npm plugins makes opencode run its npm
-        // install path (arborist) at startup even under `--pure` (opencode
-        // #31810/#37888), which on-device blocks in the dns-shim resolving
-        // registry.npmjs.org and stalls the run at `run <model> ...` (r25 log
-        // 27). --pure already loads no external plugins, so the list only hurt.
-        // ponytail: plugins off; if they're ever wanted offline, vendor them
-        // under .opencode/plugins/ and reference the local paths (§3.7).
+        // install path (arborist) at startup (opencode #31810/#37888), which
+        // on-device blocks in the dns-shim resolving registry.npmjs.org and
+        // stalls the run at `run <model> ...` (r25 log 27). The agent guard
+        // ships via the global config instead (AgentGuard) — a bare file path
+        // that never reaches npm — so this workspace anchor stays plugin-free.
         val json = """
             {
               "${'$'}schema": "https://opencode.ai/config.json"

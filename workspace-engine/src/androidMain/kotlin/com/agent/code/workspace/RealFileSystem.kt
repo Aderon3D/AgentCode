@@ -169,7 +169,13 @@ class RealFileSystem(private val root: VirtualPath) : FileSystemProvider {
         )
     }
 
-    private fun buildTree(file: File, virtualPath: VirtualPath, depth: Int, maxDepth: Int, ignorePatterns: List<String>): FileNode.Directory {
+    private fun buildTree(
+        file: File,
+        virtualPath: VirtualPath,
+        depth: Int,
+        maxDepth: Int,
+        ignorePatterns: List<String>
+    ): FileNode.Directory {
         val children = file.listFiles()
             ?.filter { child ->
                 val name = child.name

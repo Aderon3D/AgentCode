@@ -70,7 +70,8 @@ fun M1RealIoDemo(baseDir: String) {
                     val pruned = store.selfHeal()
                     val recovered = FileBackedWalStore(walFile).replay()
                     val walLine = if (recovered.size == events.size) {
-                        "Durable WAL OK: ${recovered.size} events recovered after restart" + if (pruned > 0) " ($pruned corrupt pruned)" else ""
+                        "Durable WAL OK: ${recovered.size} events recovered after restart" +
+                            if (pruned > 0) " ($pruned corrupt pruned)" else ""
                     } else {
                         "WAL MISMATCH: expected ${events.size}, got ${recovered.size}"
                     }

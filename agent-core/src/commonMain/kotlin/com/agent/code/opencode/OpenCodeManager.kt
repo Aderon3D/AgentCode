@@ -366,7 +366,7 @@ class OpenCodeManager(
                     "fetch-retry-mintimeout=1\n" +
                     "fetch-retry-maxtimeout=2\n" +
                     "fetch-timeout=5000\n"
-            )
+            ).getOrElse { error("npmrc write failed: ${it.message}") }
             // Guard plugin + global config (HOME=installDir): enforcement for
             // the autonomous run path lives inside opencode — see AgentGuard.
             fileSystem.write(
@@ -652,7 +652,10 @@ class OpenCodeManager(
             lastError = error ?: "HTTP $code"
             delay(100)
         }
-        throw IllegalStateException("OpenCode server did not start within ${config.startupTimeoutMs}ms on port $port (last health: $lastError)")
+        throw IllegalStateException(
+            "OpenCode server did not start within ${config.startupTimeoutMs}ms on port $port " +
+                "(last health: $lastError)"
+        )
     }
 
     private suspend fun checkChildOrZero(pid: Int): Int = try {

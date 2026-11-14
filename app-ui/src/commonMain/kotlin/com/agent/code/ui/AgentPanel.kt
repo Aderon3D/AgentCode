@@ -413,14 +413,23 @@ internal fun ProcessStatusHeader(
                 "Running (task)" to MaterialTheme.colorScheme.tertiary
             } else when (processState) {
                 is OpenCodeState.NotInstalled -> "Not installed" to MaterialTheme.colorScheme.error
-                is OpenCodeState.Installing -> "Installing ${(processState.progress * 100).toInt()}% — ${processState.message}" to MaterialTheme.colorScheme.primary
+                is OpenCodeState.Installing ->
+                    "Installing ${(processState.progress * 100).toInt()}% — ${processState.message}" to
+                        MaterialTheme.colorScheme.primary
                 is OpenCodeState.Starting -> "Starting..." to MaterialTheme.colorScheme.primary
                 is OpenCodeState.Running -> "Running on :${processState.port}" to MaterialTheme.colorScheme.tertiary
                 is OpenCodeState.Error -> "Error: ${processState.message}" to MaterialTheme.colorScheme.error
                 is OpenCodeState.Stopped -> "Stopped" to MaterialTheme.colorScheme.onSurfaceVariant
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Text("OpenCode: $label", color = color, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "OpenCode: $label",
+                    color = color,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 if (processState is OpenCodeState.Error) {
                     TextButton(onClick = { clipboard.setText(AnnotatedString(processState.message)) }) { Text("Copy", fontSize = 10.sp) }
                 }

@@ -44,5 +44,9 @@ interface FileSystemProvider {
     suspend fun exists(path: VirtualPath): Boolean
     suspend fun delete(path: VirtualPath): Result<Unit>
     suspend fun applyPatch(path: VirtualPath, patches: List<PatchOperation>): Result<Unit>
-    suspend fun walkTree(root: VirtualPath, maxDepth: Int = 10, ignorePatterns: List<String> = listOf(".git", "build", "node_modules", ".gradle")): Result<FileNode.Directory>
+    suspend fun walkTree(
+        root: VirtualPath,
+        maxDepth: Int = 10,
+        ignorePatterns: List<String> = listOf(".git", "build", "node_modules", ".gradle")
+    ): Result<FileNode.Directory>
 }

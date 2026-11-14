@@ -41,7 +41,10 @@ android {
     // and the in-app updater compares release tags (same string) with APP_BUILD.
     val appBuildCode = Regex("APP_BUILD\\s*=\\s*\"r(\\d+)\"")
         .find(file("../provider-subsystem/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeClient.kt").readText())
-        ?.groupValues?.get(1)?.toInt() ?: 1
+        ?.groupValues?.get(1)?.toInt()
+        // A silent 1 would downgrade the installed app and desync from the
+        // release tag; a broken parse must break the build instead.
+        ?: error("APP_BUILD \"r<NN>\" not found in OpenCodeClient.kt")
 
     // CI (and any scripted build) signs with a shared key so an APK built on
     // GitHub installs over the locally built one. Unset -> Gradle's debug key.

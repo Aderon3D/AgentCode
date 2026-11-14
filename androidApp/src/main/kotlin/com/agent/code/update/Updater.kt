@@ -49,6 +49,8 @@ object Updater {
 
     // Foregrounding is the cheapest retry trigger: a cold start often fires
     // before the radio is up, so one launch-time attempt is not enough.
+    // Written by the check worker (failure reset) and read on the main thread.
+    @Volatile
     private var lastCheckMs = 0L
 
     // One worker at a time: two quick foregrounds must not download twice.
@@ -96,7 +98,7 @@ object Updater {
                 status.value = "Confirm the install dialog for ${release.tag}"
                 install(context, apk)
                 return
-            } catch (e: Exception) {
+        } catch (e: Exception) {
                 lastError = e
                 Thread.sleep(1500L * (attempt + 1))
             }
@@ -153,6 +155,7 @@ object Updater {
         }
     }
 
+    @Suppress("TooGenericExceptionCaught") // any failure must still abandon the session
     private fun install(context: Context, apk: File) {
         // Android 8+ needs a per-app "install unknown apps" grant; without it
         // the commit below just fails and looks like a dead updater.
@@ -176,14 +179,21 @@ object Updater {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         val sessionId = installer.createSession(params)
-        installer.openSession(sessionId).use { session ->
-            session.openWrite("base.apk", 0, apk.length()).use { out ->
-                apk.inputStream().use { it.copyTo(out) }
-                session.fsync(out)
+        try {
+            installer.openSession(sessionId).use { session ->
+                session.openWrite("base.apk", 0, apk.length()).use { out ->
+                    apk.inputStream().use { it.copyTo(out) }
+                    session.fsync(out)
+                }
+                val intent = Intent(context, InstallResultReceiver::class.java)
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                session.commit(PendingIntent.getBroadcast(context, sessionId, intent, flags).intentSender)
             }
-            val intent = Intent(context, InstallResultReceiver::class.java)
-            val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            session.commit(PendingIntent.getBroadcast(context, sessionId, intent, flags).intentSender)
+        } catch (e: Exception) {
+            // use{} only closes: an uncommitted session stays registered and
+            // repeated failures would eventually exhaust createSession().
+            runCatching { installer.abandonSession(sessionId) }
+            throw e
         }
     }
 }

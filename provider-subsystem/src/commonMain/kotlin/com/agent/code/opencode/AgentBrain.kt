@@ -124,7 +124,7 @@ fun executeTask(
 // Mutable per-model run state for one `run` invocation. Maps each streamed
 // SessionEvent to the BrainEvent executeTask should emit (or null for events
 // with no visible effect), keeping the streaming loop small.
-private class RunAccumulator {
+internal class RunAccumulator {
     val transcript = StringBuilder()
     var currentTool = ""
     var steps = 0

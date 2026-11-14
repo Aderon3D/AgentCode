@@ -37,7 +37,8 @@ design (TDD V14.1) and the module layout.
 
 ```bash
 ./gradlew :androidApp:assembleDebug          # Android debug APK
-./gradlew :app-ui:testAndroidHostTest        # Host-side unit tests (68 tests)
+./gradlew :agent-core:testAndroidHostTest :provider-subsystem:testAndroidHostTest \
+                 :workspace-engine:testAndroidHostTest :app-ui:testAndroidHostTest  # host tests, all modules
 ```
 
 ## CI / security gates

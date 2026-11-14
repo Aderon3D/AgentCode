@@ -59,3 +59,7 @@ shared/src/androidMain/kotlin/com/agent/code/ui/ShizukuStatusDemo.kt
 # fossil MCP caches / scratch
 .fossil/
 /file.txt
+# cogit
+/.cogit/
+/logs/
+AgentCode-*.apk

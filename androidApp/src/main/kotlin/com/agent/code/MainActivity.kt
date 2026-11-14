@@ -14,6 +14,8 @@ import com.agent.code.opencode.AndroidDeviceDns
 import com.agent.code.service.ResilientAgentForegroundService
 import com.agent.code.ui.AgentViewModel
 import com.agent.code.security.AuditLog
+import com.agent.code.update.UpdateBanner
+import com.agent.code.update.Updater
 import com.agent.code.workspace.RealFileSystem
 import com.agent.code.workspace.GitProcessRunner
 
@@ -60,7 +62,15 @@ class MainActivity : ComponentActivity() {
                 governor = governor,
                 fileSystem = fileSystem,
                 workspaceRoot = workspaceRoot,
+                banner = { UpdateBanner() },
             )
         }
+    }
+
+    // Self-update from GitHub releases: checked on every foreground (throttled),
+    // because the cold-start attempt often races the network coming up.
+    override fun onStart() {
+        super.onStart()
+        Updater.checkIfDue(this)
     }
 }

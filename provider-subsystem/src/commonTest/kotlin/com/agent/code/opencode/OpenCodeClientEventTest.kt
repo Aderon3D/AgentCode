@@ -111,16 +111,16 @@ class OpenCodeClientEventTest {
         val evs = parseRunEvent(
             """{"type":"tool_use","timestamp":1,"sessionID":"ses_x","part":{"type":"tool","tool":"read","callID":"call_abc","state":{"status":"completed","input":{"filePath":"/x"},"output":"...","title":"file.txt"},"id":"prt_1","sessionID":"ses_x","messageID":"msg_1"}}"""
         )
-        assertEquals(3, evs.size)
-        assertIs<SessionEvent.ToolCalled>(evs[0])
-        assertEquals("read", (evs[0] as SessionEvent.ToolCalled).tool)
-        val inp = evs[1]
-        assertIs<SessionEvent.ToolInput>(inp)
-        assertEquals("""{"filePath":"/x"}""", inp.detail)
-        val fin = evs[2]
+        assertEquals(2, evs.size)
+        val called = evs[0]
+        assertIs<SessionEvent.ToolCalled>(called)
+        assertEquals("read", called.tool)
+        assertEquals("""{"filePath":"/x"}""", called.input)
+        val fin = evs[1]
         assertIs<SessionEvent.ToolFinished>(fin)
         assertEquals("call_abc", fin.callID)
         assertEquals(true, fin.ok)
+        assertEquals("...", fin.output)
     }
 
     @Test
@@ -164,5 +164,38 @@ class OpenCodeClientEventTest {
         assertEquals(emptyList(), parseRunEvent("elfloader: hb state=R wchan=0"))
         assertEquals(emptyList(), parseRunEvent("""{"type":"file","part":{"type":"file"}}"""))
         assertEquals(emptyList(), parseRunEvent("not json at all"))
+    }
+
+    @Test
+    fun runEvent_malformedPayloadsNeverThrow() {
+        // A single bad line must not kill the run: every shape below is noise.
+        assertEquals(emptyList(), parseRunEvent(""))
+        assertEquals(emptyList(), parseRunEvent("["))
+        assertEquals(emptyList(), parseRunEvent("42"))
+        assertEquals(emptyList(), parseRunEvent("""{"no":"type"}"""))
+        assertEquals(emptyList(), parseRunEvent("""{"type":123}"""))
+        assertEquals(emptyList(), parseRunEvent("""{"type":"text","part":"not-an-object"}"""))
+        assertEquals(emptyList(), parseRunEvent("""{"type":"text","part":{"text":""}}"""))
+    }
+
+    @Test
+    fun runEvent_reasoning_parsesText() {
+        val evs = parseRunEvent("""{"type":"reasoning","part":{"text":"checking the repo"}}""")
+        assertEquals(1, evs.size)
+        assertIs<SessionEvent.Reasoning>(evs[0])
+        assertEquals("checking the repo", (evs[0] as SessionEvent.Reasoning).text)
+    }
+
+    @Test
+    fun runEvent_failedToolKeepsOutput() {
+        val evs = parseRunEvent(
+            """{"type":"tool_use","part":{"tool":"bash","callID":"c9","state":{"status":"error","input":{"command":"false"},"output":"exit 1"}}}"""
+        )
+        assertEquals(2, evs.size)
+        assertEquals("""{"command":"false"}""", (evs[0] as SessionEvent.ToolCalled).input)
+        val fin = evs[1]
+        assertIs<SessionEvent.ToolFinished>(fin)
+        assertEquals(false, fin.ok)
+        assertEquals("exit 1", fin.output)
     }
 }

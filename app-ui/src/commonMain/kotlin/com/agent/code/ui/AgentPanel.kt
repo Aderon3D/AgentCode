@@ -1,11 +1,13 @@
 package com.agent.code.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +21,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agent.code.opencode.OpenCodeState
 
+/**
+ * Conversation view: the feed reads like a chat instead of a debug log.
+ *
+ * - the goal the user typed and the agent's final answer are message bubbles,
+ * - tool activity is one dim monospace line per call (finish/iteration rows are
+ *   protocol noise and stay out of the transcript),
+ * - process state is a single status line — diagnostics live in the Debug tab.
+ */
 @Composable
 fun AgentPanel(
     viewModel: AgentViewModel,
@@ -28,73 +38,359 @@ fun AgentPanel(
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(state.events.size) {
-        if (state.events.isNotEmpty()) {
-            listState.animateScrollToItem(state.events.lastIndex)
-        }
+    // Only conversation-shaped events make the transcript; stage markers
+    // ("run model ...", iteration counters) are noise here.
+    val chat = remember(state.events) { chatItems(state.events) }
+    // Expanded tool calls / reasoning blocks, keyed by row index (append-only).
+    val expanded = remember { mutableStateMapOf<Int, Boolean>() }
+    val itemCount = chat.size + if (state.isRunning) 1 else 0
+
+    // Follow new rows only while the reader is at the bottom: a streaming run
+    // must not yank the view away from someone who scrolled up to read.
+    LaunchedEffect(itemCount) {
+        if (itemCount == 0) return@LaunchedEffect
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+        if (lastVisible >= itemCount - 2) listState.animateScrollToItem(itemCount - 1)
     }
 
-    // Tab content is a plain (non-scrollable) Column, so weight() is safe here.
-    Column(modifier = modifier.fillMaxSize().padding(8.dp)) {
-        ProcessStatusHeader(
-            processState = state.processState,
-            isRunning = state.isRunning,
+    Column(modifier = modifier.fillMaxSize()) {
+        StatusBar(
+            state = state,
             onStart = { viewModel.startOpenCode() },
-            onStop = { viewModel.stopOpenCode() }
+            onNew = { viewModel.newChat() },
         )
+        HorizontalDivider()
 
-        Spacer(Modifier.height(8.dp))
-
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = { inputText = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Agent goal...") },
-                enabled = !state.isRunning && state.processState !is OpenCodeState.NotInstalled,
-                singleLine = true
-            )
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    viewModel.executeTask(inputText)
-                    inputText = ""
-                },
-                enabled = !state.isRunning && inputText.isNotBlank()
-                        && state.processState !is OpenCodeState.NotInstalled
-            ) { Text("Run") }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (chat.isEmpty() && !state.isRunning) {
+                item {
+                    Text(
+                        "Give the agent a task — it works in the app's workspace.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            itemsIndexed(chat) { index, item ->
+                ChatRow(
+                    item = item,
+                    expanded = expanded[index] == true,
+                    onToggle = { expanded[index] = !(expanded[index] ?: false) },
+                )
+            }
             if (state.isRunning) {
-                Spacer(Modifier.width(4.dp))
-                OutlinedButton(onClick = { viewModel.cancelTask() }) { Text("Stop") }
+                item { WorkingRow() }
             }
         }
 
         state.error?.let {
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Error: $it", color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                val clipboard = LocalClipboardManager.current
-                TextButton(onClick = { clipboard.setText(AnnotatedString(it)) }) { Text("Copy", fontSize = 11.sp) }
-            }
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
         }
 
-        Spacer(Modifier.height(8.dp))
+        Composer(
+            text = inputText,
+            onTextChange = { inputText = it },
+            running = state.isRunning,
+            notInstalled = state.processState is OpenCodeState.NotInstalled,
+            onSend = {
+                val goal = inputText.trim()
+                if (goal.isNotEmpty()) {
+                    viewModel.executeTask(goal)
+                    inputText = ""
+                }
+            },
+            onStop = { viewModel.cancelTask() },
+        )
+    }
+}
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxWidth().weight(1f)
-                .background(
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    RoundedCornerShape(4.dp)
-                ).padding(4.dp)
+/** One-line process state; Start only appears when opencode is missing or errored. */
+@Composable
+private fun StatusBar(
+    state: AgentUiState,
+    onStart: () -> Unit,
+    onNew: () -> Unit,
+) {
+    val (label, color) = statusOf(state)
+    val busy = state.isRunning || state.processState is OpenCodeState.Starting ||
+        state.processState is OpenCodeState.Installing
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = color)
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        // Which APK is actually running — the first thing to check when an
+        // update or a fix "didn't take".
+        Text(
+            com.agent.code.opencode.OpenCodeClient.APP_BUILD,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.outline,
+        )
+        Spacer(Modifier.width(6.dp))
+        if (!state.isRunning && state.events.isNotEmpty()) {
+            TextButton(onClick = onNew) { Text("New", fontSize = 12.sp) }
+        }
+        if (state.processState is OpenCodeState.NotInstalled) {
+            TextButton(onClick = onStart) { Text("Start", fontSize = 12.sp) }
+        }
+    }
+    if (state.processState is OpenCodeState.Installing) {
+        LinearProgressIndicator(
+            progress = { (state.processState as OpenCodeState.Installing).progress },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun statusOf(state: AgentUiState): Pair<String, androidx.compose.ui.graphics.Color> {
+    if (state.isRunning) return "Working…" to MaterialTheme.colorScheme.tertiary
+    return when (val s = state.processState) {
+        is OpenCodeState.NotInstalled -> "opencode not installed" to MaterialTheme.colorScheme.error
+        is OpenCodeState.Installing -> "Installing ${(s.progress * 100).toInt()}%" to MaterialTheme.colorScheme.primary
+        is OpenCodeState.Starting -> "Starting…" to MaterialTheme.colorScheme.primary
+        is OpenCodeState.Running -> "Ready" to MaterialTheme.colorScheme.tertiary
+        is OpenCodeState.Error -> "Error: ${s.message}" to MaterialTheme.colorScheme.error
+        is OpenCodeState.Stopped -> "Ready" to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+}
+
+@Composable
+private fun ChatRow(item: ChatItem, expanded: Boolean, onToggle: () -> Unit) {
+    when (item) {
+        is ChatItem.User -> Bubble(item.text, mine = true)
+        is ChatItem.Agent -> AgentBubble(item.text)
+        is ChatItem.Reasoning -> ReasoningRow(item.text, expanded, onToggle)
+        is ChatItem.Tool -> ToolCallRow(item, expanded, onToggle)
+        is ChatItem.Note -> Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
         ) {
-            items(state.events) { event ->
-                AgentEventRow(event)
+            Text(
+                item.text,
+                fontSize = 10.sp,
+                color = if (item.error) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** The agent's reply: markdown, not a raw Text dump. */
+@Composable
+private fun AgentBubble(text: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        SelectionContainer {
+            Column(
+                Modifier
+                    .widthIn(max = 360.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                MarkdownText(text, MaterialTheme.colorScheme.onSurface)
             }
         }
     }
 }
 
+@Composable
+private fun ReasoningRow(text: String, expanded: Boolean, onToggle: () -> Unit) {
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (expanded) "▾" else "▸",
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = dim,
+                modifier = Modifier.width(12.dp),
+            )
+            Text(
+                "thinking · ${text.length} chars",
+                fontSize = 10.sp,
+                color = dim,
+            )
+        }
+        if (expanded) {
+            SelectionContainer {
+                Text(
+                    capText(text, 6000),
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    color = dim,
+                    modifier = Modifier.padding(start = 12.dp, top = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+/** One tool call, collapsed to a line; expand for full args + output. */
+@Composable
+private fun ToolCallRow(item: ChatItem.Tool, expanded: Boolean, onToggle: () -> Unit) {
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    val mono = FontFamily.Monospace
+    val nameColor = when (item.ok) {
+        true -> dim
+        false -> MaterialTheme.colorScheme.error
+        null -> MaterialTheme.colorScheme.tertiary
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (expanded) "▾" else "▸",
+                fontSize = 10.sp,
+                fontFamily = mono,
+                color = dim,
+                modifier = Modifier.width(12.dp),
+            )
+            Text(item.name, fontSize = 11.sp, fontFamily = mono, fontWeight = FontWeight.SemiBold, color = nameColor)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                toolPreview(item),
+                fontSize = 11.sp,
+                fontFamily = mono,
+                color = dim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (item.ok == null) {
+                CircularProgressIndicator(Modifier.size(9.dp), strokeWidth = 1.2.dp)
+            } else if (!item.ok) {
+                Text("failed", fontSize = 9.sp, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        if (expanded) {
+            if (item.args.isNotBlank()) CodeBox(capText(item.args, 6000))
+            if (item.output.isNotBlank()) CodeBox(capText(item.output, 12000))
+        }
+    }
+}
+
+private fun toolPreview(item: ChatItem.Tool): String =
+    (item.args.ifBlank { item.output })
+        .lineSequence().firstOrNull()?.trim()?.take(120) ?: ""
+
+private fun capText(text: String, max: Int): String =
+    if (text.length <= max) text else text.take(max) + "\n… (${text.length - max} chars cut)"
+
+@Composable
+private fun CodeBox(text: String) {
+    SelectionContainer {
+        Text(
+            text,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
+                .padding(6.dp),
+        )
+    }
+}
+
+@Composable
+private fun Bubble(text: String, mine: Boolean) {
+    val bg = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (mine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
+    ) {
+        SelectionContainer {
+            Text(
+                text,
+                modifier = Modifier
+                    .widthIn(max = 340.dp)
+                    .background(bg, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                color = fg,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkingRow() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(Modifier.size(10.dp), strokeWidth = 1.5.dp)
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "working…",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun Composer(
+    text: String,
+    onTextChange: (String) -> Unit,
+    running: Boolean,
+    notInstalled: Boolean,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(8.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = onTextChange,
+            modifier = Modifier.weight(1f),
+            placeholder = { Text("Ask or give a task…") },
+            enabled = !running && !notInstalled,
+            maxLines = 4,
+            shape = RoundedCornerShape(12.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        if (running) {
+            FilledTonalButton(onClick = onStop) { Text("Stop") }
+        } else {
+            Button(onClick = onSend, enabled = text.isNotBlank() && !notInstalled) { Text("Send") }
+        }
+    }
+}
+
+/**
+ * Compact process state for the Debug tab. Kept separate from the chat's
+ * [StatusBar]: this one names ports, errors and offers Start/Stop.
+ */
 @Composable
 internal fun ProcessStatusHeader(
     processState: OpenCodeState,
@@ -117,14 +413,23 @@ internal fun ProcessStatusHeader(
                 "Running (task)" to MaterialTheme.colorScheme.tertiary
             } else when (processState) {
                 is OpenCodeState.NotInstalled -> "Not installed" to MaterialTheme.colorScheme.error
-                is OpenCodeState.Installing -> "Installing ${(processState.progress * 100).toInt()}% — ${processState.message}" to MaterialTheme.colorScheme.primary
+                is OpenCodeState.Installing ->
+                    "Installing ${(processState.progress * 100).toInt()}% — ${processState.message}" to
+                        MaterialTheme.colorScheme.primary
                 is OpenCodeState.Starting -> "Starting..." to MaterialTheme.colorScheme.primary
                 is OpenCodeState.Running -> "Running on :${processState.port}" to MaterialTheme.colorScheme.tertiary
                 is OpenCodeState.Error -> "Error: ${processState.message}" to MaterialTheme.colorScheme.error
                 is OpenCodeState.Stopped -> "Stopped" to MaterialTheme.colorScheme.onSurfaceVariant
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Text("OpenCode: $label", color = color, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "OpenCode: $label",
+                    color = color,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 if (processState is OpenCodeState.Error) {
                     TextButton(onClick = { clipboard.setText(AnnotatedString(processState.message)) }) { Text("Copy", fontSize = 10.sp) }
                 }
@@ -156,38 +461,3 @@ private fun canStart(processState: OpenCodeState, isRunning: Boolean): Boolean =
         is OpenCodeState.NotInstalled, is OpenCodeState.Error, is OpenCodeState.Stopped -> true
         else -> false
     }
-
-@Composable
-private fun AgentEventRow(event: UiEvent) {
-    val marker: String
-    val text: String
-    val color: androidx.compose.ui.graphics.Color
-    val font: FontFamily
-    when (event) {
-        is UiEvent.Thinking -> { marker = "*"; text = event.text; color = MaterialTheme.colorScheme.onSurface; font = FontFamily.Default }
-        is UiEvent.ToolStarted -> { marker = ">"; text = " ${event.name}(${event.args.take(80)})"; color = MaterialTheme.colorScheme.primary; font = FontFamily.Monospace }
-        is UiEvent.ToolFinished -> {
-            marker = "<"
-            text = " ${event.name} ${if (event.success) "ok" else "FAIL"}"
-            color = if (event.success) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
-            font = FontFamily.Monospace
-        }
-        is UiEvent.Iteration -> { marker = "*"; text = "iteration ${event.number} complete"; color = MaterialTheme.colorScheme.onSurface; font = FontFamily.Default }
-        is UiEvent.Complete -> { marker = "+"; text = "done: ${event.summary}"; color = MaterialTheme.colorScheme.tertiary; font = FontFamily.Default }
-        is UiEvent.Failed -> { marker = "!"; text = "failed: ${event.reason}"; color = MaterialTheme.colorScheme.error; font = FontFamily.Default }
-    }
-
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 1.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(marker, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(14.dp))
-        Text(
-            text = text,
-            fontSize = 11.sp,
-            color = color,
-            fontFamily = font,
-            lineHeight = 14.sp
-        )
-    }
-}

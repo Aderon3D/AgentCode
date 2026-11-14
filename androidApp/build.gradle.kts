@@ -36,12 +36,32 @@ android {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     ndkVersion = "29.0.14206865"
 
+    // The build id is the single version source: APP_BUILD "r<n>" -> versionCode n,
+    // versionName "r<n>". Android needs a non-decreasing versionCode for updates,
+    // and the in-app updater compares release tags (same string) with APP_BUILD.
+    val appBuildCode = Regex("APP_BUILD\\s*=\\s*\"r(\\d+)\"")
+        .find(file("../provider-subsystem/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeClient.kt").readText())
+        ?.groupValues?.get(1)?.toInt()
+        // A silent 1 would downgrade the installed app and desync from the
+        // release tag; a broken parse must break the build instead.
+        ?: error("APP_BUILD \"r<NN>\" not found in OpenCodeClient.kt")
+
+    // CI (and any scripted build) signs with a shared key so an APK built on
+    // GitHub installs over the locally built one. Unset -> Gradle's debug key.
+    val sharedStore = System.getenv("SIGNING_STORE_FILE")
+    val sharedSigning = if (sharedStore == null) null else signingConfigs.create("shared") {
+        storeFile = file(sharedStore)
+        storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+        keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+        keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+    }
+
     defaultConfig {
         applicationId = "com.agent.code"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appBuildCode
+        versionName = "r$appBuildCode"
     }
     packaging {
         jniLibs {
@@ -52,6 +72,9 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            if (sharedSigning != null) signingConfig = sharedSigning
+        }
         getByName("release") {
             isMinifyEnabled = false
         }

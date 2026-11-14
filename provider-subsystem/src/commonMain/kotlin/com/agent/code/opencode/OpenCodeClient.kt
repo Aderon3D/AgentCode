@@ -37,7 +37,7 @@ class OpenCodeClient(
     // fix ships a stale tag and two different APKs read identically (log 20).
     // Bump APP_BUILD on every client-side change so a pasted dump names its APK.
     companion object {
-        const val APP_BUILD = "r31"
+        const val APP_BUILD = "r42"
     }
 
     // x-opencode-directory on every session request: the server's workspace
@@ -437,8 +437,9 @@ sealed interface SessionEvent {
     data class TextDelta(val text: String) : SessionEvent
     data class TextEnded(val text: String) : SessionEvent
     data class ToolInput(val detail: String) : SessionEvent
-    data class ToolCalled(val tool: String) : SessionEvent
-    data class ToolFinished(val callID: String, val ok: Boolean) : SessionEvent
+    data class ToolCalled(val tool: String, val input: String = "") : SessionEvent
+    data class ToolFinished(val callID: String, val ok: Boolean, val output: String = "") : SessionEvent
+    data class Reasoning(val text: String) : SessionEvent
     data class StepEnded(val finish: String) : SessionEvent
     data class Failed(val message: String) : SessionEvent
     data class StreamInfo(val detail: String) : SessionEvent
@@ -469,6 +470,8 @@ private object RunEventParsers {
         return when (type) {
             "step_start" -> listOf(SessionEvent.StepStarted(str(part, "model") ?: "?", "build"))
             "text" -> text(part)
+            "reasoning" -> str(part, "text")?.takeIf { it.isNotBlank() }
+                ?.let { listOf(SessionEvent.Reasoning(it)) } ?: emptyList()
             "tool_use" -> toolUse(part)
             "step_finish" -> listOf(SessionEvent.StepEnded(str(part, "reason") ?: "unknown"))
             "error" -> listOf(SessionEvent.Failed(errorMessage(root)))
@@ -493,12 +496,18 @@ private object RunEventParsers {
         // ran), not just the bare tool name.
         val inputObj = state?.get("input")?.jsonObject
         val input = if (inputObj != null && inputObj.isNotEmpty()) inputObj.toString() else ""
-        val start = if (input.isEmpty()) listOf(SessionEvent.ToolCalled(tool))
-                    else listOf(SessionEvent.ToolCalled(tool), SessionEvent.ToolInput(input))
+        // The result text: what the run actually produced (feed's other half).
+        val outEl = state?.get("output")
+        val output = when (outEl) {
+            null -> ""
+            is JsonPrimitive -> outEl.contentOrNull ?: ""
+            else -> outEl.toString()
+        }
+        val called = SessionEvent.ToolCalled(tool, input)
         return when (status) {
-            "completed" -> start + SessionEvent.ToolFinished(callID, true)
-            "error", "failed" -> start + SessionEvent.ToolFinished(callID, false)
-            else -> start
+            "completed" -> listOf(called, SessionEvent.ToolFinished(callID, true, output))
+            "error", "failed" -> listOf(called, SessionEvent.ToolFinished(callID, false, output))
+            else -> listOf(called)
         }
     }
 

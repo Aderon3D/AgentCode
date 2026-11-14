@@ -39,9 +39,15 @@ data class AgentUiState(
 )
 
 sealed interface UiEvent {
+    /** The goal the user submitted; the transcript's opening bubble. */
+    data class UserMessage(val text: String) : UiEvent
+    /** The assistant's reply text (markdown). */
+    data class Message(val text: String) : UiEvent
+    /** Model reasoning, shown collapsed; not part of the answer. */
+    data class Reasoning(val text: String) : UiEvent
     data class Thinking(val text: String) : UiEvent
     data class ToolStarted(val name: String, val args: String) : UiEvent
-    data class ToolFinished(val name: String, val success: Boolean) : UiEvent
+    data class ToolFinished(val name: String, val success: Boolean, val output: String = "") : UiEvent
     data class Iteration(val number: Int) : UiEvent
     data class Complete(val summary: String) : UiEvent
     data class Failed(val reason: String) : UiEvent
@@ -129,9 +135,12 @@ class AgentViewModel(
             // prompt stalled) plus loader/server logs.
             val feed = s.events.takeLast(15).joinToString("\n") { e ->
                 val (marker, text) = when (e) {
+                    is UiEvent.UserMessage -> ">" to e.text
+                    is UiEvent.Message -> "=" to e.text
+                    is UiEvent.Reasoning -> "?" to e.text.take(200)
                     is UiEvent.Thinking -> "*" to e.text
-                    is UiEvent.ToolStarted -> ">" to "${e.name}(${e.args.take(80)})"
-                    is UiEvent.ToolFinished -> "<" to "${e.name} ${if (e.success) "ok" else "err"}"
+                    is UiEvent.ToolStarted -> ">" to "${e.name}(${e.args.take(200)})"
+                    is UiEvent.ToolFinished -> "<" to "${e.name} ${if (e.success) "ok" else "err"}: ${e.output.take(200)}"
                     is UiEvent.Iteration -> "*" to "iteration ${e.number} complete"
                     is UiEvent.Complete -> "+" to "done: ${e.summary}"
                     is UiEvent.Failed -> "!" to "failed: ${e.reason}"
@@ -171,9 +180,10 @@ class AgentViewModel(
             it.copy(
                 isRunning = true,
                 currentGoal = goal,
-                // First visible mark: if the feed stays empty AFTER this line the
-                // break is downstream (session/prompt/SSE), before it = submit never ran.
-                events = listOf(UiEvent.Thinking("→ goal: $goal")),
+                // Keep the conversation on screen across tasks — the brain
+                // continues the same opencode session (AgentBrain.sessionId).
+                // Capped so a long chat cannot grow Compose state unboundedly.
+                events = it.events.takeLast(499) + UiEvent.UserMessage(goal),
                 error = null
             )
         }
@@ -181,20 +191,30 @@ class AgentViewModel(
         brainJob = scope.launch {
             try {
                 val taskId = "T-${System.currentTimeMillis()}"
-                val events = mutableListOf<UiEvent>()
 
                 brain.executeTask(taskId, goal, workspaceRoot).collect { event ->
                     val uiEvent = when (event) {
+                        is BrainEvent.Answer -> UiEvent.Message(event.text)
+                        is BrainEvent.Reasoning -> UiEvent.Reasoning(event.text)
                         is BrainEvent.Thinking -> UiEvent.Thinking(event.text)
                         is BrainEvent.ToolCallStarted -> UiEvent.ToolStarted(event.toolName, event.args)
-                        is BrainEvent.ToolCallFinished -> UiEvent.ToolFinished(event.toolName, event.success)
+                        is BrainEvent.ToolCallFinished ->
+                            // One `cat` or a build log can be hundreds of KB; the
+                            // transcript keeps only what it can ever display.
+                            UiEvent.ToolFinished(
+                                event.toolName,
+                                event.success,
+                                event.output.take(MAX_TOOL_OUTPUT_CHARS),
+                            )
                         is BrainEvent.IterationComplete -> UiEvent.Iteration(event.iteration)
                         is BrainEvent.TaskComplete -> UiEvent.Complete(event.summary)
                         is BrainEvent.TaskFailed -> UiEvent.Failed(event.reason)
                     }
-                    events.add(uiEvent)
-                    val snapshot = events.toList()
-                    _state.update { it.copy(events = snapshot) }
+                    // Append, never replace: the feed is the whole conversation,
+                    // so a second task's events land after the first task's and
+                    // the on-screen transcript matches the session the model
+                    // continues. Cap keeps Compose state bounded.
+                    _state.update { it.copy(events = (it.events + uiEvent).takeLast(500)) }
 
                     if (event is BrainEvent.TaskComplete || event is BrainEvent.TaskFailed) {
                         _state.update { it.copy(isRunning = false) }
@@ -219,6 +239,14 @@ class AgentViewModel(
         _state.update { it.copy(isRunning = false) }
     }
 
+    // Fresh conversation: the next task starts a new opencode session and the
+    // feed starts over. Idle-only; a running task keeps its context.
+    fun newChat() {
+        if (_state.value.isRunning) return
+        brain.newSession()
+        _state.update { it.copy(events = emptyList(), error = null) }
+    }
+
     fun destroy() {
         cancelTask()
         statePollJob?.cancel()
@@ -230,6 +258,10 @@ class AgentViewModel(
     }
 
     companion object {
+        // Bounds the transcript's memory: tool results are the only unbounded
+        // field in the 500-event window.
+        private const val MAX_TOOL_OUTPUT_CHARS = 20_000
+
         fun create(
             scope: CoroutineScope,
             fileSystem: FileSystemProvider,

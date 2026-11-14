@@ -19,7 +19,9 @@ subprojects {
         // Stock ruleset + our overrides (config/detekt/detekt.yml).
         buildUponDefaultConfig.set(true)
         config.setFrom(rootProject.files("config/detekt/detekt.yml"))
-        ignoreFailures.set(true)
+        // Local runs just report; CI sets CI=true and fails on findings, so the
+        // detekt step in build.yml is a real gate.
+        ignoreFailures.set(System.getenv("CI") == null)
     }
     // detekt's default source dirs (src/main/kotlin, …) miss the KMP layout
     // (src/commonMain/kotlin, src/androidMain/kotlin, …), which leaves the

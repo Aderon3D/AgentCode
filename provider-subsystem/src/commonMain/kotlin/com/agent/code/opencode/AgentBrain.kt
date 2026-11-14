@@ -18,8 +18,11 @@ data class AgentConfig(
 
 sealed interface BrainEvent {
     data class Thinking(val text: String) : BrainEvent
+    /** The assistant's actual reply text (markdown), streamed per step. */
+    data class Answer(val text: String) : BrainEvent
+    data class Reasoning(val text: String) : BrainEvent
     data class ToolCallStarted(val toolName: String, val args: String) : BrainEvent
-    data class ToolCallFinished(val toolName: String, val success: Boolean) : BrainEvent
+    data class ToolCallFinished(val toolName: String, val success: Boolean, val output: String = "") : BrainEvent
     data class IterationComplete(val iteration: Int) : BrainEvent
     data class TaskComplete(val summary: String) : BrainEvent
     data class TaskFailed(val reason: String) : BrainEvent
@@ -35,6 +38,19 @@ class AgentBrain(
     private val seqMutex = Mutex()
     private suspend fun nextId(): Long = seqMutex.withLock { ++seq }
     private fun now(): Long = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+
+    // Conversation continuity: every run event carries its opencode session id,
+    // and `run -s <id>` continues that conversation instead of starting empty.
+    // Committed only after a successful run, so a failed model retry or a
+    // cancelled task never leaves the next prompt duplicated inside a
+    // half-finished session. In-memory only: an app restart starts a new
+    // conversation (persisting the id belongs with M7).
+    private var sessionId: String? = null
+
+    /** Drop the conversation: the next task starts a new opencode session. */
+    fun newSession() {
+        sessionId = null
+    }
 
 @Suppress("TooGenericExceptionCaught") // boundary: any runPrompt failure falls through to the next model
 fun executeTask(
@@ -60,6 +76,7 @@ fun executeTask(
                 // "run <model>" = the subprocess is starting up).
                 send(BrainEvent.Thinking("run $model ..."))
                 val run = RunAccumulator()
+                var runSessionId: String? = null
 
                 // runPrompt spawns the subprocess and yields raw JSON lines;
                 // parseRunEvent maps each to SessionEvent(s). A completed tool
@@ -70,14 +87,17 @@ fun executeTask(
                     providerID = config.providerID,
                     model = model,
                     prompt = "$goal\n\n(workspace: ${workspaceRoot.rawPath})",
-                    workspace = workspaceRoot
+                    workspace = workspaceRoot,
+                    sessionId = sessionId
                 ).collect { line ->
+                    if (runSessionId == null) runSessionId = sessionIdOf(line)
                     for (ev in parseRunEvent(line)) {
                         run.onEvent(ev, model)?.let { send(it) }
                     }
                 }
 
                 if (run.finished && run.failure == null) {
+                    runSessionId?.let { sessionId = it }
                     val summary = run.transcript.toString().trim().ifBlank { "done (no text output)" }
                     send(BrainEvent.TaskComplete(summary))
                     val completeId = nextId()
@@ -104,7 +124,7 @@ fun executeTask(
 // Mutable per-model run state for one `run` invocation. Maps each streamed
 // SessionEvent to the BrainEvent executeTask should emit (or null for events
 // with no visible effect), keeping the streaming loop small.
-private class RunAccumulator {
+internal class RunAccumulator {
     val transcript = StringBuilder()
     var currentTool = ""
     var steps = 0
@@ -118,20 +138,19 @@ private class RunAccumulator {
         }
         is SessionEvent.ToolCalled -> {
             currentTool = ev.tool
-            BrainEvent.ToolCallStarted(ev.tool, "")
+            BrainEvent.ToolCallStarted(ev.tool, ev.input)
         }
-        is SessionEvent.ToolFinished -> BrainEvent.ToolCallFinished(currentTool, ev.ok)
-        // Surface the tool args (the feed's whole point: what the agent ran
-        // when a run stalls).
-        is SessionEvent.ToolInput ->
-            if (ev.detail.isNotBlank()) BrainEvent.Thinking("run: ${ev.detail.take(200)}") else null
+        is SessionEvent.ToolFinished -> BrainEvent.ToolCallFinished(currentTool, ev.ok, ev.output)
+        is SessionEvent.Reasoning -> BrainEvent.Reasoning(ev.text)
+        // Legacy SSE shape: args already arrive on ToolCalled in run mode.
+        is SessionEvent.ToolInput -> null
         is SessionEvent.TextEnded -> {
             val t = ev.text.trim()
             if (t.isEmpty()) {
                 null
             } else {
                 transcript.append(t).append("\n\n")
-                BrainEvent.Thinking(t)
+                BrainEvent.Answer(t)
             }
         }
         is SessionEvent.StepEnded -> {
@@ -157,3 +176,12 @@ private class RunAccumulator {
         else -> null
     }
 }
+
+// opencode stamps every run JSON event with "sessionID"; the first one on the
+// stream names the session this run used (a fresh one unless -s was passed).
+// Cheap regex instead of a second JSON parse: each event is parsed for its own
+// shape right after, and loader forensics lines ("elfloader: ...") simply miss.
+private val SESSION_ID_RE = Regex("\"sessionID\"\\s*:\\s*\"([^\"]+)\"")
+
+internal fun sessionIdOf(line: String): String? =
+    SESSION_ID_RE.find(line)?.groupValues?.get(1)

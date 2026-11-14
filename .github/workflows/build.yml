@@ -1,10 +1,9 @@
 # Build verification — required PR gate for Aderon3D.
 #
 # Every PR targeting `main` MUST compile the KMP library modules (agent-core,
-# provider-subsystem, workspace-engine, app-ui) and the Android app, and pass the
-# M0.5 host tests (`./gradlew :app-ui:testAndroidHostTest`).
-# This is the primary guard against AI-generated code that does not even compile
-# or breaks the deterministic M0.5 spine.
+# provider-subsystem, workspace-engine, app-ui) and the Android app, pass every
+# module's host tests, and run detekt. This is the primary guard against
+# AI-generated code that does not compile or silently breaks a module's tests.
 name: "Build & Test"
 
 on:
@@ -49,5 +48,14 @@ jobs:
       - name: Assemble Android debug APK
         run: ./gradlew :androidApp:assembleDebug --no-daemon
 
-      - name: Run M0.5 host tests
-        run: ./gradlew :app-ui:testAndroidHostTest --no-daemon
+      - name: Run host tests (all modules)
+        run: >-
+          ./gradlew
+          :agent-core:testAndroidHostTest
+          :provider-subsystem:testAndroidHostTest
+          :workspace-engine:testAndroidHostTest
+          :app-ui:testAndroidHostTest
+          --no-daemon
+
+      - name: Static analysis (detekt)
+        run: ./gradlew detekt --no-daemon

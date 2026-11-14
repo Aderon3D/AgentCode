@@ -17,4 +17,10 @@ expect object PlatformOps {
         args: Array<String>
     ): Int
     fun checkChild(pid: Int): Int
+
+    /**
+     * DNS servers the device's active network hands out. Empty when unknown
+     * (or no context yet), so callers keep their own fallback resolvers.
+     */
+    fun deviceDnsServers(): List<String>
 }

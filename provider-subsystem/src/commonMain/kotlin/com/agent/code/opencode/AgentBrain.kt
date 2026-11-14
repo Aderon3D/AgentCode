@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.withLock
 data class AgentConfig(
     val providerID: String = "opencode",
     // Tried in order; the first model that completes a run wins.
-    val models: List<String> = listOf("mimo-v2.6-flash-free", "space-bunny-free")
+    val models: List<String> = listOf("mimo-v2.6-flash-free", "deepseek-v4.1-flash-free")
 )
 
 sealed interface BrainEvent {

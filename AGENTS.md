@@ -50,3 +50,13 @@ the MCP analysis tools sit idle. Follow these thresholds:
 ```
 JAVA_HOME=/opt/java/jdk-21.0.12.1+1 ./gradlew :androidApp:assembleDebug
 ```
+
+Host tests live in every module; run them all before pushing (CI does):
+
+```
+JAVA_HOME=/opt/java/jdk-21.0.12.1+1 ./gradlew \
+  :agent-core:testAndroidHostTest \
+  :provider-subsystem:testAndroidHostTest \
+  :workspace-engine:testAndroidHostTest \
+  :app-ui:testAndroidHostTest
+```

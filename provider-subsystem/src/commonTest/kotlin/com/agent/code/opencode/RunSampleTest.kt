@@ -55,6 +55,17 @@ class RunSampleTest {
     }
 
     @Test
+    fun storedLinesReplayToTheSameEventsAsTheLiveRun() {
+        val liveAcc = RunAccumulator()
+        val live = sample.flatMap { parseRunEvent(it) }.mapNotNull { liveAcc.onEvent(it, "mimo") }
+
+        val replayed = replayRun(sample, "mimo")
+
+        assertTrue(replayed.isNotEmpty())
+        assertEquals(live, replayed, "restored transcript must match the live one")
+    }
+
+    @Test
     fun sessionIdIsReadFromTheFirstLine() {
         val first = sample.first()
         assertEquals("ses_x", sessionIdOf(first))

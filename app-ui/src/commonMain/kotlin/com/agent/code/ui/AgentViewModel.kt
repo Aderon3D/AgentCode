@@ -1,5 +1,6 @@
 package com.agent.code.ui
 
+import com.agent.code.core.conversation.FileConversationStore
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.InMemoryWalStore
 import com.agent.code.core.journal.TelemetryEngine
@@ -75,6 +76,45 @@ class AgentViewModel(
     // and the native child would leak. This scope outlives composition for the
     // one final teardown call.
     private val teardownScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    @Suppress("TooGenericExceptionCaught") // boundary: a broken conversation file must not block the app
+    private suspend fun restoredHistory(): List<UiEvent> = try {
+        val restored = brain.restore()
+        buildList {
+            restored.forEach { turn ->
+                add(UiEvent.UserMessage(turn.goal))
+                turn.events.forEach { add(it.toUiEvent()) }
+            }
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        _state.update { it.copy(error = "restore failed: ${e.message}") }
+        emptyList()
+    }
+
+    init {
+        // Restore the persisted conversation. Replay runs through the same
+        // parser as a live run, so a restored transcript cannot drift.
+        scope.launch(Dispatchers.IO) {
+            val history = restoredHistory()
+            if (history.isEmpty()) return@launch
+            _state.update { it.copy(events = (history + it.events).takeLast(500)) }
+        }
+    }
+
+    private fun BrainEvent.toUiEvent(): UiEvent = when (this) {
+        is BrainEvent.Answer -> UiEvent.Message(text)
+        is BrainEvent.Reasoning -> UiEvent.Reasoning(text)
+        is BrainEvent.Thinking -> UiEvent.Thinking(text)
+        is BrainEvent.ToolCallStarted -> UiEvent.ToolStarted(toolName, args)
+        // One `cat` or a build log can be hundreds of KB; the transcript keeps
+        // only what it can ever display.
+        is BrainEvent.ToolCallFinished -> UiEvent.ToolFinished(toolName, success, output.take(MAX_TOOL_OUTPUT_CHARS))
+        is BrainEvent.IterationComplete -> UiEvent.Iteration(iteration)
+        is BrainEvent.TaskComplete -> UiEvent.Complete(summary)
+        is BrainEvent.TaskFailed -> UiEvent.Failed(reason)
+    }
 
     @Suppress("TooGenericExceptionCaught") // boundary: install/start failure becomes a UI Error state
     fun startOpenCode() {
@@ -193,23 +233,7 @@ class AgentViewModel(
                 val taskId = "T-${System.currentTimeMillis()}"
 
                 brain.executeTask(taskId, goal, workspaceRoot).collect { event ->
-                    val uiEvent = when (event) {
-                        is BrainEvent.Answer -> UiEvent.Message(event.text)
-                        is BrainEvent.Reasoning -> UiEvent.Reasoning(event.text)
-                        is BrainEvent.Thinking -> UiEvent.Thinking(event.text)
-                        is BrainEvent.ToolCallStarted -> UiEvent.ToolStarted(event.toolName, event.args)
-                        is BrainEvent.ToolCallFinished ->
-                            // One `cat` or a build log can be hundreds of KB; the
-                            // transcript keeps only what it can ever display.
-                            UiEvent.ToolFinished(
-                                event.toolName,
-                                event.success,
-                                event.output.take(MAX_TOOL_OUTPUT_CHARS),
-                            )
-                        is BrainEvent.IterationComplete -> UiEvent.Iteration(event.iteration)
-                        is BrainEvent.TaskComplete -> UiEvent.Complete(event.summary)
-                        is BrainEvent.TaskFailed -> UiEvent.Failed(event.reason)
-                    }
+                    val uiEvent = event.toUiEvent()
                     // Append, never replace: the feed is the whole conversation,
                     // so a second task's events land after the first task's and
                     // the on-screen transcript matches the session the model
@@ -243,7 +267,7 @@ class AgentViewModel(
     // feed starts over. Idle-only; a running task keeps its context.
     fun newChat() {
         if (_state.value.isRunning) return
-        brain.newSession()
+        scope.launch(Dispatchers.IO) { brain.newSession() }
         _state.update { it.copy(events = emptyList(), error = null) }
     }
 
@@ -284,7 +308,12 @@ class AgentViewModel(
             val client = OpenCodeClient(httpClient, manager)
             val journal = AgentEventJournal(InMemoryWalStore())
             val telemetry = TelemetryEngine(scope)
-            val brain = AgentBrain(manager, journal, telemetry)
+            // Next to the install dir, outside the workspace, so the Files tab
+            // and opencode sessions never see it.
+            val conversationFile = (config.installDir.parent() ?: config.installDir)
+                .resolve("conversation.jsonl")
+            val conversationStore = FileConversationStore(fileSystem, conversationFile)
+            val brain = AgentBrain(manager, journal, telemetry, store = conversationStore)
             return AgentViewModel(scope, manager, client, brain, journal, telemetry, workspaceRoot, httpClient)
         }
     }

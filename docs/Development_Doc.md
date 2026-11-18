@@ -1362,10 +1362,14 @@ CREATE TABLE AstNodeIndex (
 );
 ```
 
-**M7.0 slice (next):** `Conversation` + `Message` only, behind a
-`ConversationStore` interface, so `AgentBrain` can restore its `sessionID` and
-the transcript after a process restart. Kanban and journal migration stay in M7
-proper. Ceiling until then: one file per conversation, no queries.
+**M7.0 slice (shipped in r43, ahead of SQLDelight):** `ConversationStore` in
+`agent-core`, backed by one JSON-lines file (`files/conversation.jsonl`) holding
+each turn's raw `opencode run` output plus the newest `sessionID`. `AgentBrain`
+restores the session id and replays the raw lines through the same
+`parseRunEvent`/`RunAccumulator` path as a live run, so a restored transcript
+cannot drift from what was on screen. Kanban and journal migration stay in M7
+proper; the file store's ceilings (one conversation, whole-file rewrite per
+turn, 1 MB cap) are noted in the file itself.
 
 ---
 

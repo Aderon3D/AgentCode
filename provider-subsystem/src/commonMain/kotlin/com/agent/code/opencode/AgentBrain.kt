@@ -1,5 +1,7 @@
 package com.agent.code.opencode
 
+import com.agent.code.core.conversation.ConversationStore
+import com.agent.code.core.conversation.Turn
 import com.agent.code.core.journal.AgentEvent
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.LogEntry
@@ -34,11 +36,15 @@ sealed interface BrainEvent {
     data class TaskFailed(val reason: String) : BrainEvent
 }
 
+/** One stored turn replayed into UI events, ready for the transcript. */
+data class RestoredTurn(val goal: String, val events: List<BrainEvent>)
+
 class AgentBrain(
     private val manager: OpenCodeManager,
     private val journal: AgentEventJournal,
     private val telemetry: TelemetryEngine,
-    private val config: AgentConfig = AgentConfig()
+    private val config: AgentConfig = AgentConfig(),
+    private val store: ConversationStore? = null
 ) {
     private var seq = 0L
     private val seqMutex = Mutex()
@@ -49,13 +55,28 @@ class AgentBrain(
     // and `run -s <id>` continues that conversation instead of starting empty.
     // Committed only after a successful run, so a failed model retry or a
     // cancelled task never leaves the next prompt duplicated inside a
-    // half-finished session. In-memory only: an app restart starts a new
-    // conversation (persisting the id belongs with M7).
+    // half-finished session. Persisted through [store] when one is wired;
+    // [restore] reloads it on app start.
     private var sessionId: String? = null
 
+    /**
+     * Reload the conversation saved by [store]. Also adopts its session id so
+     * the next prompt continues the same opencode session.
+     */
+    suspend fun restore(): List<RestoredTurn> {
+        val saved = store?.load() ?: return emptyList()
+        // Never clobber a session this process just started (restore races the
+        // first prompt after a cold start).
+        if (sessionId == null) sessionId = saved.sessionId
+        return saved.turns.map { turn ->
+            RestoredTurn(goal = turn.goal, events = replayRun(turn.lines, config.models.first()))
+        }
+    }
+
     /** Drop the conversation: the next task starts a new opencode session. */
-    fun newSession() {
+    suspend fun newSession() {
         sessionId = null
+        store?.clear()
     }
 
 @Suppress("TooGenericExceptionCaught") // boundary: any runPrompt failure falls through to the next model
@@ -83,6 +104,8 @@ fun executeTask(
                 send(BrainEvent.Thinking("run $model ..."))
                 val run = RunAccumulator()
                 var runSessionId: String? = null
+                // Kept raw so a restart can replay them through the same parser.
+                val rawLines = mutableListOf<String>()
 
                 // runPrompt spawns the subprocess and yields raw JSON lines;
                 // parseRunEvent maps each to SessionEvent(s). A completed tool
@@ -96,6 +119,7 @@ fun executeTask(
                     workspace = workspaceRoot,
                     sessionId = sessionId
                 ).collect { line ->
+                    rawLines.add(line)
                     if (runSessionId == null) runSessionId = sessionIdOf(line)
                     for (ev in parseRunEvent(line)) {
                         run.onEvent(ev, model)?.let { send(it) }
@@ -105,6 +129,7 @@ fun executeTask(
                 if (run.finished && run.failure == null) {
                     runSessionId?.let { sessionId = it }
                     val summary = run.transcript.toString().trim().ifBlank { "done (no text output)" }
+                    store?.append(Turn(goal, rawLines), sessionId)
                     send(BrainEvent.TaskComplete(summary))
                     val completeId = nextId()
                     journal.append(AgentEvent.TaskSucceeded(completeId, taskId, now(), summary))
@@ -125,6 +150,14 @@ fun executeTask(
         journal.append(AgentEvent.TaskFailed(failId, taskId, now(), lastError))
         send(BrainEvent.TaskFailed(lastError))
     }
+}
+
+// Replay stored run lines through the live event path (one accumulator per
+// turn, shared across lines), so a restored transcript is exactly what the live
+// run produced — same parser, same accumulator, no second model of history.
+internal fun replayRun(lines: List<String>, model: String): List<BrainEvent> {
+    val run = RunAccumulator()
+    return lines.flatMap { line -> parseRunEvent(line).mapNotNull { run.onEvent(it, model) } }
 }
 
 // Mutable per-model run state for one `run` invocation. Maps each streamed

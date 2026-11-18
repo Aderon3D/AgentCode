@@ -9,6 +9,16 @@ prefix every Gradle command with the JDK home:
 JAVA_HOME=/opt/java/jdk-21.0.12.1+1 ./gradlew <task>
 ```
 
+## Docs — where truth lives
+
+- `docs/ROADMAP.md` is the **only** status file. Update it in the same commit as
+  the `chore(release): rNN` bump. `scripts/check-roadmap.sh` (run in CI) fails
+  when a path it cites disappears, so cite real repo-relative paths.
+- `docs/Development_Doc.md` is the design record (§13 schema, §15 opencode run
+  mode, §18 run integrity, §19 distribution). Change it when a *design* changes,
+  never to record progress.
+- Never add a second milestone table to README or CONTRIBUTING; link instead.
+
 ## Kotlin static analysis — use detekt, not fossil
 
 The `fossil` MCP does **not** parse Kotlin (`.kt` / `.kts`) — it returns

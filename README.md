@@ -16,22 +16,13 @@ design (TDD V14.1) and the module layout.
 - `agent-core/` — Core FSM, journal, policy, power, tools, lock, MCP, workspace interfaces.
 - `provider-subsystem/` — LLM provider, SSE client, streaming JSON, cost router.
 - `workspace-engine/` — Git backends, file system, accessibility, UI tools, lock impls.
-- `app-ui/` — CMP dashboard, kanban, bootstrap, telemetry, all M0.5–M5 tests.
+- `app-ui/` — CMP dashboard, kanban, bootstrap, telemetry, and the cross-module host tests.
 - `androidApp/` — Android launcher, foreground service, demo screens.
 
-## Milestones achieved
+## Status
 
-| Milestone | Status | What it proves |
-|-----------|--------|----------------|
-| **M0.5** | ✅ | Bootstrap spine: FSM + WAL + telemetry + Mission Control panel |
-| **M1** | ✅ | Real IO: RealFileSystem, GitProcessRunner, FileBackedWalStore, path confinement |
-| **M2** | ✅ | Multi-agent concurrency: lock manager, dispatcher routing, governor, TreeSitter, FileWatcher |
-| **M3** | ✅ | Live dashboard: telemetry engine, power governor, cost router, probe dashboard |
-| **M4** | ✅ | Android foreground service, LibGit2 JNI worktrees, Kanban board, UI demos |
-| **M5.1** | ✅ | Interface enrichment: suspend FileSystemProvider, applyPatch, walkTree, ProcessRunner.execute/executeStreaming, TokenChunkReceived |
-| **M5.2** | ✅ | Platform services: AndroidPowerGovernor (thermal+battery), PrivilegedElevationManager (Shizuku) |
-| **M5.3** | ✅ | Tool layer: MissionControlMcpServer, FetchDocTool, BudgetTrackingCircuitBreaker + TaskSafetyBudget |
-| **Foundation** | ✅ | Spin-lock → Mutex, deadlock prevention, parallel I/O, error resilience, temp sensor fix |
+Current release: **r42**. Milestones, their evidence and the next steps live in
+[`docs/ROADMAP.md`](./docs/ROADMAP.md) — the only place status is written down.
 
 ## Building & testing
 

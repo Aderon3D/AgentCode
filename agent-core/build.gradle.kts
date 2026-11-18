@@ -29,5 +29,9 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        // Host tests only (JDBC); the app uses the system SQLite.
+        getByName("androidHostTest").dependencies {
+            implementation(libs.sqlite.jdbc)
+        }
     }
 }

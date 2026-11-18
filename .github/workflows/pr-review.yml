@@ -170,14 +170,25 @@ jobs:
             exit 0
           fi
 
+          # Checked 2026-11-18 against opencode.ai/inference/v1/models (the live
+          # catalog) and the Artificial Analysis index: deepseek 33, hy4 35,
+          # mimo-v2.6 27. space-bunny-free was retired (it is absent from the
+          # live catalog), so it silently wasted an attempt on every round.
           MODELS=(
             "opencode/deepseek-v4.1-flash-free"
+            "opencode/hy4-flash-free"
             "opencode/mimo-v2.6-flash-free"
-            "opencode/space-bunny-free"
           )
 
           MAX_ROUNDS=3
-          MAX_RETRIES=2
+          # One attempt per model: a stalled free model used to get 2 x 420s
+          # before the next one was tried, so a single hung round could eat 42
+          # minutes without ever reaching a convergence check. Three models x
+          # 180s bounds a round at ~9 minutes. ponytail: a 400 KB diff gets the
+          # same 180s as a 40 KB one — raise ATTEMPT_TIMEOUT if real PRs start
+          # timing out with a header-less (retried) response.
+          MAX_RETRIES=1
+          ATTEMPT_TIMEOUT=180
           RETRY_DELAY=15
           # Hard wall-clock budget (well under the job's timeout-minutes) so a flaky
           # model that streams-and-resets for tens of minutes can't consume the run.
@@ -214,7 +225,7 @@ jobs:
                 tmp_files+=("$TMP")
                 ERR_FILE=$(mktemp /tmp/opencode-err-XXXXXX)
                 tmp_files+=("$ERR_FILE")
-                if timeout -k 30 420 opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
+                if timeout -k 30 "$ATTEMPT_TIMEOUT" opencode run --auto --print-logs --log-level INFO -m "$MODEL" < "$prompt_file" > "$TMP" 2>"$ERR_FILE"; then
                   if [ -s "$TMP" ] && grep -qE '^## |No (regression|new material) findings|No regression risks' "$TMP" 2>/dev/null; then
                     cp "$TMP" "$result_file"
                     return 0
@@ -641,7 +652,7 @@ jobs:
       - name: Resolve model
         run: |
           FAIL=""
-          for MODEL in "opencode/deepseek-v4.1-flash-free" "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
+          for MODEL in "opencode/deepseek-v4.1-flash-free" "opencode/hy4-flash-free" "opencode/mimo-v2.6-flash-free"; do
             echo "Testing $MODEL..."
             RESPONSE=$(timeout 30 opencode run --auto -m "$MODEL" "Respond with only the word PONG" </dev/null 2>/dev/null || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then
@@ -960,7 +971,7 @@ jobs:
       - name: Resolve model
         run: |
           FAIL=""
-          for MODEL in "opencode/deepseek-v4.1-flash-free" "opencode/mimo-v2.6-flash-free" "opencode/space-bunny-free"; do
+          for MODEL in "opencode/deepseek-v4.1-flash-free" "opencode/hy4-flash-free" "opencode/mimo-v2.6-flash-free"; do
             echo "Testing $MODEL..."
             RESPONSE=$(timeout 30 opencode run --auto -m "$MODEL" "Respond with only the word PONG" </dev/null 2>/dev/null || true)
             if echo "$RESPONSE" | grep -qi "PONG"; then

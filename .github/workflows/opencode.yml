@@ -1,0 +1,76 @@
+# /oc — run opencode on a comment, restricted to repository admins.
+#
+# Why the gate: the agent gets a write-scoped GITHUB_TOKEN and can push commits
+# and comments. Anyone able to type "/oc" must therefore already be trusted with
+# the repository, which means repository admins and nobody else.
+#
+# The gate is an API check, not `author_association`: association values
+# (OWNER/MEMBER/COLLABORATOR) say "is a collaborator", not "is an admin", and
+# they do not follow a collaborator's role being downgraded. It fails closed —
+# if the permission lookup errors, nobody runs.
+name: opencode
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+concurrency:
+  group: opencode-${{ github.event.comment.id }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Admin check
+    if: |
+      contains(github.event.comment.body, '/oc') ||
+      contains(github.event.comment.body, '/opencode')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.perm.outputs.allowed }}
+    steps:
+      - name: Comment author must be a repository admin
+        id: perm
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUTHOR: ${{ github.event.comment.user.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          perm="$(gh api "repos/$REPO/collaborators/$AUTHOR/permission" --jq .permission 2>/dev/null || echo none)"
+          if [ "$perm" = "admin" ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            echo "$AUTHOR is a repository admin"
+          else
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::/oc is admin-only; $AUTHOR has permission '$perm'"
+          fi
+
+  opencode:
+    name: Run opencode
+    needs: guard
+    if: needs.guard.outputs.allowed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run OpenCode
+        uses: anomalyco/opencode/github@e3c4eb242585dcd77be1a867391b7c25fd47ce52  # v1.19.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode/deepseek-v4.1-flash-free
+          use_github_token: true

@@ -110,6 +110,15 @@ Respond in markdown. One finding per section with file:line reference.
 DIFF:
 PROMPTEOF
 cat "$DIFF" >> "$PROMPT_FILE"
+# Same budget CI states: a free model that tours the repo times out first.
+cat >> "$PROMPT_FILE" << 'PROMPTEOF'
+
+BUDGET: one answer, about three minutes, and the diff is complete.
+Do not explore the repository. Read a file only when a finding cannot be judged
+from the diff alone, and then at most two.
+Never skip a real correctness bug; skip speculative and style findings instead.
+The whole review must fit in a single reply.
+PROMPTEOF
 
 MAX_RETRIES=2
 SUCCESS=false

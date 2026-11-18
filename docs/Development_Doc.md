@@ -60,31 +60,16 @@ interface WalStore {
 
 ---
 
-## 0.1 Milestone Status Tracker (as of 2026-08-31 — updated after M0.5–M5.3 implementation)
+## 0.1 Status
 
-Live status vs the §14 roadmap. Single source of truth for "what's done".
+Status does not live in this document. [`ROADMAP.md`](./ROADMAP.md) is the
+single source of truth, and `scripts/check-roadmap.sh` fails CI when a path it
+cites disappears.
 
-| Milestone | Scope | Status | Notes |
-|---|---|---|---|
-| **M0.5** Bootstrap spine | FSM + in-mem WAL + MCP loop + SSE JSON parser + Cost Router + Kanban + 50ms Telemetry | ✅ COMPLETE | `:app-ui:testAndroidHostTest` green; 4 M0.5 guarantees asserted in `MissionControlBootstrapTest`/`HierarchicalModelRouterTest`/`StreamingJsonStateMachineTest`/`TelemetryEngineTest`. |
-| **M1** Headless Core | libgit2 NDK, Shizuku elevation, WAL journal, EnergyAwareDispatchers, MCP server, SSE client | ✅ COMPLETE | libgit2 JNI (`LibGit2Backend`), `FileBackedWalStore`, `EnergyAwareDispatchers`, `McpHost`, `ResilientSseClient`, `ShizukuFsProvider` (privileged read/write/exists via `Shizuku.newProcess` reflection; falls back to `RealFileSystem`) all done. |
-| **M2** Multi-Agent Concurrency | Sparse worktrees, auto-squash, lock coordinator, 4-tier semantic funnel, tree-sitter | ✅ COMPLETE | `WorktreeManager`, `TaskLockCoordinator`, `WorkspaceLockManager`, `SemanticConflictFunnel`, `TreeSitterBackend` (JNI) landed; concurrency + tree-sitter tests green. |
-| **M3** UI & Cost Routing | CMP Shell + 50ms conflated telemetry stream + streaming JSON SM + adaptive power governor | ✅ COMPLETE | CMP dashboard + telemetry + streaming-JSON + cost-routing panels landed (DashboardScreen / MissionControlPanel / CostRoutingPanel / StreamingJsonPanel, TelemetryEngine, App.kt wiring). Live Canvas deferred per §1.2. |
-| **M4** Android Live Testing | Resilient FGS, Geometric Layout Oracle, dual-mode Accessibility Engine | ✅ COMPLETE | `ResilientAgentForegroundService` (FGS: wake/Wi-Fi locks + watchdog alarm + START_STICKY) + `GeometricLayoutOracle` + `AccessibilityEngine` (impl + `StubAccessibilityEngine`) + `UiTools` + `FileWatcherJvm`, all w/ tests. |
-| **M5** Security & Hardening | Non-interactive Git auth, SecureVault (KeyStore), RuntimeDiagnosticsTool | ✅ COMPLETE | `GitAuthWrapper` + `SecureVault` (KeyStore) + `RuntimeDiagnosticsTool` landed w/ tests. |
-
-### M5.x — Scheduled Upgrades (features cut during M0.5–M5 implementation, reintegrated as phased work)
-
-Features originally specified in the TDD that were simplified or deferred during actual implementation. Each upgrade is an additive, backward-compatible enhancement — no breaking changes to existing interfaces.
-
-| Phase | Scope | Depends On | Status | Features |
-|---|---|---|---|---|
-| **M5.1** Interface Enrichment | Core API surface | M5 complete | ✅ COMPLETE | `FileSystemProvider` → suspend + `applyPatch`/`walkTree`; `ProcessRunner` → `ProcessConfiguration` + streaming; `AgentEvent.TokenChunkReceived`; Kanban `HUMAN_REVIEW` column |
-| **M5.2** Platform Services | Android-native | M5.1 | ✅ COMPLETE | `AndroidPowerGovernor` full thermal+battery impl; `PrivilegedElevationManager` Shizuku elevation |
-| **M5.3** Tool & Protocol Layer | Agent capabilities | M5.1 | ✅ COMPLETE | `MissionControlMcpServer` full tool registry; `FetchDocTool`; `CircuitBreaker` `BudgetTrackingCircuitBreaker` + `TaskSafetyBudget` |
-| **M5.4** Doc Hygiene | Documentation | None (parallel) | ✅ COMPLETE | Phantom paths cleaned; README updated for 5-module layout; dependency DAG accurate in §1.2 |
-
-**Structural gap — RESOLVED (2026-08-24):** The `:shared` package monolith has been promoted to real Gradle modules. Realized: `agent-core`, `provider-subsystem`, `workspace-engine`, `app-ui`, plus the existing `androidApp` (5 `build.gradle.kts`, 0 `:shared`). `:app-ui:testAndroidHostTest` and `:androidApp:assembleDebug` are both green. Deferred (per §14 / not yet needed): `data-layer`, `live-canvas`, `desktopApp` — and `buildSrc` convention plugins were deliberately skipped in favor of standalone per-module build files (see §1.2 note).
+This TDD records *design*: what each milestone must do and why. When this
+document and the code disagree about what exists, the roadmap and the code win.
+Milestone identifiers (M0.5 … M10) are stable names used by the roadmap and by
+code comments.
 
 ## 1. System Architecture & Component Topology
 
@@ -1333,6 +1318,29 @@ CREATE TABLE AgentJournalEvent (
     timestampMs INTEGER NOT NULL
 );
 
+CREATE TABLE Conversation (
+    id TEXT PRIMARY KEY NOT NULL,          -- opencode sessionID (ses_...)
+    title TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    lastModel TEXT
+);
+
+CREATE TABLE Message (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    conversationId TEXT NOT NULL,
+    role TEXT NOT NULL,                    -- 'user' | 'assistant' | 'tool' | 'reasoning'
+    content TEXT NOT NULL,
+    toolName TEXT,
+    toolInput TEXT,
+    toolOutput TEXT,
+    ok INTEGER,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY (conversationId) REFERENCES Conversation(id) ON DELETE CASCADE
+);
+
+CREATE INDEX MessageByConversation ON Message(conversationId, id);
+
 CREATE TABLE ProviderProfile (
     id TEXT PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
@@ -1354,66 +1362,33 @@ CREATE TABLE AstNodeIndex (
 );
 ```
 
+**M7.0 slice (next):** `Conversation` + `Message` only, behind a
+`ConversationStore` interface, so `AgentBrain` can restore its `sessionID` and
+the transcript after a process restart. Kanban and journal migration stay in M7
+proper. Ceiling until then: one file per conversation, no queries.
+
 ---
 
-## 14. Phased Production Execution Roadmap
+## 14. Phased Production Roadmap
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                           INCREMENTAL DERISKING ROADMAP                          │
-├──────────────────┬───────────────────────────────────────────────────────────────┤
-│ M0.5 (BOOTSTRAP) │ Self-Contained Spine: FSM + WAL(in-mem) + MCP loop + SSE JSON │
-│ (Prove it thinks) │ parser + Cost Router + Kanban + 50ms Telemetry. JVM-testable. │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ MILESTONE 1      │ Headless Core: libgit2 NDK + Shizuku Elevation + WAL Journal │
-│ (The Bedrock)    │ EnergyAwareDispatchers + MCP Server + OmniRoute SSE Client.   │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ MILESTONE 2      │ Multi-Agent Concurrency: Git Sparse Worktrees + Auto-Squash   │
-│ (Scale)          │ Lock Coordinator (Waiters) + 4-Tier Semantic Conflict Funnel. │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ MILESTONE 3      │ UI & Cost Routing: CMP Shell + 50ms Conflated Telemetry Stream│
-│ (UX & Pacing)    │ Streaming JSON State Machine + Adaptive Power Governor.       │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ MILESTONE 4      │ Android Live Testing: Resilient FGS + Geometric Layout Oracle │
-│ (Live Testing)   │ Dual-Mode Accessibility Engine (Text XML & Native Gestures).  │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ MILESTONE 5      │ Security & Hardening: Non-Interactive Git Auth (Injection-Free)│
-│ (Production)     │ SecureVault (KeyStore) + RuntimeDiagnosticsTool.              │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M5.1 (INTERFACES)│ FileSystemProvider → suspend + applyPatch/walkTree;           │ ✅ DONE
-│                  │ ProcessRunner → ProcessConfiguration + streaming;             │
-│                  │ AgentEvent.TokenChunkReceived; Kanban HUMAN_REVIEW column.    │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M5.2 (PLATFORM)  │ AndroidPowerGovernor full thermal+battery impl;               │ ✅ DONE
-│                  │ PrivilegedElevationManager Shizuku phantom-process bypass.    │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M5.3 (TOOLS)     │ MissionControlMcpServer full tool registry;                   │ ✅ DONE
-│                  │ FetchDocTool; BudgetTrackingCircuitBreaker + TaskSafetyBudget.│
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M5.4 (DOC)       │ Fix phantom paths; README update; dependency DAG correction.  │ ✅ DONE
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M6 (OPENCODE)    │ Native OpenCode integration: process manager, local server,   │ 🔲 IN PROGRESS
-│ (The Brain)      │ agent brain loop, native UI embedding, tool dispatch,          │
-│                  │ secure sandbox, deep IDE integration.                          │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M7 (PERSISTENCE) │ SQLDelight data-layer (KanbanTask, AgentJournal, ProviderProfile│
-│ (Make it durable)│ ); Persistent task store replacing in-memory KanbanBoard;     │
-│                  │ Agent journal on disk (replace FileBackedWalStore).           │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M8 (DESKTOP)     │ Windows desktop target (desktopApp module);                   │
-│ (Make it cross-  │ JVM actuals for RealFileSystem, GitProcessRunner;             │
-│  platform)       │ JBR + DCEVM live reload; Compose Hot Reload integration.     │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M9 (E2E DEMO)    │ End-to-end demo: agent reads repo → generates code →          │
-│ (Make it real)   │ runs tests → submits PR; ProbeDashboard integration;         │
-│                  │ Visual 3-Way Merge screen; Full Shizuku elevation flow.       │
-├──────────────────┼───────────────────────────────────────────────────────────────┤
-│ M10 (RUN         │ OpenDots-derived run integrity: central guard gate + live     │ 🔲 PLANNED
-│  INTEGRITY)      │ abort, HITL approval receipts, run leases + interrupted       │ (§18; phases 1+4
-│ (Borrowed        │ taxonomy, audit coverage, SSRF/auth/prompt hygiene,           │ parallel to M6–M7)
-│  hardening)      │ module-local tests + lint gate.                               │
-└──────────────────┴───────────────────────────────────────────────────────────────┘
-```
+Phase names are stable identifiers; their **current state lives in
+[`ROADMAP.md`](./ROADMAP.md)** and is deliberately not repeated here.
+
+| Phase | Design intent |
+|---|---|
+| M0.5 Bootstrap | Self-contained spine: FSM + WAL + MCP loop + SSE JSON parser + cost router + Kanban + 50 ms telemetry. JVM-testable. |
+| M1 Headless core | libgit2 NDK, Shizuku elevation, WAL journal, energy-aware dispatchers, MCP server, SSE client. |
+| M2 Multi-agent | Sparse worktrees + auto-squash, lock coordinator, 4-tier semantic conflict funnel, tree-sitter. |
+| M3 UI & cost | CMP shell, 50 ms conflated telemetry, streaming JSON state machine, adaptive power governor. |
+| M4 Live testing | Resilient FGS, geometric layout oracle, dual-mode accessibility engine. |
+| M5 Security | Non-interactive git auth, KeyStore vault, runtime diagnostics tool. |
+| M5.1–M5.4 | Interface enrichment, platform services, tool layer, doc hygiene. |
+| M6 The brain | opencode integration: process, run-mode loop, guard, chat UI (§15). |
+| M6.5 Distribution | Signed GitHub releases and in-app self-update, added after M6 (§19). |
+| M7 Durability | SQLDelight data layer: conversations, journal, Kanban (§13). |
+| M8 Desktop | Windows target, JVM actuals, Compose hot reload. |
+| M9 E2E demo | Agent reads repo, generates code, runs tests, submits a PR; 3-way merge screen. |
+| M10 Run integrity | Guard gate, HITL receipts, run leases, security deltas (§18). |
 
 ---
 
@@ -1432,124 +1407,72 @@ interfaces the human developer uses. Security is enforced through **sandboxing**
 not capability restriction: the agent can do anything a developer can do, but within
 controlled boundaries that prevent damage to the host system.
 
-### 15.2 Architecture
+### 15.2 Architecture (as shipped)
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        AGENTCODE (Android App)                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────────┐    ┌──────────────────┐    ┌───────────────────────────┐  │
-│  │  CMP UI      │◄──►│  OpenCodeManager │◄──►│  OpenCode Process         │  │
-│  │  Dashboard   │    │  (Lifecycle)     │    │  (Local HTTP Server)      │  │
-│  │  Kanban      │    │  Install/Start   │    │  Port 4096                │  │
-│  │  Terminal    │    │  Stop/Health     │    │  Binary: /data/.../opencode│  │
-│  │  File Editor │    └──────────────────┘    └─────────┬─────────────────┘  │
-│  └──────────────┘                                      │                    │
-│         ▲                                              ▼                    │
-│         │         ┌──────────────────────────────────────────────────────┐  │
-│         │         │              OpenCode Client (HTTP)                  │  │
-│         │         │  POST /api/chat/stream  → LLM streaming             │  │
-│         │         │  GET  /api/sessions     → session management        │  │
-│         │         │  GET  /api/models       → available models          │  │
-│         │         │  POST /api/tools/call   → tool execution            │  │
-│         │         └──────────────────────────┬───────────────────────────┘  │
-│         │                                    │                              │
-│         ▼                                    ▼                              │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                      Agent Brain Loop                                 │  │
-│  │                                                                      │  │
-│  │  1. Build system prompt (workspace context, tool definitions)        │  │
-│  │  2. Send to OpenCode → LLM (cloud API via OpenCode's routing)       │  │
-│  │  3. Parse response: content + tool_calls                             │  │
-│  │  4. Execute tools via McpHost (read_file, apply_patch, run_cmd...)  │  │
-│  │  5. Feed results back to LLM                                        │  │
-│  │  6. Repeat until done or max iterations                             │  │
-│  │                                                                      │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│         │                                                                  │
-│         ▼                                                                  │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                    Native Tool Layer                                  │  │
-│  │                                                                      │  │
-│  │  FileSystemProvider ─── read/write/patch/walk (path-confined)       │  │
-│  │  ProcessRunner ──────── run/execute/stream (sandboxed)              │  │
-│  │  GitBackend ─────────── libgit2 JNI / CLI (worktree, commit, merge) │  │
-│  │  AccessibilityEngine ── inspect/interact UI (Shizuku-escalated)     │  │
-│  │  TreeSitterBackend ──── AST parsing (Kotlin/Java/Python/JS)         │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+  CMP UI (AgentPanel)
+       │ UiEvent / AgentEvent
+       ▼
+  AgentViewModel ──► AgentBrain ──► OpenCodeManager ──► `opencode run -s <sessionID>`
+                          │                                  │
+                          │◄── stdout JSONL ─────────────────┤ executes its own
+                          │    step_start / text /           │ tools under the
+                          │    tool_use / step_finish        │ generated guard
+                          ▼                                  │ plugin
+                    RunAccumulator                            ▼
+                    (pairs tool start + finish)         workspace files
 ```
 
-### 15.3 OpenCode Process Manager
+The shipped path is **`opencode run`**, not a long-lived HTTP server: one child
+process per prompt, events read as JSON lines from stdout. The app does not
+re-implement the tool loop; opencode owns tool execution and the guard plugin
+(`agent-core/.../opencode/AgentGuard.kt`) confines write targets to the
+workspace and denies install-dir tampering.
 
-The process manager owns the OpenCode binary lifecycle. OpenCode runs as a local
-HTTP server that the app communicates with natively — no WebView, no browser, no
-intermediary.
+### 15.3 OpenCode Process Manager — two modes
 
-```kotlin
-// agent-core/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeManager.kt
-class OpenCodeManager(
-    private val fileSystem: FileSystemProvider,
-    private val processRunner: ProcessRunner,
-    private val config: OpenCodeConfig = OpenCodeConfig()
-) {
-    // Lifecycle: NotInstalled → Installing → Starting → Running → Stopped
-    // Binary installed to app-private storage (no root required)
-    // Server starts on configurable port (default 4096)
-    // Health check via HTTP /api/health endpoint
+**run (live).** `spawn` a `run -s <sessionID>` child per prompt, stream stdout,
+kill on cancel or stall. No port, no SSE. Continuity across prompts comes from
+`-s`, which resumes the server-side session.
 
-    suspend fun ensureInstalled(): OpenCodeState
-    suspend fun start(projectDir: VirtualPath, port: Int): OpenCodeState
-    suspend fun stop()
-    fun baseUrl(): String  // http://127.0.0.1:{port}
-}
-```
+**serve (retained, not on the live path).** `serve --port <p>` plus the HTTP/SSE
+client in `OpenCodeClient` (`sendPrompt`, `sessionEvents`). Kept because the
+connection-release hygiene is tested and a future remote/multi-agent path may
+need it. It has **no auth**: do not re-enable it without a per-launch token
+(ROADMAP gap 4).
 
-**Key design decisions:**
-- Binary stored in app-private directory (`/data/data/com.agent.code/files/opencode/`)
-- No root required — OpenCode runs as the app's child process
-- PID tracking for clean shutdown
-- Log file for debugging (`opencode.log` in install dir)
-- Automatic restart on crash (via `ResilientAgentForegroundService` watchdog)
+Both modes spawn through the same elfloader, whose drain loop calls
+`waitpid(-1)` — one child reaper per process. `runPrompt` therefore stops the
+server first so the two loops cannot steal each other's child-stop events
+(`OpenCodeManager.kt:325-336`).
 
-### 15.4 OpenCode Client (Native HTTP)
+Lifecycle: `NotInstalled → Installing → Starting → Running → Stopped`; PID
+tracked; `TERM` then `KILL -9`; 500 ms liveness poll; 120 s no-output stall
+timeout; the install dir also holds `resolv.conf`, `.npmrc` and the guard
+plugin, all written per run.
 
-Direct HTTP communication with the local OpenCode server. No WebView, no JavaScript
-bridge, no network overhead.
+### 15.4 Event contract (run mode)
 
-```kotlin
-// agent-core/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeClient.kt
-class OpenCodeClient(
-    private val httpClient: HttpClient,  // Ktor OkHttp engine
-    private val manager: OpenCodeManager
-) {
-    // Streaming LLM completion (SSE)
-    fun streamChat(request: LlmRequest): Flow<LlmEvent>
+| Event | Meaning | UI |
+|---|---|---|
+| `step_start` | A model turn begins; carries `sessionID` | nothing |
+| `text` | Assistant text delta | streamed into the markdown bubble |
+| `tool_use` | Tool invocation; `state.status` = `running` or `completed`, with `input`/`output` | expandable tool row |
+| `step_finish` | Turn ends; `reason` = `stop` / `tool-calls`; token + cost counters | status line |
+| `error` | Provider/model failure | red bubble, run ends |
 
-    // Non-streaming completion
-    suspend fun sendChat(request: LlmRequest): String
-
-    // Session management
-    suspend fun listSessions(): List<String>
-
-    // Model discovery
-    suspend fun listModels(): List<String>
-
-    // Health check
-    suspend fun healthCheck(): Result<String>
-}
-```
-
-**SSE parsing** follows the OpenAI-compatible format that OpenCode exposes:
-```
-data: {"choices":[{"delta":{"content":"..."}}]}
-data: {"choices":[{"delta":{"tool_calls":[...]}}]}
-data: [DONE]
-```
+Parsers live in `RunEventParsers`/`RunAccumulator`
+(`provider-subsystem`); `RunSampleTest` replays a real captured run so the
+contract is pinned to observed output, not documentation.
 
 ### 15.5 Agent Brain Loop
+
+> **As shipped (r42):** `AgentBrain` does *not* re-implement this loop. It calls
+> `OpenCodeManager.runPrompt`, reads the JSON lines, and folds them into `UiEvent`s
+> through `RunAccumulator`; opencode itself performs steps 3–6, including tool
+> execution and the model feedback loop. Steps 1–2 are opencode's system prompt
+> plus the user's text. The Kotlin loop below describes the design intent of an
+> in-process variant (M6 phase 3) and must not be read as the running code.
 
 The brain loop is the core orchestration cycle. It replaces the hardcoded
 `executeStepsUntilDone` with a dynamic LLM-driven loop.
@@ -1990,11 +1913,20 @@ Token usage is displayed in the Mission Control Dashboard:
 | G7 | `OpenCodeClient` sends no auth to the spawned loopback server; any on-device app can call it | `provider-subsystem/.../opencode/OpenCodeClient.kt` |
 | G8 | `BudgetTrackingCircuitBreaker` / `TaskSafetyBudget` defined but never wired into any dispatch path | defined in `core/tools/CircuitBreaker.kt`, zero call sites |
 | G9 | Prompt hygiene absent: repo file contents / tool results are injected without untrusted-data framing | `AgentBrain` / OpenCode tool results |
-| G10 | Engineering gates: 3 of 5 modules have **zero** tests; no lint tooling (no ktlint/detekt) in the build | module `src/*Test` dirs; `grep ktlint\|detekt` = none |
+| G10 | Engineering gates: `agent-core`, `workspace-engine` and `androidApp` have **zero** test files — CI runs their test tasks and they pass vacuously. Lint is now covered: detekt is a hard gate (`CI=true`). | 17 test files exist, 13 in `app-ui`, 4 in `provider-subsystem`; `.github/workflows/build.yml` |
 
 ### 18.2 OpenDots Mechanism → Our Adaptation
 
-**M10.1 — Central Guard Gate + Live Abort** *(deps: none — start during M6; effort: S)*
+**M10.1 — Central Guard Gate + Live Abort** *(deps: none; effort: S–M)*
+
+> **Re-aimed (r42):** the app drives `opencode run`, so tools execute inside
+> opencode and the gate below, as originally written, would sit on `McpHost` —
+> a path nothing calls. Move the policy into the generated guard plugin instead
+> (`agent-core/.../opencode/AgentGuard.kt`: one tested Kotlin producer for the
+> plugin JS), and keep the `McpHost` gate for the day M6 phase 3 lands. The
+> live-abort half is already covered at the process level
+> (`AgentViewModel.cancelTask()` → TERM→KILL); what is missing is the mid-run
+> policy check on the opencode side.
 
 - *OpenDots:* every tool executor in `dot-agent.ts` runs `check()` first — a 100 ms
   watcher that **aborts the in-flight turn** if settings, permissions, or space grants
@@ -2096,16 +2028,60 @@ Token usage is displayed in the Mission Control Dashboard:
 
 ### 18.4 Phase Summary
 
-| Phase | Scope | Depends On | Status | Effort |
-|---|---|---|---|---|
-| **M10.1** Guard gate + live abort | `McpHost.dispatch` choke point, `RunWatchdog`, wire budgets, uniform audit | None (parallel to M6) | 🔲 PLANNED | S |
-| **M10.2** HITL receipts + resume | `AgentEvent.Approval*`, `ApprovalReceiptStore`, `orchestrator.resume()`, AgentPanel card | M10.1; M7 for durable store | 🔲 PLANNED | M |
-| **M10.3** Run leases + interrupted taxonomy | `StepResult.Interrupted`, run/run_events tables, slot leases, Kanban INTERRUPTED + retry | M7 | 🔲 PLANNED | M |
-| **M10.4** Security deltas | SSRF guard, loopback auth/scope allowlist, redaction helper, prompt hygiene | None | 🔲 PLANNED | S (4 items) |
-| **M10.5** Engineering gates | ktlint/detekt + CI job; module-local test placement policy | None | 🔲 PLANNED | S–M |
+| Phase | Scope | Depends On | Effort |
+|---|---|---|---|
+| **M10.1** Guard gate + live abort | Policy producer for the guard plugin (live path); `McpHost.dispatch` choke point when M6 phase 3 lands; wire budgets, uniform audit | None | S–M |
+| **M10.2** HITL receipts + resume | `AgentEvent.Approval*`, `ApprovalReceiptStore`, `orchestrator.resume()`, AgentPanel card | M7 for the durable store | M |
+| **M10.3** Run leases + interrupted taxonomy | `StepResult.Interrupted`, run/run_events tables, slot leases, Kanban INTERRUPTED + retry | M7 | M |
+| **M10.4** Security deltas | SSRF guard, loopback auth/scope allowlist, redaction helper, prompt hygiene | None | S (4 items) |
+| **M10.5** Engineering gates | Module-local test placement policy. Lint landed in r42 (detekt is a hard CI gate), so only the test migration remains. | None | M |
 
 Acceptance for the milestone: all G1–G10 gaps closed or explicitly waived with a
-`ponytail:`-style ceiling comment; host tests green (`:app-ui:testAndroidHostTest` +
-new module test tasks); CI lint job green on a PR.
+`ponytail:`-style ceiling comment; **each module runs its own tests**
+(`:agent-core:testAndroidHostTest`, `:workspace-engine:…`, `:androidApp:…` no
+longer vacuous); detekt green on a PR.
+
+Current state of these phases: [`ROADMAP.md`](./ROADMAP.md).
+
+---
+
+## 19. Distribution & Self-Update (M6.5)
+
+Added after M6: this subsystem is not described in the original TDD, and it is
+the only way users receive builds.
+
+**Release identity.** One immutable tag per release, `rNN`, and three values must
+agree: the git tag, `APP_BUILD` in
+`provider-subsystem/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeClient.kt`,
+and the APK's `versionCode` (derived from `APP_BUILD`, so a missing value is a
+build error, not a fallback to 1).
+
+**Artifacts.** Exactly one `.apk` asset per release, named `AgentCode-rNN.apk`.
+`release.yml` deletes any other `.apk` on the release before uploading, so the
+updater's "first APK asset" rule cannot pick a stale binary.
+
+**Signing.** CI builds must be signed with the same key the installed app trusts;
+`apksigner verify --print-certs` must print the pinned digest or the job fails.
+Android's package manager then rejects any tampered upgrade at install time, so
+the updater does not re-implement integrity checks.
+
+**Delivery.** `.github/workflows/release.yml` runs on every push to `main`:
+require the keystore secret → decode → assemble → verify the certificate digest →
+publish. A manual `gh release create` is only a bootstrap path; the workflow
+converges the release to the canonical asset.
+
+**Update flow (`androidApp/.../update/Updater.kt`).** Poll the three newest
+releases, take the first with a matching `rNN` tag, compare against the running
+build, download to app storage, then `PackageInstaller` with a pending-intent
+result broadcast. Guards: 10-minute foreground throttle, one check at a time
+(`AtomicBoolean`), three retries with backoff, and a visible `UpdateStatus`
+(`UpdateBanner`) instead of background-thread toasts — toasts thrown off the main
+thread aborted the update silently (r37).
+
+**Unknown sources.** On API 26+ the install is gated on
+`canRequestPackageInstalls()`; when refused, the banner sends the user to
+`Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES` and offers Retry. This is inherent
+to self-update: F-Droid cannot host an app that downloads an executable at
+runtime, so there is no store path that removes this step.
 
 ---

@@ -13,7 +13,13 @@ import kotlinx.coroutines.sync.withLock
 data class AgentConfig(
     val providerID: String = "opencode",
     // Tried in order; the first model that completes a run wins.
-    val models: List<String> = listOf("mimo-v2.6-flash-free", "deepseek-v4.1-flash-free")
+    // Checked 2026-11-18 against opencode.ai/inference/v1/models (what actually
+    // answers) and the Artificial Analysis intelligence index: deepseek 33,
+    // hy4 35, mimo-v2.6 27. DeepSeek leads on purpose — it is the only
+    // top-scoring free model with documented zero retention / no training, and
+    // this list is what sends the user's source code out. The previous third
+    // entry, space-bunny-free, is retired and no longer in the catalog.
+    val models: List<String> = listOf("deepseek-v4.1-flash-free", "hy4-flash-free", "mimo-v2.6-flash-free")
 )
 
 sealed interface BrainEvent {

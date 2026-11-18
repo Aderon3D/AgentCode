@@ -53,8 +53,8 @@ TOOL_BIN=$(find_tool) || {
     echo ""
     echo "=== Model chain (all free, no API key) ==="
     echo "1. opencode/deepseek-v4.1-flash-free"
-    echo "2. opencode/mimo-v2.6-flash-free"
-    echo "3. opencode/space-bunny-free"
+    echo "2. opencode/hy4-flash-free"
+    echo "3. opencode/mimo-v2.6-flash-free"
     echo ""
     echo "=== Install opencode ==="
     echo "curl -fsSL https://opencode.ai/install | bash"
@@ -79,8 +79,8 @@ if [ "$DRY_RUN" = "--dry-run" ]; then
   echo ""
   echo "=== Model chain (all free, no API key) ==="
   echo "1. opencode/deepseek-v4.1-flash-free"
-  echo "2. opencode/mimo-v2.6-flash-free"
-  echo "3. opencode/space-bunny-free"
+  echo "2. opencode/hy4-flash-free"
+  echo "3. opencode/mimo-v2.6-flash-free"
   echo ""
   echo "=== First 30 lines of diff ==="
   head -30 "$DIFF"
@@ -89,8 +89,8 @@ fi
 
 MODELS=(
   "opencode/deepseek-v4.1-flash-free"
+  "opencode/hy4-flash-free"
   "opencode/mimo-v2.6-flash-free"
-  "opencode/space-bunny-free"
 )
 
 PROMPT_FILE=$(mktemp)

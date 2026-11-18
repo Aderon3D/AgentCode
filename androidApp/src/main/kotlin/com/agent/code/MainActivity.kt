@@ -8,6 +8,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.agent.code.core.conversation.FileConversationStore
+import com.agent.code.core.conversation.sqlConversationStore
 import com.agent.code.core.path.VirtualPath
 import com.agent.code.core.power.AndroidPowerGovernor
 import com.agent.code.opencode.AndroidDeviceDns
@@ -40,6 +42,16 @@ class MainActivity : ComponentActivity() {
         val fileSystem = RealFileSystem(workspaceRoot)
         AuditLog.init(fileSystem, workspaceRoot)
 
+        // Conversations live in SQLite; the r43 JSON-lines file is imported
+        // once on first load so an upgrade keeps its thread.
+        val conversationStore = sqlConversationStore(
+            applicationContext,
+            legacy = FileConversationStore(
+                runtimeFs,
+                VirtualPath.of(filesDir.absolutePath).resolve("conversation.jsonl"),
+            ),
+        )
+
         setContent {
             val scope = rememberCoroutineScope()
             val viewModel = remember {
@@ -48,7 +60,8 @@ class MainActivity : ComponentActivity() {
                     fileSystem = runtimeFs,
                     processRunner = GitProcessRunner(),
                     workspaceRoot = workspaceRoot,
-                    nativeLibraryDir = applicationInfo.nativeLibraryDir
+                    nativeLibraryDir = applicationInfo.nativeLibraryDir,
+                    conversationStore = conversationStore,
                 )
             }
             DisposableEffect(Unit) {

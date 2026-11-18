@@ -30,7 +30,7 @@ Last verified: **r42** (2026-11-14), on `main` at `1fa2d32`.
 | M5 | Security: KeyStore vault, git auth, diagnostics | PARTIAL | `agent-core/src/androidMain/kotlin/com/agent/code/core/security/SecureVault.kt` · `workspace-engine/src/commonMain/kotlin/com/agent/code/git/GitAuthWrapper.kt` — zero tests |
 | M6 | The brain: opencode child process, run-mode loop, guard, chat UI | DONE | `agent-core/src/commonMain/kotlin/com/agent/code/opencode/OpenCodeManager.kt` · `agent-core/src/commonMain/kotlin/com/agent/code/opencode/AgentGuard.kt` · `provider-subsystem/src/commonMain/kotlin/com/agent/code/opencode/AgentBrain.kt` · `app-ui/src/commonMain/kotlin/com/agent/code/ui/AgentViewModel.kt` · `provider-subsystem/src/commonTest/kotlin/com/agent/code/opencode/RunSampleTest.kt` · `provider-subsystem/src/commonTest/kotlin/com/agent/code/opencode/RunAccumulatorTest.kt` · `provider-subsystem/src/commonTest/kotlin/com/agent/code/opencode/AgentBrainSessionTest.kt` · `provider-subsystem/src/commonTest/kotlin/com/agent/code/opencode/OpenCodeClientEventTest.kt` |
 | M6.5 | Distribution: signed releases, in-app self-update | DONE | `.github/workflows/release.yml` · `androidApp/src/main/kotlin/com/agent/code/update/Updater.kt` · `androidApp/src/main/kotlin/com/agent/code/update/UpdateBanner.kt` — verified on device up to r42 |
-| M7 | Durability: conversations, journal, kanban on disk (SQLDelight) | PARTIAL — M7.0 shipped (r43) | `agent-core/src/commonMain/kotlin/com/agent/code/core/conversation/ConversationStore.kt` · `agent-core/src/commonTest/kotlin/com/agent/code/core/conversation/FileConversationStoreTest.kt` · replay parity in `provider-subsystem/src/commonTest/kotlin/com/agent/code/opencode/RunSampleTest.kt` — one JSON-lines conversation, no SQLDelight yet |
+| M7 | Durability: conversations (SQLite), journal, kanban | PARTIAL — conversations on SQLite (r44) | `agent-core/src/commonMain/kotlin/com/agent/code/core/conversation/SqlConversationStore.kt` · `agent-core/src/androidMain/kotlin/com/agent/code/core/conversation/AndroidSqlDb.kt` · `agent-core/src/androidHostTest/kotlin/com/agent/code/core/conversation/SqlConversationStoreTest.kt` — hand-written schema behind a 3-method `SqlDb` seam (SQLDelight dropped: codegen plugin risk under AGP 9.4's KMP-library plugin, no benefit for two tables). Kanban is still in-memory, journal still a WAL file. |
 | M10 | Run integrity: guard gate, HITL receipts, run leases | NOT STARTED | design in TDD §18; M10.1 re-aimed at the opencode plugin |
 
 M6 phases 3 (native tool expansion via `McpHost`) and 6 (multi-agent
@@ -42,7 +42,7 @@ scaffolding until something calls them.
 
 | Order | Item | Size | Why this order |
 |---|---|---|---|
-| 1 | **M7 proper** — SQLDelight conversations/journal/kanban; replaces the one-file store | M | M7.0 (r43) proves restore-through-the-parser; the file store is the interim ceiling: one conversation, rewrite per turn, 1 MB cap. |
+| 1 | **M7 remainder** — journal + kanban on the same database | M | Nothing on the live path consumes kanban yet (see the M6 note), so migrating it now would be untested scaffolding; the journal is already durable as a WAL file. |
 | 2 | **Tests in the owning modules** (`agent-core`, `workspace-engine`, `androidApp`) | M | CI passes those tasks vacuously today. Every claim above marked "tested from app-ui" moves home. |
 | 3 | **M10.2** approval receipts + resume | M | Needs the M7 store; makes `BlockedOnApproval` resolvable instead of a dead end. |
 | 4 | **M10.1** central guard gate, re-aimed | S–M | The plugin already denies writes outside the workspace; move the policy into one tested place instead of a JS string. |
@@ -54,10 +54,14 @@ scaffolding until something calls them.
    `androidApp`. `.github/workflows/build.yml` lists their
    `testAndroidHostTest` tasks, which execute zero tests and pass. (`agent-core`
    is covered since r43.)
-2. **Conversation persistence has a ceiling.** One conversation per install,
-   whole-file rewrite per turn, 1 MB cap that drops the oldest turns; nothing
-   else (journal, kanban) is durable across a restart. See the `ponytail:` note
-   in `agent-core/src/commonMain/kotlin/com/agent/code/core/conversation/ConversationStore.kt`.
+2. **Conversation durability is one conversation deep.** Restore picks the
+   newest `Conversation` row
+   (`agent-core/src/commonMain/kotlin/com/agent/code/core/conversation/SqlConversationStore.kt`);
+   New Chat deletes every row (there is no history picker in the UI yet) and
+   messages are capped at 2,000 per conversation. Kanban is in-memory; the
+   journal is a WAL file, not a table. The r43 JSON-lines store
+   (`agent-core/src/commonMain/kotlin/com/agent/code/core/conversation/ConversationStore.kt`)
+   remains only as the one-time import source.
 3. **Local inference is absent.** `MOBILE-TRAINING-RESEARCH.md` is research, not
    a plan item. The app requires a network model provider.
 4. **The `serve`/SSE path has no auth** and is off the live path (see the note in

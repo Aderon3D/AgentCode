@@ -1,5 +1,6 @@
 package com.agent.code.ui
 
+import com.agent.code.core.conversation.ConversationStore
 import com.agent.code.core.conversation.FileConversationStore
 import com.agent.code.core.journal.AgentEventJournal
 import com.agent.code.core.journal.InMemoryWalStore
@@ -291,7 +292,8 @@ class AgentViewModel(
             fileSystem: FileSystemProvider,
             processRunner: ProcessRunner,
             workspaceRoot: VirtualPath,
-            nativeLibraryDir: String = "/data/app/~~placeholder~~/com.agent.code/lib/arm64"
+            nativeLibraryDir: String = "/data/app/~~placeholder~~/com.agent.code/lib/arm64",
+            conversationStore: ConversationStore? = null
         ): AgentViewModel {
             val config = OpenCodeConfig(nativeLibraryDir = nativeLibraryDir)
             val manager = OpenCodeManager(fileSystem, processRunner, config)
@@ -312,8 +314,10 @@ class AgentViewModel(
             // and opencode sessions never see it.
             val conversationFile = (config.installDir.parent() ?: config.installDir)
                 .resolve("conversation.jsonl")
-            val conversationStore = FileConversationStore(fileSystem, conversationFile)
-            val brain = AgentBrain(manager, journal, telemetry, store = conversationStore)
+            // SQLite when the app supplies it; the file store is the fallback
+            // for hosts that create no database (and the migration source).
+            val store = conversationStore ?: FileConversationStore(fileSystem, conversationFile)
+            val brain = AgentBrain(manager, journal, telemetry, store = store)
             return AgentViewModel(scope, manager, client, brain, journal, telemetry, workspaceRoot, httpClient)
         }
     }

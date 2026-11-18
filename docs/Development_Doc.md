@@ -1329,7 +1329,7 @@ CREATE TABLE Conversation (
 CREATE TABLE Message (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     conversationId TEXT NOT NULL,
-    role TEXT NOT NULL,                    -- 'user' | 'assistant' | 'tool' | 'reasoning'
+    role TEXT NOT NULL,                    -- 'user' | 'assistant' | 'tool' | 'reasoning' | 'event' (raw run line)
     content TEXT NOT NULL,
     toolName TEXT,
     toolInput TEXT,
@@ -1362,14 +1362,26 @@ CREATE TABLE AstNodeIndex (
 );
 ```
 
-**M7.0 slice (shipped in r43, ahead of SQLDelight):** `ConversationStore` in
-`agent-core`, backed by one JSON-lines file (`files/conversation.jsonl`) holding
-each turn's raw `opencode run` output plus the newest `sessionID`. `AgentBrain`
-restores the session id and replays the raw lines through the same
+**M7.0 slice (shipped in r43):** `ConversationStore` in `agent-core`, backed
+by one JSON-lines file (`files/conversation.jsonl`) holding each turn's raw
+`opencode run` output plus the newest `sessionID`. `AgentBrain` restores the
+session id and replays the raw lines through the same
 `parseRunEvent`/`RunAccumulator` path as a live run, so a restored transcript
-cannot drift from what was on screen. Kanban and journal migration stay in M7
-proper; the file store's ceilings (one conversation, whole-file rewrite per
-turn, 1 MB cap) are noted in the file itself.
+cannot drift from what was on screen.
+
+**M7 conversations on SQLite (r44):** the schema above, minus `ProviderProfile`
+and `AstNodeIndex`, is created by `SqlConversationStore` through a three-method
+`SqlDb` seam (`exec`/`query`/`update`). A user turn is stored as one `'user'`
+message (the goal) followed by one `'event'` message per raw run line — the
+parsed columns (`toolName`, `ok`, …) stay unused until something needs to query
+them, because replay goes through the parser, not the table. The app binds the
+seam to the system SQLite via `SQLiteOpenHelper`; host tests bind it to
+`org.xerial:sqlite-jdbc` so the shipped SQL runs on a real engine. SQLDelight
+was dropped: its Gradle plugin is an extra codegen step against AGP 9.4's
+KMP-library plugin for two small tables, and `androidx.sqlite`'s bundled driver
+resolves to Android `.so` files that cannot load in a host JVM test. The r43
+file store is imported once on first load and then deleted. Kanban and journal
+migration remain open in M7.
 
 ---
 

@@ -247,7 +247,7 @@ jobs:
                   sleep $RETRY_DELAY
                 fi
               done
-              echo "  $MODEL exhausted, trying next..." >&2
+              echo "  $MODEL gave no usable answer; trying the next model." >&2
             done
             return 1
           }
@@ -334,6 +334,18 @@ jobs:
               cat /tmp/review.diff >> "$PROMPT_FILE"
             fi
 
+            # A free model that starts touring the repo stalls past the 180s
+            # attempt timeout (PR #219: three models, zero output). State the
+            # budget so it spends the turn reviewing instead of exploring, and
+            # repeat it after the diff — recency is what small models follow.
+            printf '%s\n' \
+              '' \
+              'BUDGET: one answer, about three minutes, and the diff is complete.' \
+              'Do not explore the repository. Read a file only when a finding cannot be judged' \
+              'from the diff alone, and then at most two; never open a file to restate code.' \
+              'Never skip a real correctness bug; skip speculative and style findings instead.' \
+              'The whole review must fit in a single reply.' >> "$PROMPT_FILE"
+
             if review_round "$PROMPT_FILE" "$ROUND"; then
               ROUND_REVIEW=$(cat "/tmp/round-review-${ROUND}.md")
               REVIEW_RAN=1
@@ -343,6 +355,14 @@ jobs:
             rm -f "$PROMPT_FILE" "/tmp/round-review-${ROUND}.md"
 
             if [ -z "$ROUND_REVIEW" ]; then
+              # A round that ran out of model budget (timeout, deadline) must
+              # not throw away the rounds already paid for: report them, say
+              # which round ran out, and end green. Only a last-resort failure
+              # with no earlier findings stays an error.
+              if [ "$REVIEW_RAN" -eq 1 ] && [ "$ROUND" -gt 1 ]; then
+                CONVERGENCE_REASON="round $ROUND ran out of model budget — the findings above come from the earlier rounds"
+                echo "::warning::Round $ROUND ran out of model budget; using the previous rounds' findings." >&2
+              fi
               break
             fi
 
@@ -383,7 +403,9 @@ jobs:
           done
 
           if [ "${REVIEW_RAN:-0}" -eq 0 ]; then
-            echo "::error::All review models failed — review did not run. Not treating as clean."
+            # Timeouts mean the free models ran out of budget, not that the diff
+            # is bad; either way no review ran, so this stays an error.
+            echo "::error::No review model produced an answer (budget/timeout or error) — review did not run. Not treating as clean."
             # Marker file, not body text: downstream steps key off this file so a
             # review body that quotes this workflow can never trigger the guard.
             # /tmp/review.md is deliberately left unwritten (rm defends against
